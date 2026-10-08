@@ -30,9 +30,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      {/* Top of the screen on phones (clear of the action bar), bottom on larger screens. */}
+      {/* Top of the screen on phones (clear of the action bar), bottom on larger screens. A grid with
+          one cell, so a toast fading out sits under the next one instead of pushing it aside. */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-safe md:top-auto md:bottom-0 md:pt-0 md:pb-safe"
+        className="pointer-events-none fixed inset-x-0 top-0 z-50 grid justify-items-center px-4 pt-safe md:top-auto md:bottom-0 md:pt-0 md:pb-safe"
         aria-live="polite"
       >
         <AnimatePresence>
@@ -42,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="pointer-events-auto my-2 flex max-w-md items-center gap-4 rounded-2xl bg-raised py-3 pr-3 pl-4 text-sm shadow-2xl shadow-black/50 ring-1 ring-line"
+              className="pointer-events-auto col-start-1 row-start-1 my-2 flex max-w-md items-center gap-4 rounded-2xl bg-raised py-3 pr-3 pl-4 text-sm shadow-2xl shadow-black/50 ring-1 ring-line"
             >
               <span className="text-fg">{toast.message}</span>
               {toast.action && (
