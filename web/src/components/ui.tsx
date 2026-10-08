@@ -1,3 +1,4 @@
+import type { BlobatarOptions } from 'blobatar';
 import { blobatarUri } from 'blobatar/uri';
 import clsx from 'clsx';
 import { LoaderCircle } from 'lucide-react';
@@ -81,6 +82,15 @@ export function Img({
   );
 }
 
+/**
+ * A square plate, since Avatar already clips it round and a circle inside the clip leaves a halo. One tone and
+ * four friendly shapes for everyone; the name still picks the hue, the shape among those four and the rest.
+ */
+const BLOBATAR_OPTIONS: BlobatarOptions = {
+  background: 'square',
+  traits: { shape: [0.11, 0.35, 0.54, 0.933], tone: 0.71 },
+};
+
 export function Avatar({ name, src, className }: { name: string; src: string | null; className?: string }) {
   const [failed, setFailed] = useState(false);
   return (
@@ -88,9 +98,8 @@ export function Avatar({ name, src, className }: { name: string; src: string | n
       {src && !failed ? (
         <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        // No photo: a blobatar seeded by the name, the same creature on every device. A square plate,
-        // since this span already clips it round and a circle inside the clip leaves a halo.
-        <img src={blobatarUri(name, { background: 'square' })} alt="" aria-hidden className="size-full" />
+        // No photo: a blobatar seeded by the name, the same creature on every device.
+        <img src={blobatarUri(name, BLOBATAR_OPTIONS)} alt="" aria-hidden className="size-full" />
       )}
     </span>
   );
