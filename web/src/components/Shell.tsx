@@ -27,7 +27,7 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
           wide ? 'max-w-6xl' : 'max-w-3xl',
         )}
       >
-        <Link to="/" aria-label="Curatorr home" className="rounded-lg">
+        <Link to="/" aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
           <Wordmark />
         </Link>
         {!bare && (

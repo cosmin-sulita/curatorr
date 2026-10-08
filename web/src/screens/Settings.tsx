@@ -55,7 +55,7 @@ export function SettingsScreen() {
             {status?.demo && ', demo mode'}
             {' · '}
             <button
-              className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
+              className="inline-flex h-11 items-center px-1 align-middle font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
               onClick={() => setShowNews(true)}
             >
               What's new
