@@ -84,13 +84,23 @@ export async function linkProfile(store: Store, row: ProfileRow, pin?: string) {
   return store.profileRow(row.id)!;
 }
 
+/** Syncs under way per profile, so status refetches and a profile pick share one Plex fetch. */
+const syncing = new Map<number, Promise<void>>();
+
 /** Refreshes a profile's Plex watch history and Watchlist if they are stale. */
 export async function syncPlexState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
   if (!store.plexConfigured() || !row.server_token) return;
   if (!force && row.watched_synced_at && Date.now() - row.watched_synced_at < WATCHED_TTL_MS) return;
-  // Separate failures: e.g. managed users may not have a Watchlist, which must not
-  // stop their watch history from syncing.
-  await Promise.all([syncWatched(store, row, log), syncWatchlist(store, row, log)]);
+  let sync = syncing.get(row.id);
+  if (!sync) {
+    // Separate failures: e.g. managed users may not have a Watchlist, which must not
+    // stop their watch history from syncing.
+    sync = Promise.all([syncWatched(store, row, log), syncWatchlist(store, row, log)])
+      .then(() => undefined)
+      .finally(() => syncing.delete(row.id));
+    syncing.set(row.id, sync);
+  }
+  await sync;
 }
 
 async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogger) {

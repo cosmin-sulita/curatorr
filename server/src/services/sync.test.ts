@@ -65,6 +65,7 @@ const plexMetadata: Record<string, object> = {
   '103': { ratingKey: '103', title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748?lang=en' },
 };
 const metadataLookups: string[] = [];
+let libraryFetches = 0;
 
 const SEERR_KEY = 'seerr-key';
 const OWNER_PLEX_ID = 5001;
@@ -124,6 +125,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
       if (url.pathname === '/library/sections/1/all') {
         const token = req.headers['x-plex-token'] as string | undefined;
         if (token !== OWNER_TOKEN && token !== MEMBER_TOKEN) return json(401, {});
+        libraryFetches++;
         return json(200, { MediaContainer: { Metadata: plexItems(token) } });
       }
       if (url.pathname.startsWith('/api/v1/')) {
@@ -204,6 +206,20 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
     expect([...store.watchedIds(owner.id)]).toEqual([2]);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
+  });
+
+  it('shares one Plex fetch between overlapping syncs, then waits until the history is stale', async () => {
+    const id = store.createLocalProfile('Overlap', false);
+    store.setProfileTokens(id, MEMBER_TOKEN, MEMBER_TOKEN);
+    const row = store.profileRow(id)!;
+    const before = libraryFetches;
+
+    await Promise.all([syncPlexState(store, row, silent), syncPlexState(store, row, silent)]);
+    expect(libraryFetches - before).toBe(1);
+    expect([...store.watchedIds(id)]).toEqual([1]);
+
+    await syncPlexState(store, store.profileRow(id)!, silent);
+    expect(libraryFetches - before).toBe(1);
   });
 
   it('fills settings added by newer versions into settings saved by older ones', () => {

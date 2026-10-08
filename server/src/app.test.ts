@@ -8,11 +8,12 @@ import { buildApp } from './app.js';
 describe('API (demo data)', () => {
   let dir: string;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
+  let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
   let cookie = '';
 
   beforeAll(async () => {
     dir = mkdtempSync(path.join(tmpdir(), 'curatorr-test-'));
-    ({ app } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, ctx } = await buildApp({ configDir: dir, demo: true, logger: false }));
   });
 
   afterAll(async () => {
@@ -209,6 +210,29 @@ describe('API (demo data)', () => {
       expect(off.reasons.some((r) => r.kind === 'requested')).toBe(false);
     } finally {
       await setBoost(true);
+    }
+  });
+
+  it('drops the request label once the movie is watched', async () => {
+    const { store } = ctx;
+    const alex = await cookieFor('Alex');
+    const alexId = store.profileRows().find((p) => p.name === 'Alex')!.id;
+    const dune = store.movies().find((m) => m.title === 'Dune: Part Two')!;
+    const history = store.watchHistory(alexId);
+    const setIncludeWatched = (includeWatched: boolean) =>
+      app.inject({ method: 'PUT', url: '/api/settings/app', headers: { cookie: alex }, payload: { includeWatched } });
+
+    // Watched in Plex, and still offered because watched movies are included.
+    await setIncludeWatched(true);
+    store.addWatched(alexId, dune.id);
+    try {
+      const picks = (await picksFor(alex, 'genre=Science%20Fiction&theme=space')).picks;
+      const pick = picks.find((p) => p.movie.id === dune.id);
+      expect(pick).toBeDefined();
+      expect(pick!.reasons.some((r) => r.kind === 'requested')).toBe(false);
+    } finally {
+      store.replaceWatched(alexId, history, Date.now());
+      await setIncludeWatched(false);
     }
   });
 
