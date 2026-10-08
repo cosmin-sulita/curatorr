@@ -317,7 +317,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
             <h2 id="more-picks" className="font-display text-3xl">
               Other good picks
             </h2>
-            <ul className="no-scrollbar -mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
+            {/* Scroll padding lines the first poster up with the heading; pt-1.5 leaves room for the focus ring. */}
+            <ul className="no-scrollbar -mx-4 mt-2.5 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-1.5 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6">
               {rest.map((p) => (
                 <li key={p.movie.id} className="w-28 shrink-0 snap-start sm:w-36">
                   <button onClick={() => bringForward(p)} className="group w-full text-left">
