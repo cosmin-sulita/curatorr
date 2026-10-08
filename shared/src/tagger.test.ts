@@ -112,6 +112,11 @@ describe('tagMoods', () => {
     const comedy = { ...base, genres: ['Comedy'] };
     expect(tagMoods({ ...comedy, runtime: 165 })).not.toHaveProperty('light');
   });
+
+  it('finds emotional dramas, but not in horror', () => {
+    expect(tagMoods({ ...base, genres: ['Drama'], keywords: ['sadness'] })).toHaveProperty('moving');
+    expect(tagMoods({ ...base, genres: ['Drama', 'Horror'], keywords: ['sadness'] })).not.toHaveProperty('moving');
+  });
 });
 
 describe('explainTags', () => {

@@ -406,6 +406,17 @@ export const MOODS: MoodDef[] = [
     runtimeBonus: [{ min: 150, bonus: 1.5 }, { min: 135, bonus: 1 }, { min: 120, bonus: 0.5 }],
     threshold: 2.5,
   },
+  {
+    id: 'moving', label: 'Moving', description: 'Heartfelt, emotional, tissues ready', icon: 'HeartCrack',
+    genres: { Drama: 1, Romance: 0.5 },
+    strong: ['tearjerker', 'heartbreaking', 'heart-wrenching', 'bittersweet', 'poignant', 'touching', 'sad', 'sadness', 'tears', 'melodrama', 'romantic drama', 'tragic love', 'unrequited love', 'emotional journey', 'emotional healing', 'coping with grief', 'death in family', 'death of spouse', 'death of husband', 'death of wife', 'widow', 'widower', 'terminal illness', "alzheimer's disease", "parkinson's disease", 'tragedy drama', 'poetic', 'slice of life'],
+    weak: ['dramatic', 'compassionate', 'sympathetic', 'sentimental', 'wistful', 'melancholy', 'melodramatic', 'introspective', 'thoughtful', 'reflective', 'reminiscent', 'memories', 'loving', 'emotional bonding', 'human connection', 'grief', 'grieving', 'loss of loved one', 'death of a loved one', 'dying', 'dementia', 'cancer', 'trauma', 'loneliness', 'regret', 'legacy'],
+    negative: ['slapstick', 'parody', 'spoof'],
+    negativeGenres: { Comedy: 1, Action: 1, Thriller: 1 },
+    excludeGenres: ['Horror'],
+    exclude: ['dying and death'],
+    threshold: 2.5,
+  },
 ];
 
 export interface TimeOption {

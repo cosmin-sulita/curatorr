@@ -24,6 +24,7 @@ import {
   Glasses,
   GraduationCap,
   Heart,
+  HeartCrack,
   HeartPulse,
   Hourglass,
   HouseHeart,
@@ -65,7 +66,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   Anchor, BookOpen, Biohazard, Bot, Brain, Briefcase, Bug, Camera, Car, Castle, Clock, CloudMoon, Compass,
-  Crosshair, Crown, Drama, Eye, Fingerprint, Flame, Gavel, Gem, Ghost, Glasses, GraduationCap, Heart,
+  Crosshair, Crown, Drama, Eye, Fingerprint, Flame, Gavel, Gem, Ghost, Glasses, GraduationCap, Heart, HeartCrack,
   HeartPulse, Hourglass, HouseHeart, Infinity: InfinityIcon, Landmark, Library, Laugh, LockKeyhole, Map, Moon,
   Mountain, Music, Newspaper, Orbit, Palette, PawPrint, Pill, Radiation, Rocket, Search, Shield, Siren, Skull, Smile,
   Sparkles, Sunset, Swords, Timer, Tornado, TreePine, Trophy, Tv, Users, Video, WandSparkles, Zap,

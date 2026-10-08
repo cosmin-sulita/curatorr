@@ -60,14 +60,14 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     title: 'The Notebook', genres: ['Romance', 'Drama'], runtime: 123, overview: '',
     keywords: ['poem', 'soulmates', 'based on novel or book', 'river', 'sadness', 'fight', "love of one's life",
       'dementia', 'class', 'secret love', 'tears', 'candle', 'mailbox', "valentine's day", 'romantic'],
-    themes: ['romance'], notMoods: ['light'],
+    themes: ['romance'], moods: ['moving'], notMoods: ['light'],
   },
   {
     title: 'Kramer vs. Kramer', genres: ['Drama'], runtime: 105, overview: '',
     keywords: ['husband wife relationship', 'custody battle', 'marriage', 'divorce', 'family', 'couple',
       'selfishness', 'manhattan, new york city', 'child custody', 'abandonment', 'dramatic',
       'parents separating', 'compassionate'],
-    themes: ['family'], notThemes: ['war', 'romance'],
+    themes: ['family'], notThemes: ['war', 'romance'], moods: ['moving'],
   },
   {
     title: 'Another Round', genres: ['Drama'], runtime: 117, overview: '',
@@ -189,7 +189,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'expatriate life', 'hopeful', 'human connection', 'inner conflict', 'longing for belonging',
       'professional actor', 'rental family', 'search for identity', 'self-discovery', 'social isolation',
       'surrogate roles', 'tokyo, japan'],
-    moods: ['feel-good'], notMoods: ['dark'],
+    moods: ['feel-good', 'moving'], notMoods: ['dark'],
   },
   {
     title: 'Twisters', genres: ['Action', 'Thriller'], runtime: 123, overview: '',
@@ -234,6 +234,12 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     keywords: ['1920s', 'alaska', 'based on true story', 'dog', 'historical', 'husky', 'pets', 'puppy',
       'sled dogs', 'snow', 'snowstorm'],
     themes: ['animals', 'true-story'],
+  },
+  {
+    title: 'Train Dreams', genres: ['Drama'], runtime: 102, overview: '',
+    keywords: ['1900s', 'based on novel or book', 'husband wife relationship', 'logger', 'lumberjack',
+      'pacific northwest', 'poetic', 'railroad worker', 'slice of life'],
+    moods: ['moving'],
   },
   {
     title: 'Gone Girl', genres: ['Mystery', 'Thriller', 'Drama'], runtime: 149, overview: '',
@@ -291,7 +297,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'based on novel or book', 'candid', 'critical', 'defiant', 'domestic abuse', 'domestic violence',
       'flashback', 'florist', 'love', 'love triangle', 'macabre', 'repressed trauma', 'romantic drama',
       'satirical', 'trauma', 'vibrant'],
-    themes: ['romance'], notMoods: ['feel-good', 'light'],
+    themes: ['romance'], moods: ['moving'], notMoods: ['feel-good', 'light'],
   },
   {
     title: 'Power Ballad', genres: ['Comedy', 'Music', 'Drama'], runtime: 99, overview: '',
@@ -382,7 +388,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'friendship', 'high technology', 'human android relationship', 'intense', 'isolated house', 'isolation',
       'laboratory', 'lockdown', 'man vs machine', 'manipulation', 'norway', 'power outage', 'rich', 'robot',
       'surveillance', 'surveillance camera', 'tech company', 'technology', 'treason', 'wealthy man'],
-    themes: ['ai-robots'], notThemes: ['music'], moods: ['mind-bending'],
+    themes: ['ai-robots'], notThemes: ['music'], moods: ['mind-bending'], notMoods: ['moving'],
   },
   {
     title: 'The Martian', genres: ['Science Fiction', 'Drama', 'Adventure'], runtime: 141, overview: '',
