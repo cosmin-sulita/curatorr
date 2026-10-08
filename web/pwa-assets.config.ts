@@ -1,11 +1,13 @@
 import { defineConfig, minimal2023Preset } from '@vite-pwa/assets-generator/config';
 
-// Regenerate the committed icons with `npm run icons` after changing public/logo.svg.
+// Regenerate the committed icons with `npm run icons` after changing public/logo.svg or public/app-icon.svg.
+// The rounded logo.svg gives the favicon and the plain manifest icons; the home screen icons come from
+// pwa-assets.app.config.ts.
 export default defineConfig({
   preset: {
     ...minimal2023Preset,
-    maskable: { ...minimal2023Preset.maskable, padding: 0.25, resizeOptions: { background: '#0c0f1e' } },
-    apple: { ...minimal2023Preset.apple, padding: 0.2, resizeOptions: { background: '#0c0f1e' } },
+    maskable: { sizes: [] },
+    apple: { sizes: [] },
   },
   images: ['public/logo.svg'],
 });
