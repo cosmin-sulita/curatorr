@@ -1,0 +1,126 @@
+import { tagMovie } from '@curatorr/shared';
+import { normalizeBaseUrl, request, requestJson } from '../http.js';
+import type { StoredMovie } from '../store.js';
+
+interface RadarrRating {
+  value?: number;
+  votes?: number;
+}
+
+interface RadarrImage {
+  coverType: string;
+  url?: string;
+  remoteUrl?: string;
+}
+
+/** The subset of Radarr's /api/v3/movie resource that Curatorr uses. */
+export interface RadarrMovie {
+  id: number;
+  title: string;
+  year?: number;
+  overview?: string;
+  runtime?: number;
+  certification?: string;
+  genres?: string[];
+  keywords?: string[];
+  tmdbId?: number;
+  imdbId?: string;
+  hasFile?: boolean;
+  added?: string;
+  youTubeTrailerId?: string;
+  images?: RadarrImage[];
+  ratings?: {
+    imdb?: RadarrRating;
+    tmdb?: RadarrRating;
+    metacritic?: RadarrRating;
+    rottenTomatoes?: RadarrRating;
+  };
+}
+
+const SERVICE = 'Radarr';
+
+export class RadarrClient {
+  readonly baseUrl: string;
+
+  constructor(
+    url: string,
+    private readonly apiKey: string,
+  ) {
+    this.baseUrl = normalizeBaseUrl(url);
+  }
+
+  private headers() {
+    return { 'X-Api-Key': this.apiKey, Accept: 'application/json' };
+  }
+
+  status() {
+    return requestJson<{ version: string; appName?: string; instanceName?: string }>(
+      SERVICE,
+      `${this.baseUrl}/api/v3/system/status`,
+      { headers: this.headers(), timeoutMs: 8_000 },
+    );
+  }
+
+  movies() {
+    return requestJson<RadarrMovie[]>(SERVICE, `${this.baseUrl}/api/v3/movie`, {
+      headers: this.headers(),
+      timeoutMs: 120_000,
+    });
+  }
+
+  /** Fetches a MediaCover image. `path` is the `url` Radarr reports, e.g. /MediaCover/12/poster.jpg. */
+  image(path: string) {
+    return request(SERVICE, new URL(path, `${this.baseUrl}/`).toString(), { headers: { 'X-Api-Key': this.apiKey } });
+  }
+}
+
+/** Swaps TMDB's /original/ size for a smaller rendition. */
+export function tmdbSized(url: string | undefined, size: string): string | null {
+  if (!url) return null;
+  return url.replace(/\/t\/p\/original\//, `/t/p/${size}/`);
+}
+
+function rating(r: RadarrRating | undefined): number | null {
+  return r?.value && r.value > 0 ? r.value : null;
+}
+
+/** Maps a Radarr movie to Curatorr's shape, including derived theme/mood tags. */
+export function fromRadarr(r: RadarrMovie): StoredMovie {
+  const poster = r.images?.find((i) => i.coverType === 'poster');
+  const fanart = r.images?.find((i) => i.coverType === 'fanart');
+  const genres = r.genres ?? [];
+  const keywords = (r.keywords ?? []).map((k) => k.toLowerCase());
+  const overview = r.overview ?? '';
+  const runtime = r.runtime && r.runtime > 0 ? r.runtime : null;
+
+  const posterProxy = poster?.url ? `/api/image/${r.id}/poster` : null;
+  const fanartProxy = fanart?.url ? `/api/image/${r.id}/fanart` : null;
+
+  return {
+    id: r.id,
+    tmdbId: r.tmdbId ?? null,
+    imdbId: r.imdbId || null,
+    title: r.title,
+    year: r.year || null,
+    overview,
+    runtime,
+    certification: r.certification?.trim() || null,
+    genres,
+    keywords,
+    ...tagMovie({ genres, keywords, overview, runtime }),
+    ratings: {
+      rt: rating(r.ratings?.rottenTomatoes),
+      rtVotes: r.ratings?.rottenTomatoes?.votes || null,
+      imdb: rating(r.ratings?.imdb),
+      tmdb: rating(r.ratings?.tmdb),
+      metacritic: rating(r.ratings?.metacritic),
+    },
+    posterUrl: tmdbSized(poster?.remoteUrl, 'w500') ?? posterProxy,
+    fanartUrl: tmdbSized(fanart?.remoteUrl, 'w1280') ?? fanartProxy,
+    posterPath: poster?.url ?? null,
+    fanartPath: fanart?.url ?? null,
+    trailerId: r.youTubeTrailerId || null,
+    plexRatingKey: null,
+    addedAt: r.added ?? null,
+  };
+}

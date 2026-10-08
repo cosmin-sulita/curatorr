@@ -1,0 +1,153 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  AppStatus,
+  Criteria,
+  FeedbackKind,
+  MovieDTO,
+  Profile,
+  RecommendationsResponse,
+  WizardOptionsResponse,
+  WizardStep,
+} from '@curatorr/shared';
+import { withQuery } from './router';
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly data: Record<string, unknown> = {},
+  ) {
+    super(message);
+  }
+}
+
+/** True when the server could not be reached at all (offline, container down). */
+export const isNetworkError = (err: unknown) => err instanceof TypeError;
+
+export async function api<T>(path: string, init: { method?: string; json?: unknown } = {}): Promise<T> {
+  const res = await fetch(path, {
+    method: init.method ?? (init.json !== undefined ? 'POST' : 'GET'),
+    credentials: 'same-origin',
+    headers: init.json !== undefined ? { 'content-type': 'application/json' } : undefined,
+    body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ApiError(res.status, String(data.error ?? res.statusText), data);
+  return data as T;
+}
+
+export const errorMessage = (err: unknown) =>
+  isNetworkError(err) ? "Can't reach Curatorr. Check your connection." : err instanceof Error ? err.message : String(err);
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
+
+export function useStatus() {
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: () => api<AppStatus>('/api/status'),
+    refetchInterval: (q) => (q.state.data?.library.syncing ? 2_000 : false),
+    refetchOnWindowFocus: true,
+    // Many components read the status; refetching on each mount would also bounce the
+    // "can't reach Curatorr" screen back to the splash in a loop while offline.
+    refetchOnMount: false,
+    retryOnMount: false,
+  });
+}
+
+export function useProfiles() {
+  return useQuery({ queryKey: ['profiles'], queryFn: () => api<Profile[]>('/api/profiles') });
+}
+
+const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time });
+
+export function useWizardOptions(step: WizardStep, criteria: Criteria) {
+  return useQuery({
+    queryKey: ['wizard', step, criteria],
+    queryFn: () => api<WizardOptionsResponse>(withQuery(`/api/wizard/${step}`, criteriaParams(criteria))),
+    staleTime: 60_000,
+  });
+}
+
+export function useRecommendations(criteria: Criteria) {
+  return useQuery({
+    queryKey: ['recommendations', criteria],
+    queryFn: () => api<RecommendationsResponse>(withQuery('/api/recommendations', criteriaParams(criteria))),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function sendFeedback(movieId: number, kind: FeedbackKind) {
+  return api<{ id: number }>('/api/feedback', { json: { movieId, kind } });
+}
+
+export function undoFeedback(id: number) {
+  return api('/api/feedback/' + id, { method: 'DELETE' });
+}
+
+export interface HiddenMovie {
+  id: number;
+  kind: 'seen' | 'never';
+  createdAt: number;
+  movie: MovieDTO;
+}
+
+export function useHidden() {
+  return useQuery({ queryKey: ['hidden'], queryFn: () => api<HiddenMovie[]>('/api/hidden') });
+}
+
+export function useSelectProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, pin }: { id: number; pin?: string }) =>
+      api<Profile>(`/api/profiles/${id}/select`, { json: pin ? { pin } : {} }),
+    onSuccess: () => {
+      // Everything below depends on who is watching.
+      qc.removeQueries({ queryKey: ['wizard'] });
+      qc.removeQueries({ queryKey: ['recommendations'] });
+      qc.removeQueries({ queryKey: ['hidden'] });
+      return qc.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+export interface SettingsResponse {
+  radarr: { url: string; hasApiKey: boolean } | null;
+  plex: {
+    signedIn: boolean;
+    ownerName: string | null;
+    serverName: string | null;
+    serverUrl: string | null;
+    machineId: string | null;
+    sectionIds: string[];
+  };
+  app: { includeWatched: boolean; syncIntervalHours: number };
+  sync: { at: number | null; movies: number; matchedInPlex: number; error: string | null; syncing: boolean };
+  profiles: (Profile & { hidden: boolean; plexUser: boolean })[];
+}
+
+export function useSettings(enabled: boolean) {
+  return useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api<SettingsResponse>('/api/settings'),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.sync.syncing ? 2_000 : false),
+  });
+}
+
+export interface PlexServerOption {
+  name: string;
+  machineId: string;
+  connections: { url: string; local: boolean; relay: boolean; ok: boolean; ms: number | null }[];
+}
+
+export interface PlexLibrary {
+  key: string;
+  title: string;
+}

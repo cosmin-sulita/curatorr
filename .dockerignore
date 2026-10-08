@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/dev-dist
+config
+.git
+.github
+*.log
+*.db
+coverage

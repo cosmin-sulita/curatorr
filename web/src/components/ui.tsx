@@ -1,0 +1,127 @@
+import clsx from 'clsx';
+import { LoaderCircle } from 'lucide-react';
+import { useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+
+export function Button({
+  variant = 'secondary',
+  size = 'md',
+  loading,
+  className,
+  children,
+  disabled,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; loading?: boolean }) {
+  return (
+    <button
+      {...rest}
+      disabled={disabled || loading}
+      className={clsx(
+        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none',
+        'disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]',
+        size === 'sm' && 'h-9 px-3 text-sm',
+        size === 'md' && 'h-11 px-4 text-[15px]',
+        size === 'lg' && 'h-14 px-6 text-base',
+        variant === 'primary' && 'bg-accent-gradient text-white shadow-lg shadow-accent/25 hover:brightness-110',
+        variant === 'secondary' && 'bg-raised text-fg ring-1 ring-line hover:bg-[#2a3150]',
+        variant === 'ghost' && 'text-muted hover:bg-white/5 hover:text-fg',
+        variant === 'danger' && 'bg-red-500/10 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20',
+        className,
+      )}
+    >
+      {loading && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
+      {children}
+    </button>
+  );
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return <LoaderCircle className={clsx('animate-spin text-muted', className ?? 'size-6')} aria-label="Loading" />;
+}
+
+/** An image that fades in when loaded and degrades to a tinted block when missing. */
+export function Img({
+  src,
+  className,
+  alt = '',
+  ...rest
+}: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <div className={clsx('bg-raised', className)} aria-hidden />;
+  return (
+    <img
+      {...rest}
+      src={src}
+      alt={alt}
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      className={clsx('bg-raised transition-opacity duration-500', loaded ? 'opacity-100' : 'opacity-0', className)}
+    />
+  );
+}
+
+export function Avatar({ name, src, className }: { name: string; src: string | null; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <span className={clsx('relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full', className)}>
+      {src && !failed ? (
+        <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <span className="grid size-full place-items-center bg-accent-gradient font-bold text-white">{initials}</span>
+      )}
+    </span>
+  );
+}
+
+export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-fg">{label}</span>
+      {children}
+      {hint && <span className="mt-1.5 block text-xs text-faint">{hint}</span>}
+    </label>
+  );
+}
+
+export const inputClass =
+  'h-11 w-full rounded-xl bg-ink px-3.5 text-[15px] text-fg ring-1 ring-line placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent';
+
+export function Notice({ tone = 'error', children }: { tone?: 'error' | 'info'; children: ReactNode }) {
+  return (
+    <p
+      role={tone === 'error' ? 'alert' : 'status'}
+      className={clsx(
+        'rounded-xl px-3.5 py-2.5 text-sm',
+        tone === 'error' ? 'bg-red-500/10 text-red-300 ring-1 ring-red-500/25' : 'bg-accent/10 text-indigo-200 ring-1 ring-accent/25',
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={clsx('relative h-7 w-12 shrink-0 rounded-full transition', checked ? 'bg-accent-gradient' : 'bg-raised ring-1 ring-line')}
+    >
+      <span
+        className={clsx('absolute top-1 size-5 rounded-full bg-white shadow transition-all', checked ? 'left-6' : 'left-1')}
+      />
+    </button>
+  );
+}

@@ -1,0 +1,76 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #0c0f1e;
+  --color-surface: #151a30;
+  --color-raised: #20263f;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-fg: #eceef8;
+  --color-muted: #98a0c0;
+  --color-faint: #6b7290;
+  --color-accent: #6366f1;
+  --color-accent-2: #a855f7;
+  --color-fresh: #fa320a;
+  --color-rotten: #3bb33b;
+  --color-imdb: #f5c518;
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-stretch: 100%;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent-2);
+    outline-offset: 3px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+@utility font-display {
+  /* Archivo's condensed heavy cut: the poster / marquee voice for titles and questions. */
+  font-stretch: 68%;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
+}
+
+@utility font-narrow {
+  font-stretch: 85%;
+}
+
+@utility bg-accent-gradient {
+  background-image: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+}
+
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.75rem);
+}
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

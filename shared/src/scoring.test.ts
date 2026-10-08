@@ -1,0 +1,208 @@
+import { describe, expect, it } from 'vitest';
+import {
+  eligibleMovies,
+  qualityScore,
+  rankMovies,
+  wizardOptions,
+  type ProfileContext,
+} from './scoring.js';
+import type { FeedbackEvent, Movie, Ratings } from './types.js';
+
+const noRatings: Ratings = { rt: null, rtVotes: null, imdb: null, tmdb: null, metacritic: null };
+
+let nextId = 1;
+function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {
+  const id = partial.id ?? nextId++;
+  return {
+    id,
+    tmdbId: id,
+    imdbId: null,
+    title: `Movie ${id}`,
+    year: 2000,
+    overview: '',
+    runtime: 110,
+    certification: 'PG-13',
+    genres: ['Action'],
+    keywords: [],
+    themes: {},
+    moods: {},
+    posterUrl: `poster-${id}`,
+    fanartUrl: `fanart-${id}`,
+    trailerId: null,
+    plexRatingKey: String(id),
+    addedAt: null,
+    ...partial,
+    ratings: { ...noRatings, ...partial.ratings },
+  };
+}
+
+const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
+  watched: new Set(),
+  feedback: [],
+  allowedCerts: null,
+  requirePlex: true,
+  includeWatched: false,
+  ...over,
+});
+
+const NOW = Date.parse('2026-10-08T20:00:00Z');
+const rank = (movies: Movie[], c = {}, feedback: FeedbackEvent[] = []) =>
+  rankMovies(movies, c, feedback, { now: NOW, seed: 'test' });
+
+describe('qualityScore', () => {
+  it('prefers Rotten Tomatoes', () => {
+    expect(qualityScore({ ...noRatings, rt: 91, imdb: 6 })).toEqual({ value: 91, source: 'rt' });
+  });
+
+  it('falls back to IMDb, then TMDB, with a penalty', () => {
+    expect(qualityScore({ ...noRatings, imdb: 8 })).toEqual({ value: 75, source: 'imdb' });
+    expect(qualityScore({ ...noRatings, tmdb: 8 })).toEqual({ value: 72, source: 'tmdb' });
+    expect(qualityScore(noRatings)).toEqual({ value: 50, source: 'none' });
+  });
+
+  it('shrinks RT scores with very few reviews', () => {
+    expect(qualityScore({ ...noRatings, rt: 100, rtVotes: 5 }).value).toBeLessThan(80);
+  });
+});
+
+describe('eligibleMovies', () => {
+  it('drops watched, seen, never and unmatched-in-Plex movies', () => {
+    const [a, b, c, d, e] = [movie(), movie(), movie(), movie({ plexRatingKey: null }), movie()];
+    const feedback: FeedbackEvent[] = [
+      { movieId: b!.id, kind: 'seen', createdAt: NOW },
+      { movieId: c!.id, kind: 'never', createdAt: NOW },
+      { movieId: e!.id, kind: 'skipped', createdAt: NOW },
+    ];
+    const out = eligibleMovies([a!, b!, c!, d!, e!], ctx({ watched: new Set([a!.id]), feedback }));
+    expect(out.map((m) => m.id)).toEqual([e!.id]);
+  });
+
+  it('can include watched movies', () => {
+    const a = movie();
+    expect(eligibleMovies([a], ctx({ watched: new Set([a.id]), includeWatched: true }))).toHaveLength(1);
+  });
+
+  it('applies certification restrictions', () => {
+    const g = movie({ certification: 'G' });
+    const r = movie({ certification: 'R' });
+    const none = movie({ certification: null });
+    const out = eligibleMovies([g, r, none], ctx({ allowedCerts: new Set(['G', 'PG']) }));
+    expect(out).toEqual([g]);
+  });
+});
+
+describe('rankMovies', () => {
+  it('ranks by Rotten Tomatoes score', () => {
+    const low = movie({ ratings: { rt: 60 } });
+    const high = movie({ ratings: { rt: 95 } });
+    const mid = movie({ ratings: { rt: 80 } });
+    expect(rank([low, high, mid]).map((r) => r.movie.id)).toEqual([high.id, mid.id, low.id]);
+  });
+
+  it('penalises movies skipped recently', () => {
+    const a = movie({ ratings: { rt: 90 } });
+    const b = movie({ ratings: { rt: 84 } });
+    const ranked = rank([a, b], {}, [{ movieId: a.id, kind: 'skipped', createdAt: NOW - 60_000 }]);
+    expect(ranked[0]!.movie.id).toBe(b.id);
+  });
+
+  it('forgets skips after two weeks', () => {
+    const a = movie({ ratings: { rt: 90 } });
+    const b = movie({ ratings: { rt: 84 } });
+    const ranked = rank([a, b], {}, [{ movieId: a.id, kind: 'skipped', createdAt: NOW - 20 * 86_400_000 }]);
+    expect(ranked[0]!.movie.id).toBe(a.id);
+  });
+
+  it('filters by genre and runtime', () => {
+    const action = movie({ genres: ['Action'], runtime: 100 });
+    const longAction = movie({ genres: ['Action'], runtime: 170 });
+    const comedy = movie({ genres: ['Comedy'], runtime: 90 });
+    const ranked = rank([action, longAction, comedy], { genre: 'Action', time: 'quick' });
+    expect(ranked.map((r) => r.movie.id)).toEqual([action.id]);
+  });
+
+  it('puts exact matches first and pads with close matches', () => {
+    const exact = movie({ themes: { heist: 4 }, moods: { light: 3 }, ratings: { rt: 70 } });
+    const themeOnly = movie({ themes: { heist: 4 }, ratings: { rt: 99 } });
+    const neither = movie({ ratings: { rt: 98 } });
+    const ranked = rank([neither, themeOnly, exact], { theme: 'heist', mood: 'light' });
+    expect(ranked.map((r) => [r.movie.id, r.tier])).toEqual([
+      [exact.id, 0],
+      [themeOnly.id, 1],
+      [neither.id, 2],
+    ]);
+  });
+
+  it('returns only exact matches when there are enough', () => {
+    const exact = Array.from({ length: 8 }, () => movie({ themes: { heist: 2 } }));
+    const other = movie({ ratings: { rt: 100 } });
+    const ranked = rank([...exact, other], { theme: 'heist' });
+    expect(ranked).toHaveLength(8);
+    expect(ranked.every((r) => r.tier === 0)).toBe(true);
+  });
+
+  it('explains the pick', () => {
+    const m = movie({ genres: ['Action'], themes: { heist: 2 }, ratings: { rt: 92 } });
+    const labels = rank([m], { genre: 'Action', theme: 'heist' })[0]!.reasons.map((r) => r.label);
+    expect(labels).toEqual(['Action', 'Heists & Cons', '92% on Rotten Tomatoes']);
+  });
+});
+
+describe('wizardOptions', () => {
+  const image = (m: Movie, kind: 'fanart' | 'poster') => (kind === 'fanart' ? m.fanartUrl : m.posterUrl);
+
+  it('only offers genres with enough movies, most popular first', () => {
+    const movies = [
+      ...Array.from({ length: 5 }, () => movie({ genres: ['Comedy'] })),
+      ...Array.from({ length: 3 }, () => movie({ genres: ['Horror'] })),
+      ...Array.from({ length: 2 }, () => movie({ genres: ['Western'] })),
+    ];
+    const res = wizardOptions(movies, 'genre', {}, { image });
+    expect(res.options.map((o) => [o.id, o.count])).toEqual([
+      ['Comedy', 5],
+      ['Horror', 3],
+    ]);
+    expect(res.total).toBe(10);
+  });
+
+  it('features a different movie on each genre card', () => {
+    const shared = movie({ genres: ['Action', 'Adventure'], ratings: { rt: 100 } });
+    const movies = [shared, ...Array.from({ length: 4 }, () => movie({ genres: ['Action', 'Adventure'] }))];
+    const res = wizardOptions(movies, 'genre', {}, { image });
+    const imgs = res.options.map((o) => o.images[0]);
+    expect(new Set(imgs).size).toBe(imgs.length);
+  });
+
+  it('computes themes within the chosen genre', () => {
+    const movies = [
+      ...Array.from({ length: 4 }, () => movie({ genres: ['Horror'], themes: { zombies: 2 } })),
+      ...Array.from({ length: 4 }, () => movie({ genres: ['Comedy'], themes: { heist: 2 } })),
+      ...Array.from({ length: 3 }, () => movie({ genres: ['Horror'], themes: { vampires: 2 } })),
+    ];
+    const res = wizardOptions(movies, 'theme', { genre: 'Horror' }, { image });
+    expect(res.total).toBe(7);
+    expect(res.options.map((o) => o.id)).toEqual(['zombies', 'vampires']);
+    expect(res.skip).toBe(false);
+  });
+
+  it('skips a theme or mood question with only one real answer', () => {
+    const movies = [
+      ...Array.from({ length: 4 }, () => movie({ moods: { edge: 3 } })),
+      ...Array.from({ length: 4 }, () => movie()),
+    ];
+    expect(wizardOptions(movies, 'mood', {}, { image }).skip).toBe(true);
+  });
+
+  it('keeps the time question when one shorter option exists', () => {
+    const movies = [
+      ...Array.from({ length: 4 }, () => movie({ runtime: 95 })),
+      ...Array.from({ length: 4 }, () => movie({ runtime: 150 })),
+    ];
+    expect(wizardOptions(movies, 'time', {}, { image }).skip).toBe(false);
+  });
+
+  it('skips a step that would not narrow anything', () => {
+    const movies = Array.from({ length: 6 }, () => movie({ runtime: 90 }));
+    expect(wizardOptions(movies, 'time', {}, { image }).skip).toBe(true);
+  });
+});
