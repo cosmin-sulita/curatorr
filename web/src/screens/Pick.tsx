@@ -1,7 +1,7 @@
 import type { Pick } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Ban, BookmarkPlus, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
+import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { RatingBadges } from '../components/Ratings';
@@ -17,7 +17,7 @@ import {
   type PlexSyncResult,
 } from '../lib/api';
 import { fallBackIfStillHere, plexLink, runtime, vibrate, type PlexLink } from '../lib/format';
-import { navigate, withQuery } from '../lib/router';
+import { navigate } from '../lib/router';
 import { criteriaFrom } from './Wizard';
 
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
@@ -57,7 +57,7 @@ function rememberSwipe() {
 
 export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);
-  const { data, isLoading, error, refetch } = useRecommendations(criteria);
+  const { data, isLoading, isFetching, error, refetch } = useRecommendations(criteria);
   const { data: status } = useStatus();
   const toast = useToast();
   const qc = useQueryClient();
@@ -150,21 +150,24 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   if (!current) {
     const hadPicks = Boolean(data?.picks.length);
+    // Skips only demote a movie, so a fresh list brings them back, or the next best ones.
+    const lookAgain = () => refetch().then((r) => setQueue(r.data?.picks ?? []));
     return (
       <Shell>
         <CenteredState title={hadPicks ? "That's every match" : 'Nothing fits those answers'}>
           <p className="text-muted">
-            {hadPicks
-              ? 'You passed on all of them. Loosen an answer or start again with a different genre.'
-              : 'Try a different combination of answers.'}
+            {hadPicks ? 'You passed on all of them. Change an answer or look again.' : 'Try a different combination of answers.'}
           </p>
           <div className="mt-2 flex flex-wrap justify-center gap-3">
-            {criteria.genre && criteria.genre !== 'any' && (
-              <Button onClick={() => navigate(withQuery('/ask/theme', { genre: criteria.genre }))}>
-                Keep the genre
+            <Button variant="primary" onClick={() => window.history.back()}>
+              <ChevronLeft className="size-4" /> Change answers
+            </Button>
+            {hadPicks && (
+              <Button onClick={lookAgain} loading={isFetching}>
+                Look again
               </Button>
             )}
-            <Button variant="primary" onClick={() => navigate('/')}>
+            <Button variant="ghost" onClick={() => navigate('/')}>
               <RotateCcw className="size-4" /> Start over
             </Button>
           </div>
