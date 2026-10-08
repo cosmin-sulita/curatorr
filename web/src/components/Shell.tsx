@@ -23,7 +23,8 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
   const updateReady = useUpdateReady();
 
   return (
-    <div className="min-h-dvh">
+    // Nothing may widen the page sideways: phones zoom the whole screen out to fit it.
+    <div className="min-h-dvh overflow-x-clip">
       <header
         className={clsx(
           'relative z-20 mx-auto flex items-center justify-between px-4 pt-safe pb-3 sm:px-6',

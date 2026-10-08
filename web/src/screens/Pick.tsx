@@ -400,8 +400,9 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               ref={rail}
               className="no-scrollbar -mx-4 mt-2.5 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-1.5 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6"
             >
+              {/* relative: the screen-reader text is absolutely positioned, and the rail only clips it inside its card. */}
               {rest.map((p) => (
-                <li key={p.movie.id} className="w-28 shrink-0 snap-start sm:w-36">
+                <li key={p.movie.id} className="relative w-28 shrink-0 snap-start sm:w-36">
                   <button onClick={() => bringForward(p)} className="group w-full text-left">
                     <span className="relative block">
                       <Img
