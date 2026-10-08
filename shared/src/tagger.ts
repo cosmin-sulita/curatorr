@@ -31,11 +31,17 @@ const STRONG = 2;
 const WEAK = 1;
 const GENRE_IMPLIES = 2;
 const OVERVIEW_HIT = 2;
-/** Overview text is only consulted when TMDB keywords are sparse. */
+/** With fewer keywords than this, the overview is read as well. */
 const SPARSE_KEYWORDS = 5;
 const THEME_THRESHOLD = 2;
 
 type TermIndex = Map<string, { id: string; weight: number }[]>;
+
+interface Vocabulary {
+  terms: TermIndex;
+  /** Per tag id: whole keywords that never count toward it. */
+  excluded: Map<string, Set<string>>;
+}
 
 function addTerms(index: TermIndex, id: string, terms: string[] | undefined, weight: number) {
   for (const raw of terms ?? []) {
@@ -46,18 +52,25 @@ function addTerms(index: TermIndex, id: string, terms: string[] | undefined, wei
   }
 }
 
-function buildIndex(defs: (ThemeDef | MoodDef)[]): TermIndex {
-  const index: TermIndex = new Map();
+function buildVocabulary(defs: (ThemeDef | MoodDef)[]): Vocabulary {
+  const terms: TermIndex = new Map();
+  const excluded = new Map<string, Set<string>>();
   for (const def of defs) {
-    addTerms(index, def.id, def.strong, STRONG);
-    addTerms(index, def.id, def.weak, WEAK);
-    addTerms(index, def.id, (def as MoodDef).negative, -STRONG);
+    addTerms(terms, def.id, def.strong, STRONG);
+    addTerms(terms, def.id, def.weak, WEAK);
+    addTerms(terms, def.id, (def as MoodDef).negative, -STRONG);
+    if (def.exclude?.length) excluded.set(def.id, new Set(def.exclude.map((k) => k.toLowerCase())));
   }
-  return index;
+  return { terms, excluded };
 }
 
-const themeIndex = buildIndex(THEMES);
-const moodIndex = buildIndex(MOODS);
+const themeVocabulary = buildVocabulary(THEMES);
+const moodVocabulary = buildVocabulary(MOODS);
+
+/** Lowercase and trimmed. TMDB sometimes writes "human‑animal" with a non-breaking hyphen. */
+function normalizeKeyword(keyword: string) {
+  return keyword.toLowerCase().trim().replace(/[\u2010\u2011]/g, '-');
+}
 
 /**
  * All phrases a keyword can satisfy: the whole keyword plus every run of
@@ -65,7 +78,7 @@ const moodIndex = buildIndex(MOODS);
  * and "zombie apocalypse".
  */
 export function keywordPhrases(keyword: string): Set<string> {
-  const normalized = keyword.toLowerCase().trim();
+  const normalized = normalizeKeyword(keyword);
   const phrases = new Set<string>([normalized]);
   const words = normalized.split(/\s+/).filter(Boolean);
   for (let start = 0; start < words.length; start++) {
@@ -79,7 +92,7 @@ export function keywordPhrases(keyword: string): Set<string> {
 /** Whether any theme or mood term matches the keyword, whole or as a run of its words. */
 export function inVocabulary(keyword: string): boolean {
   for (const phrase of keywordPhrases(keyword)) {
-    if (themeIndex.has(phrase) || moodIndex.has(phrase)) return true;
+    if (themeVocabulary.terms.has(phrase) || moodVocabulary.terms.has(phrase)) return true;
   }
   return false;
 }
@@ -90,18 +103,28 @@ function push(map: Map<string, TagEvidence[]>, id: string, evidence: TagEvidence
   map.set(id, list);
 }
 
-/** Keyword evidence per tag id, counting each (tag, term) pair once. */
-function keywordEvidence(keywords: string[], index: TermIndex): Map<string, TagEvidence[]> {
+/**
+ * Keyword evidence per tag id. Each keyword counts once per tag, through its best term (the
+ * whole keyword wins a tie), and each term counts once per tag. So "based on true story" isn't
+ * also counted as "true story", and "casino" plus "casino owner" count as one.
+ */
+function keywordEvidence(keywords: string[], vocabulary: Vocabulary): Map<string, TagEvidence[]> {
   const out = new Map<string, TagEvidence[]>();
-  const seen = new Set<string>();
-  for (const keyword of keywords) {
+  const used = new Set<string>();
+  for (const raw of keywords) {
+    const keyword = normalizeKeyword(raw);
+    const best = new Map<string, { term: string; weight: number }>();
     for (const phrase of keywordPhrases(keyword)) {
-      for (const hit of index.get(phrase) ?? []) {
-        const key = `${hit.id}|${phrase}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        push(out, hit.id, { source: 'keyword', term: phrase, keyword, weight: hit.weight });
+      for (const hit of vocabulary.terms.get(phrase) ?? []) {
+        if (used.has(`${hit.id}|${phrase}`) || vocabulary.excluded.get(hit.id)?.has(keyword)) continue;
+        const current = best.get(hit.id);
+        if (current && Math.abs(current.weight) >= Math.abs(hit.weight)) continue;
+        best.set(hit.id, { term: phrase, weight: hit.weight });
       }
+    }
+    for (const [id, { term, weight }] of best) {
+      used.add(`${id}|${term}`);
+      push(out, id, { source: 'keyword', term, keyword, weight });
     }
   }
   return out;
@@ -113,27 +136,45 @@ function round(n: number) {
   return Math.round(n * 10) / 10;
 }
 
-function explainThemes(movie: TaggableMovie): TagExplanations {
-  const fromKeywords = keywordEvidence(movie.keywords, themeIndex);
-  const overview = movie.overview.toLowerCase();
-  const sparse = movie.keywords.length < SPARSE_KEYWORDS;
+// Weak terms are often a side detail ("army", "computer"), so they only add to a tag that has
+// stronger evidence: a strong term, an implying genre or the plot for themes; a genre lean, a
+// strong term or the runtime bonus for moods.
+const backsTheme = (e: TagEvidence) => e.source !== 'keyword' || e.weight >= STRONG;
+const backsMood = (e: TagEvidence) => e.weight > 0 && (e.source !== 'keyword' || e.weight >= STRONG);
 
-  const out: TagExplanations = {};
-  for (const theme of THEMES) {
+function themeTagged(theme: ThemeDef, evidence: TagEvidence[]) {
+  return total(evidence) >= (theme.threshold ?? THEME_THRESHOLD) && evidence.some(backsTheme);
+}
+
+function explainThemes(movie: TaggableMovie): TagExplanations {
+  const fromKeywords = keywordEvidence(movie.keywords, themeVocabulary);
+  const scored = THEMES.map((theme) => {
     const evidence = [...(fromKeywords.get(theme.id) ?? [])];
     const genre = theme.genres?.find((g) => movie.genres.includes(g));
     if (genre) evidence.push({ source: 'genre', term: genre, weight: GENRE_IMPLIES });
-    const words = sparse ? theme.overview?.exec(overview) : null;
-    if (words) evidence.push({ source: 'overview', term: words[0], weight: OVERVIEW_HIT });
+    return { theme, evidence };
+  });
+
+  // The plot fills in when keywords are sparse or don't tag anything.
+  const sparse = movie.keywords.length < SPARSE_KEYWORDS;
+  if (sparse || !scored.some(({ theme, evidence }) => themeTagged(theme, evidence))) {
+    const overview = movie.overview.toLowerCase();
+    for (const { theme, evidence } of scored) {
+      const words = theme.overview?.exec(overview);
+      if (words) evidence.push({ source: 'overview', term: words[0], weight: OVERVIEW_HIT });
+    }
+  }
+
+  const out: TagExplanations = {};
+  for (const { theme, evidence } of scored) {
     if (!evidence.length) continue;
-    const score = total(evidence);
-    out[theme.id] = { score: round(score), tagged: score >= THEME_THRESHOLD, evidence };
+    out[theme.id] = { score: round(total(evidence)), tagged: themeTagged(theme, evidence), evidence };
   }
   return out;
 }
 
 function explainMoods(movie: TaggableMovie): TagExplanations {
-  const fromKeywords = keywordEvidence(movie.keywords, moodIndex);
+  const fromKeywords = keywordEvidence(movie.keywords, moodVocabulary);
 
   const out: TagExplanations = {};
   for (const mood of MOODS) {
@@ -148,7 +189,7 @@ function explainMoods(movie: TaggableMovie): TagExplanations {
     if (bonus) evidence.push({ source: 'runtime', term: `${bonus.min}+ min`, weight: bonus.bonus });
     if (!evidence.length) continue;
     const score = total(evidence);
-    out[mood.id] = { score: round(score), tagged: score >= mood.threshold, evidence };
+    out[mood.id] = { score: round(score), tagged: score >= mood.threshold && evidence.some(backsMood), evidence };
   }
   return out;
 }

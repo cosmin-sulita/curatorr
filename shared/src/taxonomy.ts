@@ -3,8 +3,11 @@
  *
  * Terms are matched against TMDB keywords (lowercase) either exactly or as a
  * whole-word phrase inside a longer keyword ("zombie" matches "zombie apocalypse").
- * `strong` terms score 2, `weak` terms score 1. A tag is assigned once its score
- * reaches the definition's threshold.
+ * `strong` terms score 2, `weak` terms score 1. Each keyword counts once per tag, through
+ * its best term, and each term counts once. Weak terms only add to a tag that has stronger
+ * evidence too: a strong term, an implying genre or the plot (for moods, a genre lean, a
+ * strong term or the runtime bonus). A tag is assigned once its score reaches the threshold.
+ * `npm run tags` shows how the vocabulary fits a real library.
  */
 
 export interface GenreDef {
@@ -42,30 +45,37 @@ export interface ThemeDef {
   icon: string;
   strong: string[];
   weak?: string[];
+  /** Whole keywords that never count toward the theme: idioms like "cat and mouse". */
+  exclude?: string[];
   /** Genres that imply the theme on their own. */
   genres?: string[];
-  /** Fallback for movies with few keywords. */
+  /** Fallback for movies with few keywords, or none that tag anything. */
   overview?: RegExp;
+  /** Score needed; 2 (one strong term) by default. Higher where one keyword is often a side detail. */
+  threshold?: number;
 }
 
 export const THEMES: ThemeDef[] = [
   {
     id: 'superheroes', label: 'Superheroes', icon: 'Zap',
-    strong: ['superhero', 'superheroine', 'super power', 'superpowers', 'superhuman', 'marvel cinematic universe (mcu)', 'dc extended universe (dceu)', 'dc universe (dcu)', 'mutant', 'masked vigilante', 'superhero team'],
-    weak: ['based on comic', 'vigilante', 'based on graphic novel'],
+    strong: ['superhero', 'superheroine', 'super power', 'superpowers', 'superhuman', 'marvel cinematic universe (mcu)', 'dc extended universe (dceu)', 'dc universe (dcu)', 'masked vigilante', 'superhero team'],
+    weak: ['based on comic', 'vigilante', 'based on graphic novel', 'mutant', 'supervillain', 'super villain', 'secret identity'],
     overview: /\bsuper-?heroe?s?\b|\bsuper-?powers?\b|\bmutants?\b/,
   },
   {
     id: 'supernatural', label: 'Supernatural', icon: 'Ghost',
-    strong: ['supernatural', 'ghost', 'haunted house', 'haunting', 'demon', 'demonic possession', 'possession', 'exorcism', 'poltergeist', 'paranormal', 'occult', 'evil spirit', 'afterlife', 'séance', 'curse', 'spirit'],
-    weak: ['devil', 'satan', 'witch'],
+    strong: ['supernatural', 'ghost', 'haunted house', 'haunting', 'demon', 'demonic possession', 'possession', 'exorcism', 'poltergeist', 'paranormal', 'occult', 'evil spirit', 'vengeful spirit', 'spirit world', 'afterlife', 'séance', 'curse', 'psychic'],
+    // "Spirit" alone is as often "team spirit" or "resistance spirit".
+    weak: ['devil', 'satan', 'witch', 'spirit'],
+    exclude: ['christmas spirit', 'team spirit', 'free spirit', 'ghost town', 'ghost writer', 'drug possession'],
     overview: /\bghosts?\b|\bhaunt|\bdemon|\bpossess(ed|ion)\b|\bsupernatural\b|\bparanormal\b/,
   },
   {
     id: 'monsters', label: 'Monsters & Creatures', icon: 'Bug',
-    strong: ['monster', 'giant monster', 'kaiju', 'creature', 'sea monster', 'creature feature', 'godzilla', 'werewolf', 'dinosaur', 'mutation', 'giant animal'],
-    weak: ['beast', 'shark attack'],
-    overview: /\bmonsters?\b|\bcreatures?\b|\bdinosaurs?\b/,
+    strong: ['monster', 'giant monster', 'kaiju', 'creature', 'sea monster', 'creature feature', 'godzilla', 'werewolf', 'dinosaur', 'giant animal', 'shark attack', 'killer shark', 'great white shark', 'animal horror', 'killer animal', 'giant spider', 'giant snake', 'crocodile', 'alligator'],
+    weak: ['beast', 'mutation', 'animal attack', 'shark'],
+    exclude: ['loan shark', 'card shark'],
+    overview: /\bmonsters?\b|\bcreatures?\b|\bdinosaurs?\b|\bsharks?\b/,
   },
   {
     id: 'vampires', label: 'Vampires', icon: 'Moon',
@@ -80,26 +90,27 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'slashers', label: 'Slashers & Killers', icon: 'Skull',
-    strong: ['slasher', 'serial killer', 'masked killer', 'psychopath', 'home invasion', 'final girl', 'killer'],
-    weak: ['murder', 'stalker'],
+    strong: ['slasher', 'serial killer', 'masked killer', 'psychopath', 'home invasion', 'final girl', 'killing spree', 'spree killer', 'killer doll', 'killer clown'],
+    weak: ['murder', 'stalker', 'killer'],
     overview: /\bserial killer\b|\bslasher\b|\bmasked killer\b/,
   },
   {
     id: 'romance', label: 'Love & Romance', icon: 'Heart', genres: ['Romance'],
-    strong: ['romance', 'love', 'falling in love', 'romantic comedy', 'love triangle', 'first love', 'lovers', 'star crossed lovers', 'forbidden love', 'love at first sight', 'wedding'],
-    weak: ['relationship', 'dating', 'marriage'],
+    strong: ['romance', 'love', 'falling in love', 'romantic comedy', 'love triangle', 'first love', 'lovers', 'star crossed lovers', 'forbidden love', 'love at first sight'],
+    weak: ['romantic relationship', 'dating', 'marriage', 'wedding', 'couple', 'boyfriend', 'girlfriend'],
     overview: /\bfall(s|ing)? in love\b|\bromance\b|\blove story\b/,
   },
   {
     id: 'heist', label: 'Heists & Cons', icon: 'Gem',
-    strong: ['heist', 'bank robbery', 'robbery', 'thief', 'con artist', 'con man', 'burglary', 'swindle', 'jewel thief', 'criminal mastermind', 'scam', 'casino'],
-    weak: ['theft', 'stealing'],
+    strong: ['heist', 'bank robbery', 'robbery', 'thief', 'con artist', 'con man', 'burglary', 'swindle', 'jewel thief', 'scam', 'caper', 'bank job', 'safecracker'],
+    weak: ['theft', 'stealing', 'casino', 'criminal mastermind', 'pickpocket'],
     overview: /\bheist\b|\brob(bery|bers?)\b|\bthie(f|ves)\b|\bcon artists?\b/,
   },
   {
     id: 'space', label: 'Space', icon: 'Rocket',
     strong: ['space', 'outer space', 'space travel', 'astronaut', 'spacecraft', 'space station', 'space opera', 'spaceship', 'space mission', 'mars', 'galaxy', 'space exploration'],
     weak: ['planet', 'moon'],
+    exclude: ['liminal space', 'safe space', 'personal space'],
     overview: /\bouter space\b|\bspace(ship|craft| station)\b|\bastronauts?\b|\bgalaxy\b/,
   },
   {
@@ -114,14 +125,14 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'ai-robots', label: 'AI & Robots', icon: 'Bot',
-    strong: ['artificial intelligence (a.i.)', 'artificial intelligence', 'robot', 'robots', 'android', 'cyborg', 'humanoid robot', 'killer robot', 'sentient ai'],
+    strong: ['artificial intelligence (a.i.)', 'artificial intelligence', 'robot', 'robots', 'android', 'cyborg', 'humanoid robot', 'killer robot', 'sentient ai', 'replicant'],
     weak: ['hacker', 'technology', 'computer'],
     overview: /\brobots?\b|\bandroids?\b|\bartificial intelligence\b|\bcyborgs?\b/,
   },
   {
     id: 'dystopia', label: 'Dystopia & Apocalypse', icon: 'Radiation',
-    strong: ['dystopia', 'dystopian', 'post-apocalyptic future', 'post-apocalyptic', 'apocalypse', 'totalitarian regime', 'end of the world', 'nuclear war', 'wasteland'],
-    weak: ['future', 'rebellion'],
+    strong: ['dystopia', 'dystopian', 'post-apocalyptic future', 'post-apocalyptic', 'apocalypse', 'totalitarian regime', 'totalitarianism', 'end of the world', 'nuclear war', 'wasteland', 'cyberpunk'],
+    weak: ['future', 'rebellion', 'surveillance'],
     overview: /\bdystopi|\bpost-apocalyptic\b|\bapocalypse\b|\bwasteland\b/,
   },
   {
@@ -131,20 +142,20 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'mythology', label: 'Myths & Dragons', icon: 'Castle',
-    strong: ['dragon', 'mythology', 'greek mythology', 'norse mythology', 'mythical creature', 'greek god', 'knight', 'elves', 'dwarf', 'orc', 'high fantasy', 'sword and sandal', 'middle-earth (tolkien)'],
-    weak: ['quest', 'kingdom', 'medieval', 'gods'],
+    strong: ['dragon', 'mythology', 'greek mythology', 'norse mythology', 'mythical creature', 'greek god', 'knight', 'elves', 'orc', 'hobbit', 'high fantasy', 'epic fantasy', 'sword and sandal', 'middle-earth (tolkien)'],
+    weak: ['quest', 'kingdom', 'medieval', 'gods', 'dwarf', 'fantasy world'],
     overview: /\bdragons?\b|\bknights?\b|\bkingdom\b|\bgods\b/,
   },
   {
     id: 'survival', label: 'Survival', icon: 'Mountain',
-    strong: ['survival', 'stranded', 'wilderness', 'shipwreck', 'plane crash', 'deserted island', 'lost at sea', 'mountain climbing', 'survivalist'],
-    weak: ['desert', 'arctic', 'jungle'],
+    strong: ['survival', 'stranded', 'wilderness', 'plane crash', 'deserted island', 'lost at sea', 'mountain climbing', 'survivalist'],
+    weak: ['desert', 'arctic', 'jungle', 'shipwreck'],
     overview: /\bsurviv(e|al|ors?)\b|\bstranded\b|\bwilderness\b/,
   },
   {
     id: 'disaster', label: 'Disaster', icon: 'Tornado',
-    strong: ['disaster', 'natural disaster', 'disaster movie', 'earthquake', 'tsunami', 'tornado', 'volcano', 'asteroid', 'meteor', 'sinking ship', 'catastrophe'],
-    weak: ['flood', 'storm'],
+    strong: ['disaster', 'natural disaster', 'disaster movie', 'earthquake', 'tsunami', 'tornado', 'volcanic eruption', 'asteroid', 'meteor', 'sinking ship', 'catastrophe', 'extreme weather'],
+    weak: ['flood', 'storm', 'volcano'],
     overview: /\bdisaster\b|\bearthquake\b|\btsunami\b|\basteroid\b|\bvolcano\b/,
   },
   {
@@ -155,73 +166,80 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'spies', label: 'Spies & Espionage', icon: 'Glasses',
-    strong: ['spy', 'espionage', 'secret agent', 'cia', 'mi6', 'kgb', 'double agent', 'secret mission', 'secret service', 'spy thriller'],
-    weak: ['undercover', 'cold war', 'conspiracy'],
+    strong: ['spy', 'espionage', 'secret agent', 'cia', 'central intelligence agency (cia)', 'intelligence agency', 'mi6', 'kgb', 'double agent', 'secret mission', 'secret service', 'spy thriller'],
+    weak: ['undercover', 'cold war', 'conspiracy', 'secret organization'],
     overview: /\bspy\b|\bspies\b|\bespionage\b|\bsecret agent\b|\bcia\b|\bmi6\b/,
   },
   {
     id: 'assassins', label: 'Hitmen & Assassins', icon: 'Crosshair',
-    strong: ['hitman', 'assassin', 'contract killer', 'assassination', 'mercenary', 'one man army'],
+    strong: ['hitman', 'assassin', 'contract killer', 'hired killer', 'professional killer', 'hired gun', 'assassination', 'mercenary', 'one man army'],
     weak: ['bodyguard'],
     overview: /\bhit-?man\b|\bassassins?\b|\bcontract killer\b/,
   },
   {
     id: 'martial-arts', label: 'Martial Arts', icon: 'Swords',
-    strong: ['martial arts', 'kung fu', 'karate', 'samurai', 'ninja', 'wuxia', 'sword fight', 'fighting tournament'],
-    weak: ['fight', 'tournament'],
+    strong: ['martial arts', 'kung fu', 'karate', 'samurai', 'ninja', 'wuxia', 'fighting tournament'],
+    weak: ['fight', 'tournament', 'sword fight', 'hand to hand combat'],
     overview: /\bmartial arts?\b|\bkung fu\b|\bkarate\b|\bsamurai\b|\bninjas?\b/,
   },
   {
     id: 'war', label: 'War Stories', icon: 'Shield', genres: ['War'],
-    strong: ['world war ii', 'world war i', 'vietnam war', 'war', 'battle', 'soldier', 'military', 'd-day', 'war hero', 'prisoner of war', 'combat', 'civil war'],
-    weak: ['army', 'navy'],
+    strong: ['world war ii', 'world war i', 'vietnam war', 'korean war', 'iraq war', 'war', 'soldier', 'd-day', 'war hero', 'prisoner of war', 'combat', 'civil war'],
+    weak: ['army', 'navy', 'military'],
+    exclude: ['cold war', 'gang war', 'drug war', 'war on drugs', 'turf war', 'class war', 'post world war i', 'post world war ii', 'post civil war', 'post-war', 'hand to hand combat', 'close-quarters combat', 'trial by combat', 'super soldier'],
     overview: /\bsoldiers?\b|\bbattlefield\b|\bworld war\b/,
   },
   {
     id: 'true-story', label: 'True Stories', icon: 'BookOpen',
-    strong: ['based on true story', 'based on a true story', 'biography', 'true story', 'biographical', 'historical figure', 'real person', 'based on real events', 'docudrama'],
+    strong: ['based on true story', 'based on a true story', 'biography', 'true story', 'biographical', 'biopic', 'historical figure', 'real person', 'based on real events', 'based on memoir or autobiography', 'true crime', 'docudrama'],
     weak: ['historical event'],
     overview: /\btrue story\b|\bbased on real\b|\breal-life\b/,
   },
   {
     id: 'coming-of-age', label: 'Coming of Age', icon: 'GraduationCap',
     strong: ['coming of age', 'teenager', 'high school', 'adolescence', 'growing up', 'summer camp', 'boarding school', 'teen'],
-    weak: ['school', 'first love', 'friendship'],
+    // "Teenage girl" is as often the kidnapped daughter of an action movie.
+    weak: ['school', 'first love', 'friendship', 'teenage'],
     overview: /\bcoming of age\b|\bteen(age|ager)?s?\b|\bhigh school\b|\bgrowing up\b/,
   },
   {
     id: 'whodunit', label: 'Whodunits & Detectives', icon: 'Fingerprint',
     strong: ['whodunit', 'murder mystery', 'detective', 'private detective', 'police detective', 'murder investigation', 'sherlock holmes', 'investigation', 'missing person'],
-    weak: ['mystery', 'crime scene', 'police'],
+    weak: ['mystery', 'crime scene', 'police', 'fbi'],
+    exclude: ['paranormal investigation', 'paranormal investigator'],
     overview: /\bdetectives?\b|\bmurder mystery\b|\binvestigat|\bwhodunit\b/,
   },
   {
     id: 'gangsters', label: 'Gangsters & Mob', icon: 'Briefcase',
-    strong: ['gangster', 'mafia', 'mob', 'organized crime', 'crime boss', 'drug cartel', 'yakuza', 'mobster', 'crime family', 'drug trafficking', 'cartel', 'gang'],
+    strong: ['gangster', 'mafia', 'mob', 'organized crime', 'crime boss', 'drug cartel', 'drug lord', 'yakuza', 'mobster', 'crime family', 'drug trafficking', 'cartel', 'gang'],
     weak: ['drug dealer', 'drugs'],
+    exclude: ['flash mob', 'angry mob', 'lynch mob', 'gang rape'],
     overview: /\bgangsters?\b|\bmafia\b|\bmob(ster)?s?\b|\bcartel\b|\bcrime boss\b/,
   },
   {
     id: 'road-trip', label: 'Road Trips & Journeys', icon: 'Map',
     strong: ['road trip', 'road movie', 'cross-country', 'journey'],
     weak: ['travel', 'trip'],
+    exclude: ["hero's journey"],
     overview: /\broad trip\b|\bcross-country\b/,
   },
   {
     id: 'sports', label: 'Sports', icon: 'Trophy',
     strong: ['sports', 'sport', 'boxing', 'boxer', 'football (soccer)', 'american football', 'basketball', 'baseball', 'ice hockey', 'tennis', 'golf', 'olympic games', 'athlete', 'wrestling', 'surfing', 'sports team'],
     weak: ['coach', 'underdog', 'competition'],
+    exclude: ['sports car', 'baseball bat', 'baseball stadium', 'football stadium', 'golf club', 'golf course', 'tennis court'],
     overview: /\bboxing\b|\bboxer\b|\bfootball\b|\bbasketball\b|\bbaseball\b|\bchampionship\b|\bolympic/,
   },
   {
-    id: 'animals', label: 'Animals', icon: 'PawPrint',
-    strong: ['animal', 'animals', 'dog', 'cat', 'talking animal', 'horse', 'wildlife', 'pet', 'anthropomorphism'],
-    weak: ['wolf', 'lion', 'bear', 'fox', 'bird'],
+    id: 'animals', label: 'Animals', icon: 'PawPrint', threshold: 3,
+    strong: ['animal', 'animals', 'animal protagonist', 'anthropomorphic animal', 'talking animal', 'dog', 'dogs', 'stray dog', 'lost dog', 'police dog', 'k9', 'cat', 'horse', 'wildlife', 'pet', 'pets', 'anthropomorphism'],
+    weak: ['wolf', 'lion', 'bear', 'fox', 'bird', 'puppy', 'fish', 'turtle', 'whale', 'dolphin', 'penguin', 'elephant', 'monkey', 'gorilla', 'tiger', 'panda', 'pig', 'rabbit', 'mouse', 'rat', 'owl', 'wolves', 'beaver', 'snail', 'hedgehog', 'sheep', 'deer', 'squirrel', 'raccoon', 'duck'],
+    exclude: ['cat and mouse', 'cat burglar', 'animal mask', 'animal attack', 'animal horror', 'child killed by animal', 'killer animal', 'party animal', 'hot dog', 'trojan horse', "teacher's pet"],
   },
   {
     id: 'fairy-tales', label: 'Fairy Tales', icon: 'Sparkles',
-    strong: ['fairy tale', 'based on fairy tale', 'princess', 'fairy', 'fairy godmother', 'enchanted', 'prince'],
-    weak: ['kingdom', 'castle'],
+    strong: ['fairy tale', 'based on fairy tale', 'princess', 'fairy', 'fairy godmother', 'enchanted'],
+    weak: ['kingdom', 'castle', 'prince'],
     overview: /\bfairy[- ]tale\b|\bprincess\b|\benchanted\b/,
   },
   {
@@ -231,20 +249,21 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'psychological', label: 'Psychological', icon: 'Eye',
-    strong: ['psychological thriller', 'psychological horror', 'psychological', 'mental illness', 'paranoia', 'obsession', 'insanity', 'hallucination', 'delusion', 'schizophrenia', 'gaslighting', 'manipulation', 'unreliable narrator'],
-    weak: ['psychiatrist', 'identity crisis'],
+    strong: ['psychological thriller', 'psychological horror', 'psychological', 'mental illness', 'paranoia', 'insanity', 'hallucination', 'delusion', 'schizophrenia', 'gaslighting', 'unreliable narrator', 'dissociative identity disorder', 'multiple personality'],
+    weak: ['psychiatrist', 'identity crisis', 'obsession', 'manipulation', 'split personality'],
     overview: /\bpsycholog|\bparanoi|\bobsess|\bsanity\b/,
   },
   {
-    id: 'courtroom', label: 'Courtroom', icon: 'Gavel',
+    id: 'courtroom', label: 'Courtroom', icon: 'Gavel', threshold: 3,
     strong: ['courtroom', 'trial', 'lawyer', 'attorney', 'court case', 'legal drama', 'jury', 'lawsuit'],
     weak: ['judge', 'justice'],
+    exclude: ['district attorney', 'assistant district attorney', 'clinical trial', 'drug trial', 'trial by combat'],
     overview: /\btrial\b|\blawyers?\b|\battorneys?\b|\bcourtroom\b|\bjury\b/,
   },
   {
     id: 'racing', label: 'Cars & Racing', icon: 'Car',
-    strong: ['car race', 'racing', 'street racing', 'car chase', 'race car', 'race car driver', 'formula 1', 'nascar', 'getaway driver', 'motorcycle'],
-    weak: ['car', 'cars', 'driver'],
+    strong: ['car race', 'racing', 'street racing', 'street race', 'drag racing', 'race car', 'race car driver', 'formula 1', 'nascar', 'getaway driver'],
+    weak: ['car', 'cars', 'driver', 'car chase', 'motorcycle'],
     overview: /\bracing\b|\brace car\b|\bstreet race\b/,
   },
   {
@@ -255,7 +274,9 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'music', label: 'Music & Musicals', icon: 'Music', genres: ['Music'],
-    strong: ['musical', 'music', 'singer', 'rock band', 'musician', 'concert', 'dance', 'dancing', 'hip-hop', 'jazz', 'broadway', 'band'],
+    strong: ['musical', 'music', 'singer', 'rock band', 'musician', 'concert', 'dancer', 'dance competition', 'ballet', 'hip-hop', 'jazz', 'broadway', 'band'],
+    weak: ['dance', 'dancing'],
+    exclude: ['band of misfits', 'animatronic band', 'rubber band', 'based on play or musical'],
     overview: /\bsingers?\b|\bmusicians?\b|\bband\b/,
   },
   {
@@ -265,13 +286,15 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'realities', label: 'Dreams & Other Worlds', icon: 'Infinity',
-    strong: ['parallel world', 'multiverse', 'alternate reality', 'simulation', 'simulated reality', 'virtual reality', 'dream', 'dream world', 'alternate universe', 'other dimension', 'portal'],
+    strong: ['parallel world', 'multiverse', 'alternate reality', 'alternative reality', 'simulation', 'simulated reality', 'virtual reality', 'dream', 'dream world', 'alternate universe', 'other dimension', 'portal'],
+    weak: ['fantasy world', 'secret world'],
+    exclude: ['american dream', 'dream job', 'dream girl', 'dream house'],
     overview: /\bparallel (world|universe)s?\b|\bmultiverse\b|\balternate reality\b|\bsimulation\b|\bdreams?\b/,
   },
   {
     id: 'historical', label: 'Historical Epics', icon: 'Landmark', genres: ['History'],
-    strong: ['ancient rome', 'ancient greece', 'ancient egypt', 'roman empire', 'gladiator', 'viking', 'victorian era', 'period drama', 'costume drama', 'historical', '19th century', '18th century', '17th century', '16th century', 'middle ages'],
-    weak: ['medieval', 'empire', 'royalty', 'king', 'queen'],
+    strong: ['ancient rome', 'ancient greece', 'ancient egypt', 'roman empire', 'gladiator', 'viking', 'victorian era', 'period drama', 'costume drama', 'historical drama', 'historical fiction', '19th century', '18th century', '17th century', '16th century', '15th century', '14th century', '13th century', '12th century', 'middle ages'],
+    weak: ['medieval', 'empire', 'royalty', 'king', 'queen', 'historical'],
     overview: /\b1\d(th)? century\b|\bancient\b|\bmedieval\b/,
   },
 ];
@@ -289,6 +312,9 @@ export interface MoodDef {
   negativeGenres?: Record<string, number>;
   /** Genres that rule the mood out completely. */
   excludeGenres?: string[];
+  /** Whole keywords that never count toward the mood: idioms like "custody battle". */
+  exclude?: string[];
+  /** The first entry the runtime reaches applies; a negative bonus pulls long movies away. */
   runtimeBonus?: { min: number; bonus: number }[];
   threshold: number;
 }
@@ -297,51 +323,62 @@ export const MOODS: MoodDef[] = [
   {
     id: 'light', label: 'Light & Fun', description: 'Easy laughs, nothing heavy', icon: 'Laugh',
     genres: { Comedy: 2, Animation: 1, Family: 1 },
-    strong: ['lighthearted', 'light-hearted', 'hilarious', 'playful', 'whimsical', 'amused', 'cheerful', 'joyful', 'funny', 'silly', 'absurd', 'slapstick', 'parody', 'spoof', 'buddy comedy', 'romantic comedy', 'satire', 'quirky', 'witty', 'comedic', 'farce'],
+    strong: ['funny', 'silly', 'slapstick', 'parody', 'spoof', 'buddy comedy', 'romantic comedy', 'action comedy', 'adventure comedy', 'satire', 'quirky', 'comedic', 'farce', 'caper'],
+    // TMDB's tone words are noisy (Shawshank is "amused"), so they only back up a comedy lean.
+    weak: ['lighthearted', 'light-hearted', 'hilarious', 'playful', 'whimsical', 'amused', 'cheerful', 'joyful', 'witty', 'humorous', 'mischievous', 'farcical', 'absurd', 'ridiculous'],
     negative: ['dark comedy', 'black comedy', 'tragedy', 'grief', 'death of a child'],
     excludeGenres: ['Horror', 'War'],
+    // Easy viewing doesn't run past two and a half hours.
+    runtimeBonus: [{ min: 150, bonus: -1 }],
     threshold: 2,
   },
   {
     id: 'feel-good', label: 'Feel-Good', description: 'Warm, uplifting, leaves you smiling', icon: 'Smile',
-    genres: { Family: 1, Romance: 1, Music: 1, Animation: 1 },
-    strong: ['heartwarming', 'hopeful', 'inspirational', 'comforting', 'feel-good', 'feel good', 'uplifting', 'sentimental', 'wholesome', 'inspiring', 'joyous', 'triumphant', 'optimistic', 'sweet', 'tender', 'heartfelt', 'celebratory'],
-    weak: ['friendship', 'family relationships', 'underdog', 'second chance'],
-    negative: ['bleak', 'disturbing', 'depressing', 'tragedy'],
+    // Romance only half: romantic dramas (It Ends with Us, Hamnet) are rarely feel-good.
+    genres: { Family: 2, Animation: 1, Music: 1, Comedy: 1, Romance: 0.5 },
+    strong: ['heartwarming', 'feel-good', 'feel good', 'uplifting', 'wholesome', 'underdog', 'triumph over adversity', 'overcoming obstacles'],
+    // Tone words again only back up a lean: Oldboy and The Departed are "inspirational" on TMDB.
+    weak: ['hopeful', 'inspirational', 'inspiring', 'comforting', 'sentimental', 'joyous', 'triumphant', 'optimistic', 'sweet', 'tender', 'heartfelt', 'celebratory', 'charming', 'friendship', 'family relationships', 'second chance', 'hope', 'vibrant', 'romantic comedy'],
+    negative: ['bleak', 'disturbing', 'depressing', 'tragedy', 'dark comedy', 'black comedy'],
+    negativeGenres: { Thriller: 1, Crime: 1, War: 1 },
     excludeGenres: ['Horror'],
     threshold: 2,
   },
   {
     id: 'edge', label: 'Edge of Your Seat', description: 'Tense, gripping, pulse-pounding', icon: 'HeartPulse',
-    genres: { Thriller: 2, Action: 1, Horror: 1, Mystery: 1, Crime: 1 },
-    strong: ['suspenseful', 'tense', 'intense', 'thrilling', 'exciting', 'suspense', 'nail-biting', 'adrenaline', 'cat and mouse', 'race against time', 'high stakes', 'ticking clock', 'manhunt', 'hostage', 'escape', 'chase'],
-    weak: ['survival', 'conspiracy', 'pursuit'],
+    genres: { Thriller: 2, Horror: 2, Action: 1, Crime: 1, Mystery: 1, War: 1 },
+    strong: ['suspenseful', 'tense', 'intense', 'thrilling', 'exciting', 'suspense', 'nail-biting', 'adrenaline', 'cat and mouse', 'race against time', 'high stakes', 'ticking clock', 'manhunt', 'hostage', 'chase', 'frightened', 'paranoid', 'anxious', 'frantic', 'gripping'],
+    weak: ['survival', 'conspiracy', 'pursuit', 'escape', 'excited', 'exhilarated', 'aggressive', 'natural disaster', 'disaster movie'],
     negativeGenres: { Family: 1, Animation: 1 },
     threshold: 2,
   },
   {
     id: 'dark', label: 'Dark & Heavy', description: 'Bleak, haunting, hits hard', icon: 'CloudMoon',
     genres: { Horror: 1, Crime: 1, War: 1, Drama: 0.5, Thriller: 0.5 },
-    strong: ['dark', 'grim', 'bleak', 'disturbing', 'depressing', 'melancholy', 'harsh', 'brutal', 'gritty', 'tragic', 'tragedy', 'violence', 'violent', 'nihilism', 'cruelty', 'grief', 'despair', 'sinister', 'ominous', 'gloomy', 'dread', 'gore', 'holocaust', 'sadistic', 'drug addiction', 'abuse', 'dark comedy', 'neo-noir', 'film noir'],
-    weak: ['death', 'murder', 'addiction', 'loss', 'suicide', 'corruption'],
+    strong: ['dark', 'grim', 'bleak', 'disturbing', 'depressing', 'melancholy', 'harsh', 'brutal', 'gritty', 'tragic', 'tragedy', 'nihilism', 'cruelty', 'grief', 'despair', 'sinister', 'ominous', 'gloomy', 'dread', 'gore', 'holocaust', 'sadistic', 'drug addiction', 'abuse', 'dark comedy', 'neo-noir', 'film noir', 'somber', 'harrowing', 'unsettling'],
+    weak: ['death', 'murder', 'addiction', 'loss', 'suicide', 'corruption', 'violence', 'violent', 'dreary', 'body horror'],
     negative: ['lighthearted', 'whimsical', 'heartwarming', 'hilarious'],
     negativeGenres: { Family: 2, Animation: 1, Comedy: 1 },
+    exclude: ['dark secret', 'dark past', 'dark horse', 'memory loss', 'fake death'],
     threshold: 2,
   },
   {
     id: 'mind-bending', label: 'Mind-Bending', description: 'Twisty, cerebral, makes you think', icon: 'Brain',
     genres: { 'Science Fiction': 1, Mystery: 1 },
-    strong: ['mind-bending', 'mind bending', 'twist ending', 'plot twist', 'surprise ending', 'nonlinear timeline', 'non-linear narrative', 'time loop', 'surreal', 'surrealism', 'cerebral', 'thought-provoking', 'philosophical', 'parallel world', 'multiverse', 'simulation', 'simulated reality', 'memory loss', 'amnesia', 'unreliable narrator', 'paradox', 'existentialism', 'alternate reality', 'reality vs fantasy', 'consciousness', 'hallucination', 'dream', 'complex', 'puzzle'],
-    weak: ['psychological', 'identity', 'time travel', 'mystery'],
+    strong: ['mind-bending', 'mind bending', 'mind-blowing', 'twist', 'twist ending', 'plot twist', 'surprise ending', 'nonlinear timeline', 'non-linear narrative', 'time loop', 'surreal', 'surrealism', 'cerebral', 'thought-provoking', 'philosophical', 'parallel world', 'multiverse', 'simulation', 'simulated reality', 'memory loss', 'amnesia', 'unreliable narrator', 'paradox', 'existentialism', 'alternate reality', 'reality vs fantasy', 'consciousness', 'hallucination', 'dream', 'puzzle', 'quantum mechanics', 'time warp', 'time manipulation', 'time-manipulation', 'dissociative identity disorder', 'multiple personality'],
+    weak: ['psychological', 'identity', 'time travel', 'mystery', 'baffled', 'bewildered', 'introspective', 'split personality', 'illusion', 'perspective'],
     negativeGenres: { Family: 1 },
+    exclude: ['american dream', 'dream job', 'dream girl', 'secret identity', 'dual identity', 'mistaken identity', 'identity theft', 'puzzle box'],
     threshold: 2,
   },
   {
     id: 'epic', label: 'Something Epic', description: 'Big, sweeping, a proper event', icon: 'Crown',
-    genres: { Adventure: 1, Fantasy: 1, War: 1, History: 1 },
+    genres: { Adventure: 1, Fantasy: 1, War: 1, History: 1, Action: 0.5, 'Science Fiction': 0.5 },
     strong: ['epic', 'grand', 'sweeping', 'ambitious', 'saga', 'war epic', 'historical epic', 'legend', 'battle'],
-    weak: ['quest', 'kingdom', 'empire', 'journey'],
-    runtimeBonus: [{ min: 150, bonus: 1.5 }, { min: 135, bonus: 0.5 }],
+    weak: ['quest', 'kingdom', 'empire', 'journey', 'awestruck', 'adventurer', 'treasure hunt', 'globetrotting'],
+    negativeGenres: { Comedy: 1, Animation: 0.5, Family: 0.5 },
+    exclude: ['custody battle', 'legal battle', 'rap battle', 'dance battle', 'battle of the bands', 'battle of the sexes'],
+    runtimeBonus: [{ min: 150, bonus: 1.5 }, { min: 135, bonus: 1 }, { min: 120, bonus: 0.5 }],
     threshold: 2.5,
   },
 ];

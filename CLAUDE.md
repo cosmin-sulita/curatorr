@@ -31,6 +31,10 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 - **`shared/`**: pure, unit-tested logic used by both sides.
   - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time. `explainTags` keeps the evidence behind each tag.
+    - Each keyword counts once per tag, through its best term, and each term counts once.
+    - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
+    - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals); some themes need two signals (`threshold: 3`).
+    - `tagger.fixtures.ts` holds real movies with clear-cut expected tags. Keep it passing and add a case when you fix a mis-tag.
   - `scoring.ts`: `eligibleMovies`, `rankMovies` (quality score plus theme/mood bonus, skip/shown penalties, watchlist and next-saga bonuses, and a jitter seeded per profile per day) and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice).
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres), reusing the skip/shown/watchlist adjustments from `scoring.ts`.
   - `sagas.ts`: collection ordering.
