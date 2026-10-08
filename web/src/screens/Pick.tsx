@@ -121,24 +121,30 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     const pick = current;
     vibrate();
     setQueue((q) => q?.slice(1) ?? null);
+    const putBack = () => {
+      restored.current = true;
+      setQueue((q) => [pick, ...(q ?? [])]);
+    };
+    // A skip only demotes the movie; the other marks change what the questions can offer
+    // (and Seen it adds to "Something like…"'s recently watched), and so does undoing them.
+    const refreshQuestions = () => {
+      if (kind === 'skipped') return;
+      qc.invalidateQueries({ queryKey: ['wizard'] });
+      qc.invalidateQueries({ queryKey: ['like'] });
+    };
     sendFeedback(pick.movie.id, kind)
       .then(({ id, plex }) => {
-        // A skip only demotes the movie; the other marks change what the questions can offer
-        // (and Seen it adds to "Something like…"'s recently watched).
-        if (kind !== 'skipped') {
-          qc.invalidateQueries({ queryKey: ['wizard'] });
-          qc.invalidateQueries({ queryKey: ['like'] });
-        }
+        refreshQuestions();
         toast({
           message: markMessage(kind, pick.movie.title, plex),
           duration: kind === 'skipped' ? 3000 : undefined,
           action: {
             label: 'Undo',
             run: () => {
-              restored.current = true;
-              setQueue((q) => [pick, ...(q ?? [])]);
+              putBack();
               undoFeedback(id)
                 .then((res) => {
+                  refreshQuestions();
                   if (res.plex === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
                 })
                 .catch((err) => toast({ message: errorMessage(err) }));
@@ -146,7 +152,11 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           },
         });
       })
-      .catch((err) => toast({ message: errorMessage(err) }));
+      .catch((err) => {
+        // Nothing was saved, so the pick stays to be marked again.
+        putBack();
+        toast({ message: errorMessage(err) });
+      });
   };
 
   const bringForward = (pick: Pick) =>
