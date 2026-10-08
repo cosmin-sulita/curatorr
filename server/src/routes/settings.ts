@@ -33,6 +33,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     const patch = parse(
       z.object({
         includeWatched: z.boolean().optional(),
+        syncToPlex: z.boolean().optional(),
         syncIntervalHours: z.number().int().min(1).max(168).optional(),
       }),
       req.body,

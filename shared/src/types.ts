@@ -34,10 +34,12 @@ export interface Movie {
   plexRatingKey: string | null;
   /** watch.plex.tv slug: null = not looked up yet, '' = Plex has none (legacy agent). */
   plexSlug: string | null;
+  /** Plex metadata id from the item's `plex://movie/<id>` guid (same null/'' convention). */
+  plexGuid: string | null;
   addedAt: string | null;
 }
 
-export type FeedbackKind = 'shown' | 'skipped' | 'seen' | 'never' | 'accepted';
+export type FeedbackKind = 'shown' | 'skipped' | 'seen' | 'never' | 'accepted' | 'later';
 
 export interface FeedbackEvent {
   movieId: number;
@@ -89,7 +91,7 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'time' | 'rating';
+  kind: 'genre' | 'theme' | 'mood' | 'time' | 'rating' | 'watchlist';
   label: string;
 }
 

@@ -56,6 +56,8 @@ export interface ProfileContext {
   /** Only offer movies Plex knows about (so "Watch on Plex" works). */
   requirePlex: boolean;
   includeWatched: boolean;
+  /** Movies on the profile's Plex Watchlist. */
+  watchlist: Set<number>;
 }
 
 export function excludedIds(ctx: ProfileContext): Set<number> {
@@ -113,6 +115,8 @@ const MAX_THEME_BONUS = 5;
 const MAX_MOOD_BONUS = 3;
 const TAG_SATURATION = 6;
 const JITTER = 1.5;
+/** Movies the profile wants to watch: on their Plex Watchlist or saved with "Later". */
+const WATCHLIST_BONUS = 6;
 const MIN_RESULTS = 6;
 const MAX_RESULTS = 12;
 
@@ -182,6 +186,8 @@ export interface RankOptions {
   now: number;
   seed: string;
   limit?: number;
+  /** The profile's Plex Watchlist; local "later" events count too. */
+  watchlist?: Set<number>;
 }
 
 /**
@@ -198,6 +204,7 @@ export function rankMovies(
   const limit = opts.limit ?? MAX_RESULTS;
   const skipped = latestByKind(feedback, 'skipped');
   const shown = latestByKind(feedback, 'shown');
+  const wanted = new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]);
   const day = new Date(opts.now).toISOString().slice(0, 10);
 
   const base = eligible.filter((m) => matchesGenre(m, c.genre) && matchesTime(m, c.time));
@@ -220,6 +227,8 @@ export function rankMovies(
     if (skippedAt && opts.now - skippedAt < SKIP_WINDOW) score -= SKIP_PENALTY;
     const shownAt = shown.get(m.id);
     if (shownAt && opts.now - shownAt < SHOWN_WINDOW) score -= SHOWN_PENALTY;
+    const onWatchlist = wanted.has(m.id);
+    if (onWatchlist) score += WATCHLIST_BONUS;
 
     score += (seededUnit(`${opts.seed}|${day}|${m.id}`) * 2 - 1) * JITTER;
 
@@ -229,7 +238,10 @@ export function rankMovies(
       quality: quality.value,
       qualitySource: quality.source,
       tier: tierOf(m),
-      reasons: reasonsFor(m, c, quality),
+      reasons: [
+        ...(onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+        ...reasonsFor(m, c, quality),
+      ],
     };
   });
 

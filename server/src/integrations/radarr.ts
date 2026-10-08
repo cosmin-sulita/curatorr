@@ -122,6 +122,7 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     trailerId: r.youTubeTrailerId || null,
     plexRatingKey: null,
     plexSlug: null,
+    plexGuid: null,
     addedAt: r.added ?? null,
   };
 }

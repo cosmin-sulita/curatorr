@@ -36,13 +36,16 @@ describe('toPlexItem', () => {
       viewCount: 2,
       lastViewedAt: 1700000000000,
       slug: 'the-matrix',
+      plexGuid: 'abc',
       tmdbId: 603,
       imdbId: 'tt0133093',
     });
   });
 
-  it('has no slug for legacy agents', () => {
-    expect(toPlexItem({ ratingKey: 1, title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748' }).slug).toBeNull();
+  it('has no slug or Plex guid for legacy agents', () => {
+    const item = toPlexItem({ ratingKey: 1, title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748' });
+    expect(item.slug).toBeNull();
+    expect(item.plexGuid).toBeNull();
   });
 });
 

@@ -25,6 +25,8 @@ export interface PlexSettings {
 export interface AppSettings {
   includeWatched: boolean;
   syncIntervalHours: number;
+  /** "Seen it" marks the movie watched in Plex; "Later" adds it to the Plex Watchlist. */
+  syncToPlex: boolean;
 }
 
 export interface SyncInfo {
@@ -57,7 +59,7 @@ const defaults = (): SettingsShape => ({
     serverUrl: null,
     sectionIds: [],
   },
-  app: { includeWatched: false, syncIntervalHours: 6 },
+  app: { includeWatched: false, syncIntervalHours: 6, syncToPlex: true },
   sync: { at: null, movies: 0, matchedInPlex: 0, error: null },
 });
 
@@ -90,6 +92,7 @@ interface MovieRow {
   trailer_id: string | null;
   plex_rating_key: string | null;
   plex_slug: string | null;
+  plex_guid: string | null;
   added_at: string | null;
 }
 
@@ -132,11 +135,17 @@ export class Store {
 
   get<K extends keyof SettingsShape>(key: K): SettingsShape[K] {
     const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
-    if (row) return JSON.parse(row.value);
-    const value = defaults()[key];
+    const fallback = defaults()[key];
+    if (row) {
+      const stored = JSON.parse(row.value) as SettingsShape[K];
+      // Settings saved by an older version lack newer keys: fill them from the defaults.
+      return isPlainObject(stored) && isPlainObject(fallback)
+        ? (Object.assign({}, fallback, stored) as SettingsShape[K])
+        : stored;
+    }
     // Persist generated defaults (secrets, client id) so they stay stable.
-    if (key === 'cookieSecret' || key === 'plex') this.set(key, value);
-    return value;
+    if (key === 'cookieSecret' || key === 'plex') this.set(key, fallback);
+    return fallback;
   }
 
   set<K extends keyof SettingsShape>(key: K, value: SettingsShape[K]) {
@@ -173,8 +182,8 @@ export class Store {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
         themes, moods, rt, rt_votes, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
-        trailer_id, plex_rating_key, plex_slug, added_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        trailer_id, plex_rating_key, plex_slug, plex_guid, added_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
@@ -183,8 +192,9 @@ export class Store {
         metacritic = excluded.metacritic, poster_url = excluded.poster_url, fanart_url = excluded.fanart_url,
         poster_path = excluded.poster_path, fanart_path = excluded.fanart_path, trailer_id = excluded.trailer_id,
         plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at,
-        -- Keep a slug looked up earlier when the library listing doesn't include one.
-        plex_slug = COALESCE(excluded.plex_slug, movies.plex_slug)
+        -- Keep ids looked up earlier when the library listing doesn't include them.
+        plex_slug = COALESCE(excluded.plex_slug, movies.plex_slug),
+        plex_guid = COALESCE(excluded.plex_guid, movies.plex_guid)
     `);
     transaction(this.db, () => {
       for (const m of movies) {
@@ -193,7 +203,7 @@ export class Store {
           JSON.stringify(m.genres), JSON.stringify(m.keywords), JSON.stringify(m.themes), JSON.stringify(m.moods),
           m.ratings.rt, m.ratings.rtVotes, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
           m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
-          m.addedAt, syncedAt,
+          m.plexGuid, m.addedAt, syncedAt,
         );
       }
       this.db.prepare('DELETE FROM movies WHERE synced_at <> ?').run(syncedAt);
@@ -201,11 +211,14 @@ export class Store {
     this.movieCache = null;
   }
 
-  /** Records a slug looked up on demand ('' when Plex has none). */
-  setPlexSlug(id: number, slug: string) {
-    this.db.prepare('UPDATE movies SET plex_slug = ? WHERE id = ?').run(slug, id);
+  /** Records Plex ids looked up on demand ('' when Plex has none). */
+  setPlexIds(id: number, ids: { slug: string; guid: string }) {
+    this.db.prepare('UPDATE movies SET plex_slug = ?, plex_guid = ? WHERE id = ?').run(ids.slug, ids.guid, id);
     const cached = this.movieCache?.find((m) => m.id === id);
-    if (cached) cached.plexSlug = slug;
+    if (cached) {
+      cached.plexSlug = ids.slug;
+      cached.plexGuid = ids.guid;
+    }
   }
 
   // ---- profiles -----------------------------------------------------------
@@ -291,6 +304,39 @@ export class Store {
     });
   }
 
+  addWatched(profileId: number, movieId: number, at = Date.now()) {
+    this.db.prepare('INSERT OR REPLACE INTO watched (profile_id, movie_id, viewed_at) VALUES (?, ?, ?)').run(profileId, movieId, at);
+  }
+
+  removeWatched(profileId: number, movieId: number) {
+    this.db.prepare('DELETE FROM watched WHERE profile_id = ? AND movie_id = ?').run(profileId, movieId);
+  }
+
+  // ---- Plex Watchlist (cached per profile) ---------------------------------
+
+  watchlistIds(profileId: number): Set<number> {
+    const rows = this.db.prepare('SELECT movie_id FROM watchlist WHERE profile_id = ?').all(profileId) as {
+      movie_id: number;
+    }[];
+    return new Set(rows.map((r) => r.movie_id));
+  }
+
+  replaceWatchlist(profileId: number, movieIds: number[]) {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)');
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM watchlist WHERE profile_id = ?').run(profileId);
+      for (const id of movieIds) insert.run(profileId, id);
+    });
+  }
+
+  addToWatchlist(profileId: number, movieId: number) {
+    this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)').run(profileId, movieId);
+  }
+
+  removeFromWatchlist(profileId: number, movieId: number) {
+    this.db.prepare('DELETE FROM watchlist WHERE profile_id = ? AND movie_id = ?').run(profileId, movieId);
+  }
+
   // ---- feedback -----------------------------------------------------------
 
   feedback(profileId: number): FeedbackEvent[] {
@@ -307,20 +353,49 @@ export class Store {
     return row.id;
   }
 
+  feedbackEntry(profileId: number, id: number) {
+    const row = this.db
+      .prepare('SELECT id, movie_id, kind, plex_synced FROM feedback WHERE id = ? AND profile_id = ?')
+      .get(id, profileId) as { id: number; movie_id: number; kind: FeedbackKind; plex_synced: number } | undefined;
+    return row && { id: row.id, movieId: row.movie_id, kind: row.kind, plexSynced: Boolean(row.plex_synced) };
+  }
+
+  /** Marks that Curatorr changed Plex for this event, so Undo knows to change it back. */
+  setFeedbackSynced(id: number) {
+    this.db.prepare('UPDATE feedback SET plex_synced = 1 WHERE id = ?').run(id);
+  }
+
+  /**
+   * Removes every "seen" / "never" / "later" mark of one kind for a movie (the same movie can
+   * be marked on several nights) and reports whether any of them had changed Plex.
+   */
+  deleteMarks(profileId: number, movieId: number, kind: FeedbackKind): { deleted: number; plexSynced: boolean } {
+    return transaction(this.db, () => {
+      const { synced } = this.db
+        .prepare('SELECT COALESCE(MAX(plex_synced), 0) AS synced FROM feedback WHERE profile_id = ? AND movie_id = ? AND kind = ?')
+        .get(profileId, movieId, kind) as { synced: number };
+      const res = this.db
+        .prepare('DELETE FROM feedback WHERE profile_id = ? AND movie_id = ? AND kind = ?')
+        .run(profileId, movieId, kind);
+      return { deleted: Number(res.changes), plexSynced: Boolean(synced) };
+    });
+  }
+
   deleteFeedback(profileId: number, id: number): boolean {
     const res = this.db.prepare('DELETE FROM feedback WHERE id = ? AND profile_id = ?').run(id, profileId);
     return Number(res.changes) > 0;
   }
 
-  /** Persistent hides ("seen" / "never") for the settings screen. */
-  hiddenMovies(profileId: number) {
+  /** Movies marked "seen", "never" or saved for "later", for the settings screen. */
+  markedMovies(profileId: number) {
     return this.db
       .prepare(`
-        SELECT f.id, f.movie_id AS movieId, f.kind, f.created_at AS createdAt
-        FROM feedback f WHERE f.profile_id = ? AND f.kind IN ('seen', 'never')
-        ORDER BY f.created_at DESC
+        SELECT MAX(f.id) AS id, f.movie_id AS movieId, f.kind, MAX(f.created_at) AS createdAt
+        FROM feedback f WHERE f.profile_id = ? AND f.kind IN ('seen', 'never', 'later')
+        GROUP BY f.movie_id, f.kind
+        ORDER BY createdAt DESC
       `)
-      .all(profileId) as { id: number; movieId: number; kind: 'seen' | 'never'; createdAt: number }[];
+      .all(profileId) as { id: number; movieId: number; kind: 'seen' | 'never' | 'later'; createdAt: number }[];
   }
 
   private pruneFeedback() {
@@ -329,6 +404,9 @@ export class Store {
       .run(Date.now() - FEEDBACK_RETENTION_MS);
   }
 }
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function rowToMovie(r: MovieRow): StoredMovie {
   return {
@@ -352,6 +430,7 @@ function rowToMovie(r: MovieRow): StoredMovie {
     trailerId: r.trailer_id,
     plexRatingKey: r.plex_rating_key,
     plexSlug: r.plex_slug,
+    plexGuid: r.plex_guid,
     addedAt: r.added_at,
   };
 }

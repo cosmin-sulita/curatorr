@@ -1,19 +1,39 @@
 import type { Pick } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Ban, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
+import { Ban, BookmarkPlus, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { RatingBadges } from '../components/Ratings';
 import { CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
-import { errorMessage, sendFeedback, undoFeedback, useRecommendations, useStatus } from '../lib/api';
+import {
+  errorMessage,
+  sendFeedback,
+  undoFeedback,
+  useRecommendations,
+  useStatus,
+  type PlexSyncResult,
+} from '../lib/api';
 import { fallBackIfStillHere, plexLink, runtime, vibrate, type PlexLink } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
 import { criteriaFrom } from './Wizard';
 
-type Decline = 'skipped' | 'seen' | 'never';
+type Decline = 'skipped' | 'later' | 'seen' | 'never';
+
+/** Toast after a mark, depending on what happened in Plex. */
+function markMessage(kind: Exclude<Decline, 'skipped'>, title: string, plex: PlexSyncResult | undefined) {
+  if (kind === 'never') return `${title} won't be suggested again`;
+  if (kind === 'later') {
+    if (plex === 'synced' || plex === 'already') return `${title} is on your Plex Watchlist`;
+    if (plex === 'failed') return `Saved ${title} for later, but couldn't reach your Plex Watchlist`;
+    return `Saved ${title} for later`;
+  }
+  if (plex === 'synced') return `Marked ${title} as watched in Plex`;
+  if (plex === 'failed') return `Marked ${title} as seen, but couldn't update Plex`;
+  return `Marked ${title} as seen`;
+}
 
 export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);
@@ -48,16 +68,20 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     vibrate();
     setQueue((q) => q?.slice(1) ?? null);
     sendFeedback(pick.movie.id, kind)
-      .then(({ id }) => {
+      .then(({ id, plex }) => {
         if (kind === 'skipped') return;
         qc.invalidateQueries({ queryKey: ['wizard'] });
         toast({
-          message: kind === 'seen' ? `Marked ${pick.movie.title} as seen` : `${pick.movie.title} won't be suggested again`,
+          message: markMessage(kind, pick.movie.title, plex),
           action: {
             label: 'Undo',
             run: () => {
-              undoFeedback(id).catch(() => {});
               setQueue((q) => [pick, ...(q ?? [])]);
+              undoFeedback(id)
+                .then((res) => {
+                  if (res.plex === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+                })
+                .catch((err) => toast({ message: errorMessage(err) }));
             },
           },
         });
@@ -136,6 +160,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   const declines = [
     { kind: 'skipped' as const, label: 'Not tonight', Icon: SkipForward },
+    { kind: 'later' as const, label: 'Later', Icon: BookmarkPlus },
     { kind: 'seen' as const, label: 'Seen it', Icon: Eye },
     { kind: 'never' as const, label: 'Never', Icon: Ban },
   ];
@@ -280,7 +305,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       {/* Phones: actions stay under the thumb while reading. */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 px-4 pt-3 pb-safe backdrop-blur-xl md:hidden">
         {watchButton}
-        <div className="mt-2 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid grid-cols-4 gap-2">
           {declines.map(({ kind, label, Icon }) => (
             <button
               key={kind}

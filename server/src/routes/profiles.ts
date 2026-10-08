@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { parse, within, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
-import { linkProfile, syncWatched } from '../services/profiles.js';
+import { linkProfile, syncPlexState } from '../services/profiles.js';
 import { clearProfileCookie, requireAdmin, setProfileCookie } from '../session.js';
 import { toProfile } from '../store.js';
 
@@ -23,7 +23,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     }
 
     setProfileCookie(reply, row.id);
-    await within(syncWatched(store, row, req.log), WATCHED_WAIT_MS);
+    await within(syncPlexState(store, row, req.log), WATCHED_WAIT_MS);
     return toProfile(row);
   });
 

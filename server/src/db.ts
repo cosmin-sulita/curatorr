@@ -77,6 +77,17 @@ const migrations: string[] = [
   `
   ALTER TABLE movies ADD COLUMN plex_slug TEXT;
   `,
+  // v3: two-way Plex sync. "Seen it" marks watched in Plex, "Later" uses the Plex Watchlist.
+  `
+  ALTER TABLE movies ADD COLUMN plex_guid TEXT;     -- id from the item's plex://movie/<id> guid
+  ALTER TABLE feedback ADD COLUMN plex_synced INTEGER NOT NULL DEFAULT 0;  -- Curatorr changed Plex for this
+
+  CREATE TABLE watchlist (
+    profile_id INTEGER NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+    movie_id INTEGER NOT NULL,
+    PRIMARY KEY (profile_id, movie_id)
+  );
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

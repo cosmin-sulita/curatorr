@@ -90,6 +90,21 @@ describe('API (demo data)', () => {
     expect(restored.map((p) => p.movie.id)).toContain(first.movie.id);
   });
 
+  it('saves for later without Plex and favours the movie next time', async () => {
+    const last = (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks.at(-1)!;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/feedback',
+      headers: { cookie },
+      payload: { movieId: last.movie.id, kind: 'later' },
+    });
+    expect(res.json()).toMatchObject({ plex: 'skipped' });
+    const again = (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks;
+    const saved = again.find((p) => p.movie.id === last.movie.id)!;
+    expect(saved.reasons[0]?.kind).toBe('watchlist');
+    expect(again.indexOf(saved)).toBeLessThan(again.length - 1);
+  });
+
   it('applies Plex parental restrictions', async () => {
     const { body: profiles } = await get<Profile[]>('/api/profiles');
     const kids = profiles.find((p) => p.name === 'Kids')!;

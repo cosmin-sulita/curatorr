@@ -3,7 +3,12 @@ import type { RestrictionProfile } from '@curatorr/shared';
 import { config } from '../config.js';
 import { normalizeBaseUrl, request, requestJson, UpstreamError } from '../http.js';
 
-const PLEX_TV = 'https://plex.tv';
+/** Plex's cloud hosts. Exported so tests can point them at a fake server. */
+export const PLEX_HOSTS = {
+  tv: 'https://plex.tv',
+  /** Plex Discover: the Watchlist lives here. */
+  discover: 'https://discover.provider.plex.tv',
+};
 const SERVICE = 'Plex';
 
 const xml = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', parseAttributeValue: false });
@@ -42,7 +47,7 @@ export interface PlexPin {
 }
 
 export async function createPin(clientId: string): Promise<PlexPin> {
-  const pin = await requestJson<{ id: number; code: string }>(SERVICE, `${PLEX_TV}/api/v2/pins?strong=true`, {
+  const pin = await requestJson<{ id: number; code: string }>(SERVICE, `${PLEX_HOSTS.tv}/api/v2/pins?strong=true`, {
     method: 'POST',
     headers: plexHeaders(clientId),
   });
@@ -59,7 +64,7 @@ export function authUrl(clientId: string, code: string): string {
 }
 
 export async function checkPin(clientId: string, id: number): Promise<string | null> {
-  const pin = await requestJson<{ authToken: string | null }>(SERVICE, `${PLEX_TV}/api/v2/pins/${id}`, {
+  const pin = await requestJson<{ authToken: string | null }>(SERVICE, `${PLEX_HOSTS.tv}/api/v2/pins/${id}`, {
     headers: plexHeaders(clientId),
   });
   return pin.authToken || null;
@@ -74,7 +79,7 @@ export interface PlexAccount {
 }
 
 export async function getAccount(clientId: string, token: string): Promise<PlexAccount> {
-  const a = await requestJson<any>(SERVICE, `${PLEX_TV}/api/v2/user`, { headers: plexHeaders(clientId, token) });
+  const a = await requestJson<any>(SERVICE, `${PLEX_HOSTS.tv}/api/v2/user`, { headers: plexHeaders(clientId, token) });
   return { id: Number(a.id), uuid: a.uuid, username: a.username, title: a.title || a.username, thumb: a.thumb ?? null };
 }
 
@@ -98,7 +103,7 @@ export interface PlexServer {
 export async function getServers(clientId: string, token: string): Promise<PlexServer[]> {
   const resources = await requestJson<any[]>(
     SERVICE,
-    `${PLEX_TV}/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=0`,
+    `${PLEX_HOSTS.tv}/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=0`,
     { headers: plexHeaders(clientId, token) },
   );
   return resources
@@ -141,7 +146,7 @@ function toRestriction(user: any): RestrictionProfile {
 }
 
 export async function getHomeUsers(clientId: string, token: string): Promise<PlexHomeUser[]> {
-  const res = await request(SERVICE, `${PLEX_TV}/api/home/users`, { headers: plexHeaders(clientId, token) });
+  const res = await request(SERVICE, `${PLEX_HOSTS.tv}/api/home/users`, { headers: plexHeaders(clientId, token) });
   const body = await jsonOrXml(res);
   const users = asArray<any>(body.users ?? body.MediaContainer?.User);
   return users.map((u) => ({
@@ -161,7 +166,7 @@ export async function getHomeUsers(clientId: string, token: string): Promise<Ple
 export async function switchHomeUser(clientId: string, adminToken: string, userId: number, pin?: string) {
   const qs = pin ? `?pin=${encodeURIComponent(pin)}` : '';
   try {
-    const res = await request(SERVICE, `${PLEX_TV}/api/home/users/${userId}/switch${qs}`, {
+    const res = await request(SERVICE, `${PLEX_HOSTS.tv}/api/home/users/${userId}/switch${qs}`, {
       method: 'POST',
       headers: plexHeaders(clientId, adminToken),
     });
@@ -202,6 +207,8 @@ export interface PlexItem {
   lastViewedAt: number | null;
   /** watch.plex.tv identifier, e.g. "godzilla-2014". */
   slug: string | null;
+  /** Plex metadata id from the `plex://movie/<id>` guid; the Watchlist is keyed by it. */
+  plexGuid: string | null;
   tmdbId: number | null;
   imdbId: string | null;
 }
@@ -241,12 +248,37 @@ export class PlexServerClient {
     return asArray<any>(body.MediaContainer?.Metadata).map(toPlexItem);
   }
 
+  /** Marks an item watched for the user this client's token belongs to. */
+  async scrobble(ratingKey: string) {
+    await request(SERVICE, `${this.baseUrl}/:/scrobble?${scrobbleQuery(ratingKey)}`, {
+      headers: plexHeaders(this.clientId, this.token),
+      timeoutMs: 5_000,
+    });
+  }
+
+  /** Marks an item unwatched for the user this client's token belongs to. */
+  async unscrobble(ratingKey: string) {
+    await request(SERVICE, `${this.baseUrl}/:/unscrobble?${scrobbleQuery(ratingKey)}`, {
+      headers: plexHeaders(this.clientId, this.token),
+      timeoutMs: 5_000,
+    });
+  }
+
   /** Full metadata for one item; includes the slug even when library listings leave it out. */
   async item(ratingKey: string, timeoutMs = 4_000): Promise<PlexItem | null> {
     const body = await this.get<any>(`/library/metadata/${encodeURIComponent(ratingKey)}`, timeoutMs);
     const m = asArray<any>(body.MediaContainer?.Metadata)[0];
     return m ? toPlexItem(m) : null;
   }
+}
+
+const scrobbleQuery = (ratingKey: string) =>
+  new URLSearchParams({ key: ratingKey, identifier: 'com.plexapp.plugins.library' }).toString();
+
+/** The id in a modern-agent guid (`plex://movie/5d776825880197001ec967c8`), else null. */
+export function plexGuidId(guid: unknown): string | null {
+  if (typeof guid !== 'string') return null;
+  return /^plex:\/\/movie\/([0-9a-z]+)$/i.exec(guid)?.[1] ?? null;
 }
 
 export function toPlexItem(m: any): PlexItem {
@@ -259,8 +291,56 @@ export function toPlexItem(m: any): PlexItem {
     lastViewedAt: m.lastViewedAt ? Number(m.lastViewedAt) * 1000 : null,
     // Only items matched by the modern "Plex Movie" agent have one.
     slug: typeof m.slug === 'string' && m.slug ? m.slug : null,
+    plexGuid: plexGuidId(m.guid),
     ...ids,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Plex Watchlist (per plex.tv user)
+// ---------------------------------------------------------------------------
+
+const WATCHLIST_PAGE = 100;
+
+/** The Plex guid ids of every movie on the user's Watchlist. */
+export async function getWatchlist(clientId: string, userToken: string): Promise<string[]> {
+  const ids: string[] = [];
+  for (let start = 0; start < 10_000; start += WATCHLIST_PAGE) {
+    const qs = new URLSearchParams({
+      type: '1',
+      'X-Plex-Container-Start': String(start),
+      'X-Plex-Container-Size': String(WATCHLIST_PAGE),
+    });
+    const body = await requestJson<any>(SERVICE, `${PLEX_HOSTS.discover}/library/sections/watchlist/all?${qs}`, {
+      headers: plexHeaders(clientId, userToken),
+    });
+    const items = asArray<any>(body.MediaContainer?.Metadata);
+    for (const m of items) {
+      const id = plexGuidId(m.guid);
+      if (id) ids.push(id);
+    }
+    const total = Number(body.MediaContainer?.totalSize ?? 0);
+    if (items.length < WATCHLIST_PAGE || start + WATCHLIST_PAGE >= total) break;
+  }
+  return ids;
+}
+
+/** Adds a movie (by Plex guid id) to the user's Watchlist. */
+export async function addToWatchlist(clientId: string, userToken: string, plexGuid: string) {
+  await watchlistAction('addToWatchlist', clientId, userToken, plexGuid);
+}
+
+/** Removes a movie (by Plex guid id) from the user's Watchlist. */
+export async function removeFromWatchlist(clientId: string, userToken: string, plexGuid: string) {
+  await watchlistAction('removeFromWatchlist', clientId, userToken, plexGuid);
+}
+
+async function watchlistAction(action: string, clientId: string, userToken: string, plexGuid: string) {
+  await request(SERVICE, `${PLEX_HOSTS.discover}/actions/${action}?ratingKey=${encodeURIComponent(plexGuid)}`, {
+    method: 'PUT',
+    headers: plexHeaders(clientId, userToken),
+    timeoutMs: 5_000,
+  });
 }
 
 /**

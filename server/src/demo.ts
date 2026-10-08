@@ -123,6 +123,7 @@ export function demoMovies(): StoredMovie[] {
       trailerId: null,
       plexRatingKey: null,
       plexSlug: null,
+      plexGuid: null,
       addedAt: null,
     };
   });

@@ -8,8 +8,8 @@ import { openDb } from '../db.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
-import { syncWatched } from './profiles.js';
-import { ensurePlexSlugs, toDTO } from './recommend.js';
+import { syncPlexState } from './profiles.js';
+import { ensurePlexIds, toDTO } from './recommend.js';
 
 const RADARR_KEY = 'radarr-key';
 const OWNER_TOKEN = 'owner-token';
@@ -122,8 +122,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
   });
 
   it('looks up missing watch.plex.tv slugs once, and links phones to them', async () => {
-    await ensurePlexSlugs(store, store.movies());
-    await ensurePlexSlugs(store, store.movies());
+    await ensurePlexIds(store, store.movies());
+    await ensurePlexIds(store, store.movies());
     expect(metadataLookups.sort()).toEqual(['102', '103']);
     expect(store.movie(2)!.plexSlug).toBe('heat');
     expect(store.movie(4)!.plexSlug).toBe(''); // legacy agent: Plex has none
@@ -145,11 +145,17 @@ describe('library sync against fake Radarr and Plex servers', () => {
     store.setProfileTokens(owner.id, OWNER_TOKEN, OWNER_TOKEN);
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
 
-    await syncWatched(store, store.profileRow(owner.id)!, silent);
-    await syncWatched(store, store.profileRow(member.id)!, silent);
+    await syncPlexState(store, store.profileRow(owner.id)!, silent);
+    await syncPlexState(store, store.profileRow(member.id)!, silent);
 
     expect([...store.watchedIds(owner.id)]).toEqual([2]);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
+  });
+
+  it('fills settings added by newer versions into settings saved by older ones', () => {
+    // As saved by 0.2.x, before syncToPlex existed.
+    store.set('app', { includeWatched: true, syncIntervalHours: 3 } as never);
+    expect(store.get('app')).toEqual({ includeWatched: true, syncIntervalHours: 3, syncToPlex: true });
   });
 
   it('records a failed sync without losing the library', async () => {

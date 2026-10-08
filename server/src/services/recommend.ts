@@ -13,8 +13,8 @@ import {
 import { plexLinks, PlexServerClient } from '../integrations/plex.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
-/** Slug lookups happen while the picks load, so keep them short. */
-const SLUG_LOOKUP_MS = 2_500;
+/** Id lookups happen while the picks load, so keep them short. */
+const ID_LOOKUP_MS = 2_500;
 
 export function profileContext(store: Store, row: ProfileRow): ProfileContext {
   const restriction = row.restriction_profile as keyof typeof RESTRICTION_CERTS | null;
@@ -27,6 +27,7 @@ export function profileContext(store: Store, row: ProfileRow): ProfileContext {
     allowedCerts: restriction && RESTRICTION_CERTS[restriction] ? new Set(RESTRICTION_CERTS[restriction]) : null,
     requirePlex,
     includeWatched: store.get('app').includeWatched,
+    watchlist: store.watchlistIds(row.id),
   };
 }
 
@@ -53,13 +54,14 @@ export function toDTO(store: Store, m: StoredMovie): MovieDTO {
 }
 
 /**
- * Fills in watch.plex.tv slugs that the library listing didn't include, asking the
- * Plex server for each item's full metadata. Results are stored ('' = Plex has none),
- * so each movie is looked up at most once; failures are retried next time.
+ * Fills in the watch.plex.tv slug and Plex guid id when the library listing didn't include
+ * them, asking the Plex server for each item's full metadata. Results are stored ('' = Plex
+ * has none, e.g. legacy agents), so each movie is looked up at most once; failures are
+ * retried next time.
  */
-export async function ensurePlexSlugs(store: Store, movies: StoredMovie[]) {
+export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
   if (!store.plexConfigured()) return;
-  const missing = movies.filter((m) => m.plexRatingKey && m.plexSlug == null);
+  const missing = movies.filter((m) => m.plexRatingKey && (m.plexSlug == null || m.plexGuid == null));
   if (!missing.length) return;
 
   const plex = store.get('plex');
@@ -67,8 +69,8 @@ export async function ensurePlexSlugs(store: Store, movies: StoredMovie[]) {
   await Promise.all(
     missing.map(async (m) => {
       try {
-        const item = await client.item(m.plexRatingKey!, SLUG_LOOKUP_MS);
-        store.setPlexSlug(m.id, item?.slug ?? '');
+        const item = await client.item(m.plexRatingKey!, ID_LOOKUP_MS);
+        store.setPlexIds(m.id, { slug: item?.slug ?? m.plexSlug ?? '', guid: item?.plexGuid ?? m.plexGuid ?? '' });
       } catch {
         // Server unreachable or item gone: keep it unknown and try again later.
       }
@@ -86,8 +88,12 @@ export function optionsFor(store: Store, row: ProfileRow, step: WizardStep, crit
 export async function recommendFor(store: Store, row: ProfileRow, criteria: Criteria): Promise<RecommendationsResponse> {
   const ctx = profileContext(store, row);
   const eligible = eligibleMovies(store.movies(), ctx);
-  const ranked = rankMovies(eligible, criteria, ctx.feedback, { now: Date.now(), seed: String(row.id) });
-  await ensurePlexSlugs(store, ranked.map((r) => r.movie as StoredMovie));
+  const ranked = rankMovies(eligible, criteria, ctx.feedback, {
+    now: Date.now(),
+    seed: String(row.id),
+    watchlist: ctx.watchlist,
+  });
+  await ensurePlexIds(store, ranked.map((r) => r.movie as StoredMovie));
   return {
     total: ranked.filter((r) => r.tier === 0).length,
     picks: ranked.map((r) => ({

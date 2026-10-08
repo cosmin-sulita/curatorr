@@ -63,6 +63,8 @@ export class LibrarySync {
           if (item) {
             m.plexRatingKey = item.ratingKey;
             m.plexSlug = item.slug;
+            // Listings always carry the guid, so "none" here is final (legacy agent).
+            m.plexGuid = item.plexGuid ?? '';
             matched++;
           }
         }
@@ -92,7 +94,9 @@ export class LibrarySync {
       if (!this.store.get('setupComplete')) return;
       const { at } = this.store.get('sync');
       const intervalMs = this.store.get('app').syncIntervalHours * 60 * 60 * 1000;
-      if (!at || Date.now() - at >= intervalMs) this.trigger();
+      // Movies synced by an older version lack Plex ids that newer features rely on.
+      const outdated = this.store.movies().some((m) => m.plexRatingKey && m.plexGuid == null);
+      if (!at || Date.now() - at >= intervalMs || outdated) this.trigger();
     };
     tick();
     this.timer = setInterval(tick, 10 * 60 * 1000);

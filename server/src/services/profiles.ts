@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { HttpError, UpstreamError } from '../http.js';
-import { getHomeUsers, serverTokenFor, switchHomeUser, type PlexHomeUser } from '../integrations/plex.js';
+import { getHomeUsers, getWatchlist, serverTokenFor, switchHomeUser, type PlexHomeUser } from '../integrations/plex.js';
 import type { ProfileRow, Store } from '../store.js';
 import { fetchPlexItems, findPlexItem, indexPlexItems } from './library.js';
 
@@ -84,13 +84,31 @@ export async function linkProfile(store: Store, row: ProfileRow, pin?: string) {
   return store.profileRow(row.id)!;
 }
 
-/** Refreshes a profile's watched list from Plex if it is stale. */
-export async function syncWatched(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
+/** Refreshes a profile's Plex watch history and Watchlist if they are stale. */
+export async function syncPlexState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
   if (!store.plexConfigured() || !row.server_token) return;
   if (!force && row.watched_synced_at && Date.now() - row.watched_synced_at < WATCHED_TTL_MS) return;
+  // Separate failures: e.g. managed users may not have a Watchlist, which must not
+  // stop their watch history from syncing.
+  await Promise.all([syncWatched(store, row, log), syncWatchlist(store, row, log)]);
+}
 
+async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
+  if (!row.user_token) return;
   try {
-    const items = await fetchPlexItems(store, row.server_token);
+    const guids = await getWatchlist(store.get('plex').clientId, row.user_token);
+    const byGuid = new Map(store.movies().flatMap((m) => (m.plexGuid ? [[m.plexGuid, m.id] as const] : [])));
+    const movieIds = guids.flatMap((g) => byGuid.get(g) ?? []);
+    store.replaceWatchlist(row.id, movieIds);
+    log.info({ profile: row.name, watchlist: guids.length, inLibrary: movieIds.length }, 'watchlist synced');
+  } catch (err) {
+    log.warn({ err, profile: row.name }, 'watchlist sync failed');
+  }
+}
+
+async function syncWatched(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
+  try {
+    const items = await fetchPlexItems(store, row.server_token!);
     const index = indexPlexItems(items.filter((i) => i.viewCount > 0));
     const entries = [];
     for (const movie of store.movies()) {

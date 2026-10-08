@@ -10,7 +10,8 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down.
 - **Ranked by the Tomatometer.** IMDb and TMDB scores are used as fallbacks when there's no RT score.
-- **Not tonight / Seen it / Never.** Swipe or tap. "Not tonight" lowers a movie for two weeks; "Seen it" and "Never" hide it until you restore it in Settings.
+- **Not tonight / Later / Seen it / Never.** Swipe or tap. "Not tonight" lowers a movie for two weeks. "Seen it" and "Never" hide it until you restore it in Settings.
+- **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Later" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
 - **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
 
 ## Install on a UGREEN NAS (UGOS)

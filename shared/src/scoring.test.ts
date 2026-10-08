@@ -142,6 +142,23 @@ describe('rankMovies', () => {
     expect(ranked.every((r) => r.tier === 0)).toBe(true);
   });
 
+  it('favours movies on the Plex Watchlist or saved for later', () => {
+    // +6 beats a 2-point rating gap even with the daily jitter (±1.5 each).
+    const top = movie({ ratings: { rt: 92 } });
+    const listed = movie({ ratings: { rt: 90 } });
+    const later = movie({ ratings: { rt: 90 } });
+    const ranked = rankMovies([top, listed, later], {}, [{ movieId: later.id, kind: 'later', createdAt: NOW - 1000 }], {
+      now: NOW,
+      seed: 'test',
+      watchlist: new Set([listed.id]),
+    });
+    expect(ranked[2]!.movie.id).toBe(top.id);
+    expect(ranked[2]!.reasons.some((r) => r.kind === 'watchlist')).toBe(false);
+    for (const r of ranked.slice(0, 2)) {
+      expect(r.reasons[0]).toEqual({ kind: 'watchlist', label: 'On your watchlist' });
+    }
+  });
+
   it('explains the pick', () => {
     const m = movie({ genres: ['Action'], themes: { heist: 2 }, ratings: { rt: 92 } });
     const labels = rank([m], { genre: 'Action', theme: 'heist' })[0]!.reasons.map((r) => r.label);

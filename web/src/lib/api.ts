@@ -83,18 +83,27 @@ export function useRecommendations(criteria: Criteria) {
   });
 }
 
+/**
+ * What happened in Plex for "Seen it" / "Later": changed it, it already matched,
+ * nothing to do (no Plex, sync off), or Plex couldn't be reached.
+ */
+export type PlexSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
+
 /** `keepalive` lets the request finish while the page is being left (e.g. opening Plex). */
 export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean } = {}) {
-  return api<{ id: number }>('/api/feedback', { json: { movieId, kind }, keepalive: opts.keepalive });
+  return api<{ id: number; plex?: PlexSyncResult }>('/api/feedback', {
+    json: { movieId, kind },
+    keepalive: opts.keepalive,
+  });
 }
 
 export function undoFeedback(id: number) {
-  return api('/api/feedback/' + id, { method: 'DELETE' });
+  return api<{ ok: true; plex?: PlexSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
 }
 
 export interface HiddenMovie {
   id: number;
-  kind: 'seen' | 'never';
+  kind: 'seen' | 'never' | 'later';
   createdAt: number;
   movie: MovieDTO;
 }
@@ -132,7 +141,7 @@ export interface SettingsResponse {
     machineId: string | null;
     sectionIds: string[];
   };
-  app: { includeWatched: boolean; syncIntervalHours: number };
+  app: { includeWatched: boolean; syncIntervalHours: number; syncToPlex: boolean };
   sync: { at: number | null; movies: number; matchedInPlex: number; error: string | null; syncing: boolean };
   profiles: (Profile & { hidden: boolean; plexUser: boolean })[];
 }

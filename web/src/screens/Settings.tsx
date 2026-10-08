@@ -4,7 +4,16 @@ import { useState, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
-import { api, errorMessage, undoFeedback, useHidden, useSettings, useStatus, type SettingsResponse } from '../lib/api';
+import {
+  api,
+  errorMessage,
+  undoFeedback,
+  useHidden,
+  useSettings,
+  useStatus,
+  type HiddenMovie,
+  type SettingsResponse,
+} from '../lib/api';
 import { plural, relativeTime } from '../lib/format';
 import { usePlexSignIn } from '../lib/plexAuth';
 import { PlexConnect } from './PlexConnect';
@@ -36,7 +45,7 @@ export function SettingsScreen() {
       <h1 className="mt-4 font-display text-5xl">Settings</h1>
 
       <div className="mt-8 space-y-5">
-        {status?.profile && <HiddenMovies name={status.profile.name} />}
+        {status?.profile && <ProfileLists name={status.profile.name} />}
         {!isAdmin && <AdminSignIn />}
         {isAdmin && settings.isLoading && <Spinner />}
         {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
@@ -50,35 +59,58 @@ export function SettingsScreen() {
   );
 }
 
-function HiddenMovies({ name }: { name: string }) {
-  const hidden = useHidden();
+/** The profile's own marks: movies saved for later, and movies hidden from picks. */
+function ProfileLists({ name }: { name: string }) {
+  const marked = useHidden();
   const qc = useQueryClient();
-  const restore = async (id: number) => {
-    await undoFeedback(id);
+  const toast = useToast();
+  const unmark = async (id: number) => {
+    try {
+      const res = await undoFeedback(id);
+      if (res.plex === 'failed') toast({ message: "Removed here, but Plex couldn't be updated" });
+    } catch (err) {
+      toast({ message: errorMessage(err) });
+    }
     qc.invalidateQueries({ queryKey: ['hidden'] });
     qc.invalidateQueries({ queryKey: ['wizard'] });
     qc.removeQueries({ queryKey: ['recommendations'] });
   };
 
-  return (
-    <Section title={`Hidden for ${name}`} description="Movies marked as seen or never. Restore one to see it in picks again.">
-      {hidden.isLoading && <Spinner className="size-5" />}
-      {hidden.data?.length === 0 && <p className="text-sm text-faint">Nothing hidden yet.</p>}
-      <ul className="divide-y divide-line">
-        {hidden.data?.map((h) => (
-          <li key={h.id} className="flex items-center gap-3 py-2.5">
-            <Img src={h.movie.posterUrl} className="h-14 w-10 shrink-0 rounded-md object-cover" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{h.movie.title}</span>
-              <span className="text-xs text-muted">{h.kind === 'seen' ? 'Seen' : 'Never suggest'}</span>
+  const later = marked.data?.filter((m) => m.kind === 'later') ?? [];
+  const hidden = marked.data?.filter((m) => m.kind !== 'later') ?? [];
+
+  const list = (items: HiddenMovie[], action: string) => (
+    <ul className="divide-y divide-line">
+      {items.map((h) => (
+        <li key={h.id} className="flex items-center gap-3 py-2.5">
+          <Img src={h.movie.posterUrl} className="h-14 w-10 shrink-0 rounded-md object-cover" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{h.movie.title}</span>
+            <span className="text-xs text-muted">
+              {h.kind === 'later' ? 'Saved for later' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
             </span>
-            <Button size="sm" variant="ghost" onClick={() => restore(h.id)}>
-              Restore
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </Section>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => unmark(h.id)}>
+            {action}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <>
+      {later.length > 0 && (
+        <Section title="Saved for later" description={`Movies ${name} saved with Later. Picks favour them.`}>
+          {list(later, 'Remove')}
+        </Section>
+      )}
+      <Section title={`Hidden for ${name}`} description="Movies marked as seen or never. Restore one to see it in picks again.">
+        {marked.isLoading && <Spinner className="size-5" />}
+        {marked.data && hidden.length === 0 && <p className="text-sm text-faint">Nothing hidden yet.</p>}
+        {list(hidden, 'Restore')}
+      </Section>
+    </>
   );
 }
 
@@ -185,6 +217,21 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               onChange={(v) => updateApp({ includeWatched: v })}
             />
           </div>
+          {!demo && data.plex.machineId && (
+            <div className="flex items-center justify-between gap-4">
+              <span>
+                <span className="block font-medium">Update Plex when you mark movies</span>
+                <span className="block text-sm text-muted">
+                  Seen it marks the movie watched in Plex. Later adds it to the Plex Watchlist.
+                </span>
+              </span>
+              <Toggle
+                label="Update Plex when you mark movies"
+                checked={data.app.syncToPlex}
+                onChange={(v) => updateApp({ syncToPlex: v })}
+              />
+            </div>
+          )}
           {!demo && (
             <label className="flex items-center justify-between gap-4">
               <span className="font-medium">Sync with Radarr every</span>
