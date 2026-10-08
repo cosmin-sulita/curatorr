@@ -387,6 +387,7 @@ export function wizardOptions(
       images: topImages(movies, 'fanart', 1, opts, used),
     }));
   } else if (step === 'theme') {
+    const used = new Set<number>();
     options = THEMES.map((t) => ({ t, movies: pool.filter((m) => (m.themes[t.id] ?? 0) > 0) }))
       .filter(({ movies }) => movies.length >= MIN_OPTION_COUNT)
       .sort((a, b) => b.movies.length - a.movies.length)
@@ -395,9 +396,10 @@ export function wizardOptions(
         label: t.label,
         icon: t.icon,
         count: movies.length,
-        images: topImages(movies, 'poster', 3, opts),
+        images: topImages(movies, 'poster', 3, opts, used),
       }));
   } else if (step === 'mood') {
+    const used = new Set<number>();
     options = MOODS.map((md) => ({ md, movies: pool.filter((m) => (m.moods[md.id] ?? 0) > 0) }))
       .filter(({ movies }) => movies.length >= MIN_OPTION_COUNT)
       .map(({ md, movies }) => ({
@@ -406,7 +408,7 @@ export function wizardOptions(
         description: md.description,
         icon: md.icon,
         count: movies.length,
-        images: topImages(movies, 'fanart', 1, opts),
+        images: topImages(movies, 'fanart', 1, opts, used),
       }));
   } else {
     options = TIME_OPTIONS.map((t) => ({

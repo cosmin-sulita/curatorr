@@ -209,6 +209,15 @@ describe('wizardOptions', () => {
     expect(new Set(imgs).size).toBe(imgs.length);
   });
 
+  it('leads each theme with a different poster when it can', () => {
+    const movies = [100, 95, 90, 85].map((rt) => movie({ themes: { space: 2, aliens: 2 }, ratings: { rt } }));
+    const res = wizardOptions(movies, 'theme', {}, { image });
+    const leads = res.options.map((o) => o.images[0]);
+    expect(leads).toHaveLength(2);
+    expect(new Set(leads).size).toBe(2);
+    expect(res.options.every((o) => o.images.length === 3)).toBe(true);
+  });
+
   it('computes themes within the chosen genre', () => {
     const movies = [
       ...Array.from({ length: 4 }, () => movie({ genres: ['Horror'], themes: { zombies: 2 } })),
