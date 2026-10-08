@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
 import type { Store } from '../store.js';
-import { importHomeUsers } from './profiles.js';
+import { importHomeUsers, syncPlexState } from './profiles.js';
 
 const OWNER = 5001;
 const MEMBER = 5002;
@@ -27,6 +27,8 @@ describe('Plex Home profiles', () => {
   let pins: Record<number, string> = {};
   /** User switches asked of plex.tv, each one checking a PIN when the user has one. */
   let switches = 0;
+  /** Server tokens the Plex server no longer accepts. */
+  const revoked = new Set<string>();
   const cleanups: (() => Promise<void>)[] = [];
 
   beforeAll(async () => {
@@ -60,6 +62,10 @@ describe('Plex Home profiles', () => {
       }
       // Plex Discover and the Plex Media Server, read when a profile is picked.
       if (url.pathname === '/library/sections/watchlist/all') return json(200, { MediaContainer: { totalSize: 0 } });
+      if (url.pathname === '/library/sections/1/all') {
+        const token = req.headers['x-plex-token'] as string;
+        return revoked.has(token) ? json(401, {}) : json(200, { MediaContainer: { Metadata: [] } });
+      }
       json(404, {});
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -71,6 +77,7 @@ describe('Plex Home profiles', () => {
   afterEach(async () => {
     homeUsersStatus = 200;
     pins = { [MEMBER]: '1234' };
+    revoked.clear();
     for (const cleanup of cleanups.splice(0)) await cleanup();
   });
 
@@ -89,12 +96,25 @@ describe('Plex Home profiles', () => {
       rmSync(dir, { recursive: true, force: true });
     });
     const store = ctx.store;
-    store.update('plex', { adminToken: 'owner-token', ownerId: OWNER, ownerName: 'Owner', machineId: 'machine', serverUrl: base });
+    store.update('plex', {
+      adminToken: 'owner-token',
+      ownerId: OWNER,
+      ownerName: 'Owner',
+      machineId: 'machine',
+      serverUrl: base,
+      sectionIds: ['1'],
+    });
+    store.set('setupComplete', true);
     return { app, store };
   }
 
   const names = (store: Store) => store.profileRows(true).map((p) => p.name);
   const idOf = (store: Store, name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
+  const select = (app: App, id: number, { pin, cookie = '' }: { pin?: string; cookie?: string } = {}) =>
+    app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, headers: { cookie }, payload: pin ? { pin } : {} });
+  /** The cookies a response set, as a Cookie header. */
+  const cookiesOf = (res: LightMyRequestResponse) =>
+    [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
 
   it('imports the owner and the Home users, linking the ones without a PIN', async () => {
     const { store } = await plexInstance();
@@ -125,13 +145,30 @@ describe('Plex Home profiles', () => {
     expect(names(store)).toEqual(['Owner']);
   });
 
-  describe('a PIN-protected profile', () => {
-    const select = (app: App, id: number, { pin, cookie = '' }: { pin?: string; cookie?: string } = {}) =>
-      app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, headers: { cookie }, payload: pin ? { pin } : {} });
-    /** The cookies a response set, as a Cookie header. */
-    const cookiesOf = (res: LightMyRequestResponse) =>
-      [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
+  it('asks to pick a profile again once its Plex sign-in stops working', async () => {
+    const { app, store } = await plexInstance();
+    await importHomeUsers(store, silent);
+    const kid = idOf(store, 'Kid');
+    const cookie = cookiesOf(await select(app, kid));
+    const status = async () => (await app.inject({ method: 'GET', url: '/api/status', headers: { cookie } })).json();
+    expect((await status()).profile).toMatchObject({ name: 'Kid' });
 
+    // Plex stops accepting the Kid's token (a new password, say), so the next sync forgets it.
+    revoked.add(store.profileRow(kid)!.server_token!);
+    await syncPlexState(store, store.profileRow(kid)!, silent, true);
+    expect(store.profileRow(kid)!.server_token).toBeNull();
+    expect((await status()).profile).toBeNull();
+    const wizard = await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie } });
+    expect(wizard.json()).toMatchObject({ needProfile: true });
+
+    // Picking it again links it anew.
+    revoked.clear();
+    expect((await select(app, kid, { cookie })).statusCode).toBe(200);
+    expect(store.profileRow(kid)!.server_token).not.toBeNull();
+    expect((await status()).profile).toMatchObject({ name: 'Kid' });
+  });
+
+  describe('a PIN-protected profile', () => {
     it('asks for the PIN once on each device', async () => {
       const { app, store } = await plexInstance();
       await importHomeUsers(store, silent);

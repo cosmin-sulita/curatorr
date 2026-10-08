@@ -67,7 +67,11 @@ export function currentProfile(req: FastifyRequest, store: Store): ProfileRow | 
   const value = readSigned(req, PROFILE_COOKIE);
   if (!value) return null;
   const row = store.profileRow(Number(value));
-  return row && !row.hidden ? row : null;
+  if (!row || row.hidden) return null;
+  // A Plex user whose tokens Plex stopped accepting would silently stop syncing: picking the
+  // profile again links it anew (with the PIN, if it has one), as it did the first time.
+  if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) return null;
+  return row;
 }
 
 export function requireProfile(req: FastifyRequest, store: Store): ProfileRow {
