@@ -1,0 +1,82 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets the best-rated matching movie, with alternatives queued. README.md covers the features, install, env vars and how scoring works.
+
+## Commands
+
+Requires Node 22.13+, for the built-in `node:sqlite`.
+
+```sh
+npm install
+npm run dev:demo     # API on :7979 with a seeded demo library + Vite UI on :5173 (proxies /api)
+npm run dev          # same against real Radarr/Plex; first start runs setup
+npm test             # vitest: shared/src/**/*.test.ts and server/src/**/*.test.ts only
+npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
+npm run typecheck    # tsc on shared, server and web in turn
+npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
+```
+
+- **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
+- **Demo mode:** seeds `curatorr-demo.db` with about 85 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). In demo mode everyone counts as admin and no profile has a PIN.
+- **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
+- **CI** (`.github/workflows/docker.yml`) runs typecheck and tests on every push. It builds the multi-arch GHCR image on `main` and `v*` tags.
+
+## Architecture
+
+An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript source (no build step).
+
+- **`shared/`**: pure, unit-tested logic used by both sides.
+  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
+  - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time.
+  - `scoring.ts`: `eligibleMovies`, `rankMovies` (quality score plus theme/mood bonus, skip/shown penalties, watchlist and next-saga bonuses, and a jitter seeded per profile per day) and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice).
+  - `sagas.ts`: collection ordering.
+  - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
+- **`server/`**: Fastify 5.
+  - `app.ts` builds the app; tests use `buildApp({ configDir, demo: true, logger: false })` and `app.inject`.
+  - Routes in `routes/` are `RouteModule`s that receive an `AppContext { store, library }`. Validate input with zod through `parse()` from `context.ts`, and throw `HttpError` for 4xx responses, which can carry flags like `needPin`, `needProfile` or `needSetup` that the client acts on.
+  - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
+  - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
+  - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id.
+  - `services/recommend.ts` builds the per-profile context and calls the shared ranking.
+  - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
+  - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.
+- **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
+  - `lib/router.tsx` is a tiny history router.
+  - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
+  - `/pick` takes the full criteria. `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, pick or settings.
+  - The service worker caches the app shell and images. `/api/*` is network-only.
+
+### Feedback model
+
+The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
+- **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
+- **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts Plex only if Curatorr changed it.
+- **Ranking:** `skipped` costs −15 for 14 days. `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+
+### Releases and What's new
+
+- **Version:** the top `## x.y.z (date)` heading of CHANGELOG.md is the app version (`server/build.mjs` injects it; the web bundles the file). The owner writes releases; don't edit CHANGELOG.md or bump versions unless asked.
+- **Commit subjects:** each bullet is a Conventional Commit subject, and `feat`/`fix`/`perf` subjects are shown to users as What's new notes. So write them as plain user-facing sentences: `type(component): summary`, e.g. `fix(picks): keep the desktop buttons together`. Add a short body.
+- **Popup:** it opens after an update only when an unseen release has a `feat` or a hand-written intro (`hasHeadlineNews`). Fix-only releases are listed under Settings → What's new.
+
+## UI conventions and deliberate decisions
+
+- **Design language:** a dark, Seerr-inspired theme. Tokens are in `web/src/styles.css`. The indigo→violet `bg-accent-gradient` is reserved for primary actions. The only font is Archivo, with the `font-display` utility (condensed 68%, weight 800) for titles and questions. The "Tonight's pick" reveal is the one bold moment.
+- **Contrast:** `--color-faint` and `--color-accent-2` are tuned to keep text at WCAG AA. Re-check contrast if you change them.
+- **Stacking:** Shell's `<main>` is a stacking context below the header. Fixed overlays (dialogs, the PIN pad, `BottomBar`) must render outside `<Shell>`, as `Settings.tsx`, `Profiles.tsx`, `Pick.tsx` and `Wizard.tsx` do.
+- **Decided with the owner; keep these unless asked:**
+  - The header uses `pt-safe` (safe area + 1rem) to clear the iOS status-bar blur.
+  - On phones, actions sit in a sticky `BottomBar`: Watch on Plex plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
+  - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
+  - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`plexLink` in `web/src/lib/format.ts`). Desktop opens Plex Web.
+  - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick.
+- **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
+
+## Checking UI changes
+
+Build, run the demo server, and drive it with Playwright at 390×844 (`isMobile`, `hasTouch`, with an iPhone user agent so the phone paths run) and at 1440×900.
+- **What's new:** set `localStorage['curatorr:lastSeenVersion']` to the current version to keep the popup out of the way.
+- **Safe areas:** headless browsers report zero safe-area insets. To see real iPhone spacing, override `.pt-safe` and `.pb-safe` with about 59px top and 34px bottom.
+- **Stubbing requests:** once the service worker controls the page, `page.route` no longer sees `/api` requests. Use `context.route`, or create the context with `serviceWorkers: 'block'`.

@@ -8,11 +8,11 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
 - **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
-- **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down.
+- **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get a pick right away.
 - **Ranked by the Tomatometer.** IMDb and TMDB scores are used as fallbacks when there's no RT score.
-- **Not tonight / Later / Seen it / Never.** Swipe or tap. "Not tonight" lowers a movie for two weeks. "Seen it" and "Never" hide it until you restore it in Settings.
+- **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
-- **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Later" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
+- **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Watchlist" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
 - **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
 
 ## Install with Docker
@@ -73,7 +73,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 
 1. **Eligible movies**: downloaded in Radarr, found in Plex, not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's Plex restrictions.
 2. **Tags**: on every sync each movie gets *themes* (Superheroes, Supernatural, Heists & Cons, Time Travel… around 40) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts) and is easy to extend.
-3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing) + up to 8 points for how strongly the theme/mood matches − 15 if you passed on it in the last two weeks − 5 if it was shown in the last three days. A small daily shuffle keeps near-ties from always landing on the same movie.
+3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing) + up to 8 points for how strongly the theme/mood matches + 6 if it's on the profile's watchlist − 15 if you passed on it in the last two weeks − 5 if it was shown between three hours and three days ago (so going back and answering the same way gives the same pick that evening). A small daily shuffle keeps near-ties from always landing on the same movie.
 4. **Close matches**: if fewer than six movies match every answer, the list is topped up with movies that match the genre plus the theme *or* the mood, clearly labelled.
 
 ## Configuration
