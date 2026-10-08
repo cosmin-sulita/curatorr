@@ -90,8 +90,9 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'slashers', label: 'Slashers & Killers', icon: 'Skull',
-    strong: ['slasher', 'serial killer', 'masked killer', 'psychopath', 'home invasion', 'final girl', 'killing spree', 'spree killer', 'killer doll', 'killer clown'],
-    weak: ['murder', 'stalker', 'killer'],
+    strong: ['slasher', 'serial killer', 'masked killer', 'psychopath', 'final girl', 'killing spree', 'spree killer', 'killer doll', 'killer clown'],
+    // A break-in alone is as often a comedy beat (Friendship) or an action opener (Nobody).
+    weak: ['murder', 'stalker', 'killer', 'home invasion'],
     overview: /\bserial killer\b|\bslasher\b|\bmasked killer\b/,
   },
   {

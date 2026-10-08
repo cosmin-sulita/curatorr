@@ -450,4 +450,14 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'time loop', 'time travel', 'training', 'war', 'war hero'],
     themes: ['aliens', 'time-travel'], moods: ['mind-bending'],
   },
+  {
+    title: 'Friendship', genres: ['Comedy', 'Drama'], runtime: 100, overview: '',
+    keywords: ['absurd', 'adult friends', 'aqueduct', 'breaking and entering', 'bromance', 'cancer free', 'complex',
+      'dark comedy', 'drug dealer', 'drug trip', 'fired from the job', 'florist', 'handgun', 'hero worship', 'hilarious',
+      'home invasion', 'husband wife relationship', 'jealousy', 'male friendship', 'marital separation', 'marriage crisis',
+      'mental break', 'mental desintegration', 'missing person', 'missing wife', 'neighbor', 'nosebleed', 'obsession',
+      'odd neighbor', 'perception', 'public meltdown', 'quicksand', 'sewers', 'sick wife', 'toad', 'toupee',
+      'tv news anchor', 'weatherman'],
+    notThemes: ['slashers'], moods: ['light'],
+  },
 ];
