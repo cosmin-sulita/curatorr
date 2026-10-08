@@ -25,6 +25,8 @@ describe('Plex Home profiles', () => {
   let homeUsersStatus = 200;
   /** Plex Home PINs, by user id; the Member's profile is protected. */
   let pins: Record<number, string> = {};
+  /** User switches asked of plex.tv, each one checking a PIN when the user has one. */
+  let switches = 0;
   const cleanups: (() => Promise<void>)[] = [];
 
   beforeAll(async () => {
@@ -51,6 +53,7 @@ describe('Plex Home profiles', () => {
       }
       const switched = /^\/api\/home\/users\/(\d+)\/switch$/.exec(url.pathname);
       if (switched) {
+        switches++;
         const pin = pins[Number(switched[1])];
         if (pin && url.searchParams.get('pin') !== pin) return json(401, {});
         return json(200, { authToken: `user-${switched[1]}` });
@@ -178,6 +181,28 @@ describe('Plex Home profiles', () => {
       expect((await select(app, owner, { pin: '0000' })).statusCode).toBe(200);
       const signedIn = `curatorr_admin=${encodeURIComponent(app.signCookie(`${OWNER}.${Date.now()}`))}`;
       expect((await select(app, owner, { cookie: signedIn })).statusCode).toBe(200);
+    });
+
+    it('pauses PIN entry after five wrong tries in a row, without asking plex.tv', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const member = idOf(store, 'Member');
+
+      // Wrong tries before a right one don't count against the next ones.
+      for (let i = 0; i < 4; i++) await select(app, member, { pin: '0000' });
+      expect((await select(app, member, { pin: '1234' })).statusCode).toBe(200);
+
+      for (let i = 0; i < 5; i++) expect((await select(app, member, { pin: '0000' })).statusCode).toBe(403);
+      const asked = switches;
+      const paused = await select(app, member, { pin: '1234' });
+      expect(paused.statusCode).toBe(429);
+      expect(paused.json()).toMatchObject({ error: 'Too many wrong PINs. Try again in 10 minutes', needPin: true });
+      expect(switches).toBe(asked);
+      // Other profiles aren't affected.
+      store.db.prepare('UPDATE profiles SET pin_protected = 1 WHERE plex_user_id = ?').run(KID);
+      pins[KID] = '4321';
+      expect((await select(app, idOf(store, 'Kid'), { pin: '4321' })).statusCode).toBe(200);
+      expect(switches).toBe(asked + 1);
     });
   });
 });
