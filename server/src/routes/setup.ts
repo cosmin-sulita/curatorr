@@ -18,7 +18,7 @@ import { toProfile } from '../store.js';
 const radarrBody = z.object({ url: z.string().min(1), apiKey: z.string().min(1) });
 
 export const setupRoutes: RouteModule = (app, { store, library }) => {
-  // Everything here is open until setup completes, then admin-only.
+  // Everything here is open until someone signs in with Plex, then admin-only (see isAdmin).
   const guard = (req: Parameters<typeof isAdmin>[0]) => requireAdmin(req, store);
 
   // ---- Radarr --------------------------------------------------------------
@@ -69,9 +69,13 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
       return { status: 'ok', account: { name: account.title, thumb: account.thumb } };
     }
 
-    guard(req);
-    if (plex.ownerId && account.id !== plex.ownerId && store.get('setupComplete')) {
-      throw new HttpError(403, 'Sign in with the same Plex account that owns this Curatorr instance');
+    // The owner can always sign in again, from any device. Another account needs the owner's sign-in on
+    // this device (to switch accounts before setup is complete), or a Curatorr nobody has claimed yet.
+    if (account.id !== plex.ownerId) {
+      guard(req);
+      if (plex.ownerId && store.get('setupComplete')) {
+        throw new HttpError(403, 'Sign in with the same Plex account that owns this Curatorr instance');
+      }
     }
     store.update('plex', { adminToken: token, ownerId: account.id, ownerName: account.title });
     setAdminCookie(reply, account.id);

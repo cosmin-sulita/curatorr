@@ -53,12 +53,13 @@ export function requireProfile(req: FastifyRequest, store: Store): ProfileRow {
 }
 
 /**
- * Admin rights are needed for settings. Before setup is complete, and when no
- * Plex owner exists to verify against, everyone is admin (like the *arr apps
- * without authentication). Otherwise the server owner must have signed in with Plex.
+ * Admin rights are needed for setup and settings. Until someone signs in with Plex (a fresh
+ * install, or one set up without Plex) there is no owner to verify against, so everyone is admin
+ * (like the *arr apps without authentication). From the first Plex sign-in on, even before setup
+ * is complete, the server owner must have signed in with Plex on this device.
  */
 export function isAdmin(req: FastifyRequest, store: Store): boolean {
-  if (store.demo || !store.get('setupComplete')) return true;
+  if (store.demo) return true;
   const { ownerId } = store.get('plex');
   if (!ownerId) return true;
   const value = readSigned(req, ADMIN_COOKIE);

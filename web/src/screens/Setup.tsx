@@ -4,10 +4,10 @@ import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
-import { api, errorMessage, useSettings } from '../lib/api';
+import { api, ApiError, errorMessage, useSettings } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
-import { PlexConnect } from './PlexConnect';
+import { OwnerSignIn, PlexConnect } from './PlexConnect';
 
 type Step = 'radarr' | 'plex' | 'finish';
 const STEPS: { id: Step; label: string }[] = [
@@ -20,6 +20,8 @@ export function SetupScreen() {
   const settings = useSettings(true);
   const [step, setStep] = useState<Step | null>(null);
   const current: Step = step ?? (settings.data?.radarr ? 'plex' : 'radarr');
+  // Once someone has signed in with Plex, only that account can carry on, so another device asks for it.
+  const ownerOnly = settings.error instanceof ApiError && Boolean(settings.error.data.needAdmin);
   // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
   useDeferUpdates();
 
@@ -44,6 +46,13 @@ export function SetupScreen() {
         <div className="mt-8 rounded-3xl bg-surface p-5 ring-1 ring-line sm:p-7">
           {settings.isLoading ? (
             <Spinner />
+          ) : ownerOnly ? (
+            <Panel title="Continue setup">
+              <p className="mb-4 text-muted">
+                Setup was started by signing in with Plex. Sign in with the same Plex account to carry on here.
+              </p>
+              <OwnerSignIn />
+            </Panel>
           ) : current === 'radarr' ? (
             <ServiceForm
               service="Radarr"

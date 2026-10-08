@@ -1,5 +1,5 @@
 import type { Profile } from '@curatorr/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Check, Lock } from 'lucide-react';
 import { useState } from 'react';
@@ -262,5 +262,31 @@ function UserImport({ onDone }: { onDone: () => void }) {
         Continue
       </Button>
     </div>
+  );
+}
+
+/** The server owner signs in with Plex to manage Curatorr on this device; everything reloads as the owner. */
+export function OwnerSignIn() {
+  const qc = useQueryClient();
+  const signIn = usePlexSignIn('login', () => qc.invalidateQueries());
+  return (
+    <>
+      <Button variant="primary" onClick={signIn.start} loading={signIn.waiting}>
+        {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
+      </Button>
+      {signIn.manualUrl && (
+        <p className="mt-3 text-sm text-muted">
+          Pop-up blocked.{' '}
+          <a className="font-semibold text-indigo-300 underline" href={signIn.manualUrl} target="_blank" rel="noreferrer">
+            Open Plex sign-in
+          </a>
+        </p>
+      )}
+      {signIn.error && (
+        <div className="mt-3">
+          <Notice>{signIn.error}</Notice>
+        </div>
+      )}
+    </>
   );
 }

@@ -18,9 +18,8 @@ import {
 } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime } from '../lib/format';
-import { usePlexSignIn } from '../lib/plexAuth';
 import { recentReleases } from '../lib/whatsNew';
-import { PlexConnect } from './PlexConnect';
+import { OwnerSignIn, PlexConnect } from './PlexConnect';
 import { ServiceForm } from './Setup';
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -131,26 +130,9 @@ function ProfileLists({ name }: { name: string }) {
 }
 
 function AdminSignIn() {
-  const qc = useQueryClient();
-  const signIn = usePlexSignIn('login', () => qc.invalidateQueries());
   return (
     <Section title="Manage Curatorr" description="Only the Plex server owner can change connections and profiles.">
-      <Button variant="primary" onClick={signIn.start} loading={signIn.waiting}>
-        {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
-      </Button>
-      {signIn.manualUrl && (
-        <p className="mt-3 text-sm text-muted">
-          Pop-up blocked.{' '}
-          <a className="font-semibold text-indigo-300 underline" href={signIn.manualUrl} target="_blank" rel="noreferrer">
-            Open Plex sign-in
-          </a>
-        </p>
-      )}
-      {signIn.error && (
-        <div className="mt-3">
-          <Notice>{signIn.error}</Notice>
-        </div>
-      )}
+      <OwnerSignIn />
     </Section>
   );
 }
