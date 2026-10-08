@@ -119,7 +119,7 @@ const MAX_THEME_BONUS = 5;
 const MAX_MOOD_BONUS = 3;
 const TAG_SATURATION = 6;
 const JITTER = 1.5;
-/** Movies the profile wants to watch: on their Plex Watchlist or saved with "Later". */
+/** Movies the profile wants to watch: on their Plex Watchlist or added with "Watchlist" in a pick. */
 const WATCHLIST_BONUS = 6;
 /** The next part of a saga the profile has started. */
 const NEXT_PART_BONUS = 4;

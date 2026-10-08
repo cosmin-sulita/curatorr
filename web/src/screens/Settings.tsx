@@ -76,7 +76,7 @@ export function SettingsScreen() {
   );
 }
 
-/** The profile's own marks: movies saved for later, and movies hidden from picks. */
+/** The profile's own marks: movies added to the watchlist, and movies hidden from picks. */
 function ProfileLists({ name }: { name: string }) {
   const marked = useHidden();
   const qc = useQueryClient();
@@ -104,7 +104,7 @@ function ProfileLists({ name }: { name: string }) {
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium">{h.movie.title}</span>
             <span className="text-xs text-muted">
-              {h.kind === 'later' ? 'Saved for later' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
+              {h.kind === 'later' ? 'On your watchlist' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
             </span>
           </span>
           <Button size="sm" variant="ghost" onClick={() => unmark(h.id)}>
@@ -118,7 +118,7 @@ function ProfileLists({ name }: { name: string }) {
   return (
     <>
       {later.length > 0 && (
-        <Section title="Saved for later" description={`Movies ${name} saved with Later. Picks favour them.`}>
+        <Section title="Your watchlist" description={`Movies ${name} added from a pick. Picks favour them.`}>
           {list(later, 'Remove')}
         </Section>
       )}
@@ -239,7 +239,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               <span>
                 <span className="block font-medium">Update Plex when you mark movies</span>
                 <span className="block text-sm text-muted">
-                  Seen it marks the movie watched in Plex. Later adds it to the Plex Watchlist.
+                  Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist.
                 </span>
               </span>
               <Toggle

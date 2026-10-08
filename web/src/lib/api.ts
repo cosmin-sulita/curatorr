@@ -84,7 +84,7 @@ export function useRecommendations(criteria: Criteria) {
 }
 
 /**
- * What happened in Plex for "Seen it" / "Later": changed it, it already matched,
+ * What happened in Plex for "Seen it" / "Watchlist": changed it, it already matched,
  * nothing to do (no Plex, sync off), or Plex couldn't be reached.
  */
 export type PlexSyncResult = 'synced' | 'already' | 'skipped' | 'failed';

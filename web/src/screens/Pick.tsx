@@ -28,8 +28,8 @@ function markMessage(kind: Decline, title: string, plex: PlexSyncResult | undefi
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
     if (plex === 'synced' || plex === 'already') return `${title} is on your Plex Watchlist`;
-    if (plex === 'failed') return `Saved ${title} for later, but couldn't reach your Plex Watchlist`;
-    return `Saved ${title} for later`;
+    if (plex === 'failed') return `Added ${title} to your watchlist, but couldn't reach Plex`;
+    return `Added ${title} to your watchlist`;
   }
   if (plex === 'synced') return `Marked ${title} as watched in Plex`;
   if (plex === 'failed') return `Marked ${title} as seen, but couldn't update Plex`;
@@ -162,7 +162,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   const declines = [
     { kind: 'skipped' as const, label: 'Not tonight', Icon: SkipForward },
-    { kind: 'later' as const, label: 'Later', Icon: BookmarkPlus },
+    { kind: 'later' as const, label: 'Watchlist', Icon: BookmarkPlus },
     { kind: 'seen' as const, label: 'Seen it', Icon: Eye },
     { kind: 'never' as const, label: 'Never', Icon: Ban },
   ];
