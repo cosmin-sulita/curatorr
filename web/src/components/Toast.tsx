@@ -47,7 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <span className="text-fg">{toast.message}</span>
               {toast.action && (
                 <button
-                  className="rounded-lg px-2.5 py-1 font-semibold text-indigo-300 hover:bg-white/5"
+                  className="grid min-h-11 shrink-0 place-items-center rounded-lg px-3 font-semibold text-indigo-300 hover:bg-white/5"
                   onClick={() => {
                     toast.action!.run();
                     setToast(null);

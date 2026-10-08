@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, LogOut, RefreshCw } from 'lucide-react';
+import { LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { useState, type ReactNode } from 'react';
-import { Shell } from '../components/Shell';
+import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
@@ -41,13 +41,8 @@ export function SettingsScreen() {
   return (
     <>
       <Shell>
-        <button
-          onClick={() => window.history.back()}
-          className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
-        >
-          <ChevronLeft className="size-5" /> Back
-        </button>
-        <h1 className="mt-4 font-display text-5xl">Settings</h1>
+        <BackButton />
+        <h1 className="mt-3 font-display text-5xl">Settings</h1>
 
         <div className="mt-8 space-y-5">
           {status?.profile && <ProfileLists name={status.profile.name} />}

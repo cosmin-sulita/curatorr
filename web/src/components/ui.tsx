@@ -123,7 +123,11 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={clsx('relative h-7 w-12 shrink-0 rounded-full transition', checked ? 'bg-accent-gradient' : 'bg-raised ring-1 ring-line')}
+      className={clsx(
+        // The ::before box makes the tap area 64×44 without changing how the switch looks.
+        "relative h-7 w-12 shrink-0 rounded-full transition before:absolute before:-inset-2 before:content-['']",
+        checked ? 'bg-accent-gradient' : 'bg-raised ring-1 ring-line',
+      )}
     >
       <span
         className={clsx('absolute top-1 size-5 rounded-full bg-white shadow transition-all', checked ? 'left-6' : 'left-1')}

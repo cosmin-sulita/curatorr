@@ -1,9 +1,9 @@
 import { STEP_ORDER, genreById, type Criteria, type WizardOption, type WizardStep } from '@curatorr/shared';
 import clsx from 'clsx';
-import { ChevronLeft, Shuffle } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
-import { BottomBar, CenteredState, Shell } from '../components/Shell';
+import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, useStatus, useWizardOptions } from '../lib/api';
 import { plural } from '../lib/format';
@@ -107,17 +107,8 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   return (
     <>
       <Shell>
-        <div className="flex h-10 items-center justify-between">
-          {index > 0 ? (
-            <button
-              onClick={() => window.history.back()}
-              className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
-            >
-              <ChevronLeft className="size-5" /> Back
-            </button>
-          ) : (
-            <span />
-          )}
+        <div className="flex h-11 items-center justify-between">
+          {index > 0 ? <BackButton /> : <span />}
           <ol className="flex gap-1.5" aria-label={`Question ${index + 1} of ${STEP_ORDER.length}`}>
             {STEP_ORDER.map((s, i) => (
               <li

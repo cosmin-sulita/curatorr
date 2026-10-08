@@ -304,7 +304,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 href={`https://www.youtube.com/watch?v=${m.trailerId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-muted hover:text-fg"
+                className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted hover:text-fg"
               >
                 <Clapperboard className="size-4" /> Watch the trailer
               </a>

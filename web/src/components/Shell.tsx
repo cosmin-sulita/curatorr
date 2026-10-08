@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Settings } from 'lucide-react';
+import { ChevronLeft, Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useStatus } from '../lib/api';
 import { Link } from '../lib/router';
@@ -35,14 +35,14 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
             <Link
               to="/settings"
               aria-label="Settings"
-              className="grid size-10 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
+              className="grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
             >
               <Settings className="size-5" />
             </Link>
             {profile && (
               <Link
                 to="/profiles"
-                className="flex items-center gap-2 rounded-full py-1 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
+                className="flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
                 aria-label={`Watching as ${profile.name}. Switch profile`}
               >
                 <span className="hidden sm:inline">{profile.name}</span>
@@ -54,6 +54,17 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
       </header>
       <main className={clsx('relative z-10 mx-auto px-4 pb-safe sm:px-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>{children}</main>
     </div>
+  );
+}
+
+export function BackButton() {
+  return (
+    <button
+      onClick={() => window.history.back()}
+      className="-ml-2 inline-flex h-11 items-center gap-1 rounded-lg pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
+    >
+      <ChevronLeft className="size-5" /> Back
+    </button>
   );
 }
 
