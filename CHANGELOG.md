@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.3.1 (2026-10-08)
+
+- chore(ci): run the docker actions on Node 24 ([a3fe4c8](https://github.com/cosmin-sulita/curatorr/commit/a3fe4c8))
+
 ## 0.3.0 (2026-10-08)
 
 - feat(app): show what's new after an update ([4e2227d](https://github.com/cosmin-sulita/curatorr/commit/4e2227d))
