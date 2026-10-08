@@ -2,6 +2,27 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.8.0 (2026-10-08)
+
+- feat(profiles): give blobatars friendlier shapes in one tone ([5b58ccc](https://github.com/cosmin-sulita/curatorr/commit/5b58ccc))
+- fix(app): keep keyboard focus inside dialogs and return it on close ([501ab14](https://github.com/cosmin-sulita/curatorr/commit/501ab14))
+- docs(readme): describe close matches and settings without Plex accurately ([bbaf0b4](https://github.com/cosmin-sulita/curatorr/commit/bbaf0b4))
+- test(server): check who can call each route ([c8fe516](https://github.com/cosmin-sulita/curatorr/commit/c8fe516))
+- fix(settings): make Restore and Remove easier to tap ([6339b98](https://github.com/cosmin-sulita/curatorr/commit/6339b98))
+- fix(picks): keep a pick when marking it fails, and refresh the questions after Undo ([085ba29](https://github.com/cosmin-sulita/curatorr/commit/085ba29))
+- fix(picks): stop waiting on an unreachable Plex server for every pick ([1068fe0](https://github.com/cosmin-sulita/curatorr/commit/1068fe0))
+- fix(sync): sync again when settings change during a sync ([22f80ec](https://github.com/cosmin-sulita/curatorr/commit/22f80ec))
+- fix(picks): keep the same shuffle all evening, turning over at 4 am local time ([d164e2d](https://github.com/cosmin-sulita/curatorr/commit/d164e2d))
+- fix(sagas): stop restricted earlier parts from holding back sequels a profile may watch ([9c2cdd6](https://github.com/cosmin-sulita/curatorr/commit/9c2cdd6))
+- fix(profiles): ask to pick the profile again when its Plex sign-in stops working ([5e52d3e](https://github.com/cosmin-sulita/curatorr/commit/5e52d3e))
+- fix(profiles): pause PIN entry after too many wrong tries ([ae7edaa](https://github.com/cosmin-sulita/curatorr/commit/ae7edaa))
+- fix(profiles): ask for a protected profile's PIN once on each device ([1f4d5db](https://github.com/cosmin-sulita/curatorr/commit/1f4d5db))
+- fix(settings): explain malformed addresses instead of failing ([e3d13e7](https://github.com/cosmin-sulita/curatorr/commit/e3d13e7))
+- fix(settings): ask for the API key again when Radarr or Seerr moves to a new address ([213e926](https://github.com/cosmin-sulita/curatorr/commit/213e926))
+- fix(setup): only the Plex account that set up Curatorr can continue setup ([dd74379](https://github.com/cosmin-sulita/curatorr/commit/dd74379))
+- fix(profiles): keep everyone's profiles when Plex Home can't be read ([025490a](https://github.com/cosmin-sulita/curatorr/commit/025490a))
+- fix(wizard): stop counting a break-in as a slasher movie ([be21abe](https://github.com/cosmin-sulita/curatorr/commit/be21abe))
+
 ## 0.7.0 (2026-10-08)
 
 - fix(wizard): use updated themes and moods as soon as Curatorr restarts ([088d615](https://github.com/cosmin-sulita/curatorr/commit/088d615))
