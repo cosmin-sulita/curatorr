@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.4.1 (2026-10-08)
+
+- fix(app): keep the page still behind dialogs ([2ee2ad9](https://github.com/cosmin-sulita/curatorr/commit/2ee2ad9))
+
 ## 0.4.0 (2026-10-08)
 
 - feat(picks): keep sagas in order and offer to start one ([1306b5c](https://github.com/cosmin-sulita/curatorr/commit/1306b5c))
