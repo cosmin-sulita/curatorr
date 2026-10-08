@@ -135,4 +135,18 @@ describe('setup', () => {
       { path: '/moved/api/v3/system/status', key: 'NEW-KEY' },
     ]);
   });
+
+  it('explains a malformed address instead of failing', async () => {
+    const { app } = await freshInstall();
+    const typo = 'http://192.168.1 .10:7878';
+    for (const [method, url, payload] of [
+      ['POST', '/api/setup/radarr/test', { url: typo, apiKey: 'k' }],
+      ['POST', '/api/setup/plex/server', { url: typo, machineId: 'm' }],
+      ['PUT', '/api/settings/seerr', { url: typo, apiKey: 'k' }],
+    ] as const) {
+      const res = await app.inject({ method, url, payload });
+      expect(res.statusCode, url).toBe(400);
+      expect(res.json().error, url).toMatch(/like http:\/\/192\.168\.1\.10/);
+    }
+  });
 });

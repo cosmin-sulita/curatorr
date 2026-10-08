@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parse, type RouteModule } from '../context.js';
+import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
 import { RadarrClient } from '../integrations/radarr.js';
 import {
@@ -15,7 +15,7 @@ import { importHomeUsers } from '../services/profiles.js';
 import { isAdmin, requireAdmin, setAdminCookie } from '../session.js';
 import { toProfile } from '../store.js';
 
-const radarrBody = z.object({ url: z.string().min(1), apiKey: z.string().min(1) });
+const radarrBody = z.object({ url: serviceUrl, apiKey: z.string().min(1) });
 
 export const setupRoutes: RouteModule = (app, { store, library }) => {
   // Everything here is open until someone signs in with Plex, then admin-only (see isAdmin).
@@ -112,7 +112,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
 
   app.post('/api/setup/plex/server', async (req) => {
     guard(req);
-    const body = parse(z.object({ machineId: z.string().min(1), url: z.string().min(1), name: z.string().optional() }), req.body);
+    const body = parse(z.object({ machineId: z.string().min(1), url: serviceUrl, name: z.string().optional() }), req.body);
     const plex = store.get('plex');
     if (!plex.adminToken) throw new HttpError(400, 'Sign in with Plex first');
 
