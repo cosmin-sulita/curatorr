@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.2.1 (2026-10-08)
+
+- fix(plex): open picks in the redesigned Plex apps ([fd564ac](https://github.com/cosmin-sulita/curatorr/commit/fd564ac))
+
 ## 0.2.0 (2026-10-08)
 
 - fix(icons): make the home screen icon full-bleed ([d820993](https://github.com/cosmin-sulita/curatorr/commit/d820993))
