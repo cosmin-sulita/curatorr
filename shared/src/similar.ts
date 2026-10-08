@@ -21,7 +21,7 @@ import type { FeedbackEvent, Movie, Reason } from './types.js';
  */
 
 /** TMDB bookkeeping keywords that say nothing about the movie itself. */
-const IGNORED_KEYWORDS = new Set(['duringcreditsstinger', 'aftercreditsstinger', 'woman director', 'sequel', 'prequel']);
+export const IGNORED_KEYWORDS = new Set(['duringcreditsstinger', 'aftercreditsstinger', 'woman director', 'sequel', 'prequel']);
 const THEME_WEIGHT = 4;
 const MOOD_WEIGHT = 2;
 const GENRE_WEIGHT = 1;

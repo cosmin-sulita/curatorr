@@ -74,7 +74,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 ## How picks work
 
 1. **Eligible movies**: downloaded in Radarr, found in Plex, not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's Plex restrictions.
-2. **Tags**: on every sync each movie gets *themes* (Superheroes, Supernatural, Heists & Cons, Time Travel… around 40) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts) and is easy to extend.
+2. **Tags**: on every sync each movie gets *themes* (Superheroes, Supernatural, Heists & Cons, Time Travel… around 40) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts); `npm run tags` shows how it fits your library (see Development).
 3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing) + up to 8 points for how strongly the theme/mood matches + 8 if they requested it in Seerr and haven't watched it yet, otherwise + 6 if it's on their watchlist − 15 if you passed on it in the last two weeks − 5 if it was shown between three hours and three days ago (so going back and answering the same way gives the same pick that evening). A small daily shuffle keeps near-ties from always landing on the same movie.
 4. **Close matches**: if fewer than six movies match every answer, the list is topped up with movies that match the genre plus the theme *or* the mood, clearly labelled.
 5. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, requests, the watchlist and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
@@ -103,7 +103,10 @@ npm run dev        # same, against your real Radarr/Plex (setup runs on first st
 npm test           # tagger, ranking, Plex matching and API tests
 npm run typecheck
 npm run build      # web/dist + server/dist
+npm run tags       # how the theme/mood vocabulary fits a real library (see below)
 ```
+
+To tune the vocabulary against your own library, copy `curatorr.db` (with its `-wal` and `-shm` files) from Curatorr's config folder into `config/`, which git ignores. `npm run tags` then reports coverage, untagged movies, keywords nothing matches and terms found inside longer keywords, compared with the tags the server last stored. `-- --movie <title>` explains one movie's tags and `-- --tag <id>` lists what a theme or mood gains and loses. The database is only read.
 
 The repo is an npm workspace:
 

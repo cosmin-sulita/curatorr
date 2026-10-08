@@ -189,10 +189,7 @@ export class Store {
   // ---- movies -------------------------------------------------------------
 
   movies(): StoredMovie[] {
-    if (!this.movieCache) {
-      const rows = this.db.prepare('SELECT * FROM movies ORDER BY title').all() as unknown as MovieRow[];
-      this.movieCache = rows.map(rowToMovie);
-    }
+    if (!this.movieCache) this.movieCache = readMovies(this.db);
     return this.movieCache;
   }
 
@@ -460,6 +457,12 @@ export class Store {
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** The whole library as stored, by title. Also used by the tagging report, which opens a copy read-only. */
+export function readMovies(db: DB): StoredMovie[] {
+  const rows = db.prepare('SELECT * FROM movies ORDER BY title').all() as unknown as MovieRow[];
+  return rows.map(rowToMovie);
+}
 
 function rowToMovie(r: MovieRow): StoredMovie {
   return {

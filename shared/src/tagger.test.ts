@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { keywordPhrases, tagMoods, tagThemes } from './tagger.js';
+import { explainTags, inVocabulary, keywordPhrases, tagMoods, tagThemes } from './tagger.js';
 
 const base = { genres: [], keywords: [], overview: '', runtime: 110 };
 
 describe('keywordPhrases', () => {
   it('yields the whole keyword and every word run', () => {
     expect([...keywordPhrases('Zombie Apocalypse')]).toEqual(['zombie apocalypse', 'zombie', 'apocalypse']);
+  });
+
+  it('knows which keywords the vocabulary covers', () => {
+    expect(inVocabulary('zombie apocalypse')).toBe(true);
+    expect(inVocabulary('new york city')).toBe(false);
   });
 });
 
@@ -67,5 +72,11 @@ describe('tagMoods', () => {
     const lotr = { ...base, genres: ['Adventure', 'Fantasy', 'Action'], runtime: 178 };
     expect(tagMoods(lotr)).toHaveProperty('epic');
     expect(tagMoods({ ...lotr, runtime: 95 })).not.toHaveProperty('epic');
+  });
+});
+
+describe('explainTags', () => {
+  it('keeps near misses, untagged', () => {
+    expect(explainTags({ ...base, keywords: ['outbreak'] }).themes.zombies).toMatchObject({ score: 1, tagged: false });
   });
 });

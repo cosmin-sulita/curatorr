@@ -16,6 +16,7 @@ npm test             # vitest: shared/src/**/*.test.ts and server/src/**/*.test.
 npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
 npm run typecheck    # tsc on shared, server and web in turn
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
+npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
 ```
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
@@ -29,7 +30,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 
 - **`shared/`**: pure, unit-tested logic used by both sides.
   - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
-  - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time.
+  - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time. `explainTags` keeps the evidence behind each tag.
   - `scoring.ts`: `eligibleMovies`, `rankMovies` (quality score plus theme/mood bonus, skip/shown penalties, watchlist and next-saga bonuses, and a jitter seeded per profile per day) and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice).
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres), reusing the skip/shown/watchlist adjustments from `scoring.ts`.
   - `sagas.ts`: collection ordering.
@@ -40,6 +41,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
   - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id.
+  - `scripts/tags.ts` (`npm run tags`): a read-only report on a copy of a real database. Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against it: coverage, untagged movies, unmatched keywords, and terms found inside longer keywords (idiom candidates), compared with the stored tags.
   - `services/recommend.ts` builds the per-profile context and calls the shared ranking.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
   - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional and set up in Settings only; a failed read keeps the last requests.

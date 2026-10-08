@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p shared --noEmit && tsc -p server --noEmit && tsc -p web --noEmit",
+    "tags": "npm run tags -w server --",
     "icons": "npm run icons -w web"
   },
   "overrides": {
