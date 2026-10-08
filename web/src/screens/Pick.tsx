@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { RatingBadges } from '../components/Ratings';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
@@ -84,6 +84,16 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     }
   }, [current?.movie.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Undo puts a pick back in front, which slides a card into the start of the rail. Scroll
+  // snapping keeps the previous first card in place and hides the new one, so start over.
+  const rail = useRef<HTMLUListElement>(null);
+  const restored = useRef(false);
+  useLayoutEffect(() => {
+    if (!restored.current) return;
+    restored.current = false;
+    rail.current?.scrollTo({ left: 0 });
+  }, [current?.movie.id]);
+
   const decline = (kind: Decline) => {
     if (!current) return;
     const pick = current;
@@ -99,6 +109,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           action: {
             label: 'Undo',
             run: () => {
+              restored.current = true;
               setQueue((q) => [pick, ...(q ?? [])]);
               undoFeedback(id)
                 .then((res) => {
@@ -323,7 +334,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               Other good picks
             </h2>
             {/* Scroll padding lines the first poster up with the heading; pt-1.5 leaves room for the focus ring. */}
-            <ul className="no-scrollbar -mx-4 mt-2.5 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-1.5 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6">
+            <ul
+              ref={rail}
+              className="no-scrollbar -mx-4 mt-2.5 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-1.5 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6"
+            >
               {rest.map((p) => (
                 <li key={p.movie.id} className="w-28 shrink-0 snap-start sm:w-36">
                   <button onClick={() => bringForward(p)} className="group w-full text-left">
