@@ -2,6 +2,31 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.5.0 (2026-10-08)
+
+- feat(picks): shuffle the posters before a Surprise me pick lands ([9795ba9](https://github.com/cosmin-sulita/curatorr/commit/9795ba9))
+- docs(readme): describe Watchlist and Surprise me, and add CLAUDE.md ([7b0c9d2](https://github.com/cosmin-sulita/curatorr/commit/7b0c9d2))
+- fix(profiles): read the PIN lock after the profile's name ([ca9283a](https://github.com/cosmin-sulita/curatorr/commit/ca9283a))
+- fix(app): make the logo and the What's new link easier to tap ([02833f2](https://github.com/cosmin-sulita/curatorr/commit/02833f2))
+- fix(picks): keep the first alternative in view after Undo ([dceda2e](https://github.com/cosmin-sulita/curatorr/commit/dceda2e))
+- fix(app): read profile names and loading states properly with VoiceOver ([ea40476](https://github.com/cosmin-sulita/curatorr/commit/ea40476))
+- fix(wizard): show different posters for each theme ([cd18478](https://github.com/cosmin-sulita/curatorr/commit/cd18478))
+- fix(profiles): cover the whole screen behind the PIN pad ([925eb3c](https://github.com/cosmin-sulita/curatorr/commit/925eb3c))
+- fix(picks): offer a way forward when you've passed on every match ([3a5a91b](https://github.com/cosmin-sulita/curatorr/commit/3a5a91b))
+- fix(picks): keep the desktop buttons together ([9ff2b5c](https://github.com/cosmin-sulita/curatorr/commit/9ff2b5c))
+- fix(picks): line up Other good picks and show their focus ring ([1c1486c](https://github.com/cosmin-sulita/curatorr/commit/1c1486c))
+- fix(app): make faint text and the main button easier to read ([1d43603](https://github.com/cosmin-sulita/curatorr/commit/1d43603))
+- fix(app): only show What's new when there's something new ([7774f55](https://github.com/cosmin-sulita/curatorr/commit/7774f55))
+- fix(app): make small buttons easier to tap ([98d4ef9](https://github.com/cosmin-sulita/curatorr/commit/98d4ef9))
+- fix(picks): keep tonight's pick when you go back to an answer ([2a7653a](https://github.com/cosmin-sulita/curatorr/commit/2a7653a))
+- fix(picks): fade the backdrop out instead of cutting it off ([b6f0d4f](https://github.com/cosmin-sulita/curatorr/commit/b6f0d4f))
+- fix(picks): show ratings and the story above the buttons on phones ([57d4412](https://github.com/cosmin-sulita/curatorr/commit/57d4412))
+- fix(picks): rename Later to Watchlist ([2004bf2](https://github.com/cosmin-sulita/curatorr/commit/2004bf2))
+- feat(picks): undo Not tonight and swipes ([fc437af](https://github.com/cosmin-sulita/curatorr/commit/fc437af))
+- feat(wizard): go straight to a pick with Surprise me ([8e1ad24](https://github.com/cosmin-sulita/curatorr/commit/8e1ad24))
+- feat(wizard): pin Surprise me and Doesn't matter to the bottom of the screen ([b712a29](https://github.com/cosmin-sulita/curatorr/commit/b712a29))
+- docs(readme): describe a generic Docker install ([263e6b2](https://github.com/cosmin-sulita/curatorr/commit/263e6b2))
+
 ## 0.4.1 (2026-10-08)
 
 - fix(app): keep the page still behind dialogs ([2ee2ad9](https://github.com/cosmin-sulita/curatorr/commit/2ee2ad9))
