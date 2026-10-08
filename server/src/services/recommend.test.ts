@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer, type RequestListener } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
 import { Store, type StoredMovie } from '../store.js';
-import { recommendFor } from './recommend.js';
+import { ensurePlexIds, recommendFor } from './recommend.js';
 
 let nextId = 1;
 function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
@@ -63,5 +65,43 @@ describe('picks for a restricted profile', () => {
     const titles = (await recommendFor(store, teen, {})).picks.map((p) => p.movie.title);
     expect(titles).toContain('Live Free or Die Hard');
     expect(titles).not.toContain('Die Hard');
+  });
+});
+
+describe('looking up Plex ids for picks', () => {
+  /** A Plex server answering with `handler`, and how many requests it got. */
+  async function plexServer(handler: RequestListener) {
+    const counter = { requests: 0 };
+    const server = createServer((req, res) => {
+      counter.requests++;
+      handler(req, res);
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    cleanups.push(() => server.close());
+    const store = tempStore();
+    const port = (server.address() as AddressInfo).port;
+    store.update('plex', { adminToken: 'token', machineId: 'machine', serverUrl: `http://127.0.0.1:${port}` });
+    store.replaceMovies([movie({ plexRatingKey: '1' }), movie({ plexRatingKey: '2' })], Date.now());
+    return { store, counter };
+  }
+
+  it("stops asking a Plex server it can't reach for a while, so picks don't wait on it", async () => {
+    const { store, counter } = await plexServer((req) => req.socket.destroy());
+    await ensurePlexIds(store, store.movies());
+    expect(counter.requests).toBe(2);
+    await ensurePlexIds(store, store.movies());
+    expect(counter.requests).toBe(2);
+  });
+
+  it('keeps looking up the others when one item is gone', async () => {
+    const { store, counter } = await plexServer((req, res) => {
+      const found = req.url === '/library/metadata/2';
+      res.writeHead(found ? 200 : 404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(found ? { MediaContainer: { Metadata: [{ ratingKey: '2', slug: 'two' }] } } : {}));
+    });
+    await ensurePlexIds(store, store.movies());
+    expect(Object.fromEntries(store.movies().map((m) => [m.plexRatingKey, m.plexSlug]))).toEqual({ 1: null, 2: 'two' });
+    await ensurePlexIds(store, store.movies());
+    expect(counter.requests).toBe(3);
   });
 });

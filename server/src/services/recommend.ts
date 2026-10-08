@@ -16,12 +16,15 @@ import {
   type WizardOptionsResponse,
   type WizardStep,
 } from '@curatorr/shared';
-import { HttpError } from '../http.js';
+import { HttpError, UpstreamError } from '../http.js';
 import { plexLinks, PlexServerClient } from '../integrations/plex.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
 /** Id lookups happen while the picks load, so keep them short. */
 const ID_LOOKUP_MS = 2_500;
+/** After the Plex server couldn't be reached, picks skip the lookups for this long. */
+const LOOKUP_PAUSE_MS = 60_000;
+const lookupsPausedUntil = new WeakMap<Store, number>();
 /** "Something like…" lists this many recently watched movies, or search results. */
 const LIKE_RECENT = 60;
 const LIKE_SEARCH = 30;
@@ -87,7 +90,7 @@ export function toDTO(store: Store, m: StoredMovie): MovieDTO {
  * retried next time.
  */
 export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
-  if (!store.plexConfigured()) return;
+  if (!store.plexConfigured() || Date.now() < (lookupsPausedUntil.get(store) ?? 0)) return;
   const missing = movies.filter((m) => m.plexRatingKey && (m.plexSlug == null || m.plexGuid == null));
   if (!missing.length) return;
 
@@ -98,8 +101,10 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
       try {
         const item = await client.item(m.plexRatingKey!, ID_LOOKUP_MS);
         store.setPlexIds(m.id, { slug: item?.slug ?? m.plexSlug ?? '', guid: item?.plexGuid ?? m.plexGuid ?? '' });
-      } catch {
-        // Server unreachable or item gone: keep it unknown and try again later.
+      } catch (err) {
+        // Item gone or server unreachable: keep it unknown and try again later. An unreachable
+        // server would make every list of picks wait for the lookups, so stop asking for a while.
+        if (!(err instanceof UpstreamError && err.status)) lookupsPausedUntil.set(store, Date.now() + LOOKUP_PAUSE_MS);
       }
     }),
   );
