@@ -48,6 +48,14 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
+/** True when the browser already holds this image (it completes at once), so it needn't fade in. */
+function isCached(src: string | null | undefined) {
+  if (!src) return false;
+  const probe = new Image();
+  probe.src = src;
+  return probe.complete && probe.naturalWidth > 0;
+}
+
 /** An image that fades in when loaded and degrades to a tinted block when missing. */
 export function Img({
   src,
@@ -55,7 +63,8 @@ export function Img({
   alt = '',
   ...rest
 }: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null }) {
-  const [loaded, setLoaded] = useState(false);
+  // Starting out loaded means a preloaded or just-shown image appears at once instead of fading in.
+  const [loaded, setLoaded] = useState(() => isCached(src));
   const [failed, setFailed] = useState(false);
   if (!src || failed) return <div className={clsx('bg-raised', className)} aria-hidden />;
   return (

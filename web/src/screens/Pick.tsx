@@ -1,9 +1,10 @@
-import type { Pick } from '@curatorr/shared';
+import type { Pick, WizardOptionsResponse } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
-import { AnimatePresence, motion, type PanInfo } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotionConfig, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
+import { PosterShuffle } from '../components/PosterShuffle';
 import { RatingBadges } from '../components/Ratings';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
@@ -16,8 +17,9 @@ import {
   useStatus,
   type PlexSyncResult,
 } from '../lib/api';
-import { fallBackIfStillHere, plexLink, runtime, vibrate, type PlexLink } from '../lib/format';
+import { fallBackIfStillHere, plexLink, plural, runtime, vibrate, type PlexLink } from '../lib/format';
 import { navigate } from '../lib/router';
+import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
 
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
@@ -93,6 +95,21 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     restored.current = false;
     rail.current?.scrollTo({ left: 0 });
   }, [current?.movie.id]);
+
+  // "Surprise me" deals a few of the other candidates' posters before the pick lands.
+  const reduceMotion = useReducedMotionConfig();
+  const [shuffle, setShuffle] = useState<'pending' | 'done' | null>(() =>
+    surprisePending() && !reduceMotion ? 'pending' : null,
+  );
+  useEffect(() => clearSurprise(), []);
+  const shufflePosters = rest.flatMap((p) => (p.movie.posterUrl ? [p.movie.posterUrl] : []));
+  // The genre question's "N movies to choose from", still cached from a moment ago (picks are capped at 12).
+  const libraryTotal = qc.getQueryData<WizardOptionsResponse>(['wizard', 'genre', {}])?.total;
+  const shuffling = shuffle === 'pending' && shufflePosters.length >= 3;
+  // Too few posters to make a show of it (or nothing to pick): just land.
+  useEffect(() => {
+    if (shuffle === 'pending' && queue && !shuffling) setShuffle(null);
+  }, [queue, shuffle, shuffling]);
 
   const decline = (kind: Decline) => {
     if (!current) return;
@@ -227,13 +244,14 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   return (
     <>
-      <Backdrop src={m.fanartUrl ?? m.posterUrl} />
+      {/* No backdrop while shuffling: the pick's fanart would give it away. */}
+      <Backdrop src={shuffling ? null : (m.fanartUrl ?? m.posterUrl)} />
       <Shell wide>
         <div className="grid gap-5 pt-[2vh] md:grid-cols-[minmax(0,320px)_1fr] md:items-end md:gap-12 md:pt-[24vh]">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={m.id}
-              drag="x"
+              drag={shuffling ? false : 'x'}
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={{ left: 0.7, right: 0.15 }}
               onDragEnd={onDragEnd}
@@ -243,92 +261,106 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
               className="mx-auto w-36 cursor-grab touch-pan-y active:cursor-grabbing sm:w-56 md:mx-0 md:w-full"
             >
-              <Img
-                src={m.posterUrl}
-                alt={`${m.title} poster`}
-                draggable={false}
-                className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10"
-              />
-              {!swiped && <p className="mt-3 text-center text-xs text-faint md:hidden">Swipe left for the next pick</p>}
+              {shuffling ? (
+                <PosterShuffle posters={shufflePosters} final={m.posterUrl} onDone={() => setShuffle('done')} />
+              ) : (
+                <Img
+                  src={m.posterUrl}
+                  alt={`${m.title} poster`}
+                  draggable={false}
+                  className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10"
+                />
+              )}
+              {!swiped && !shuffling && (
+                <p className="mt-3 text-center text-xs text-faint md:hidden">Swipe left for the next pick</p>
+              )}
             </motion.div>
           </AnimatePresence>
 
           <motion.div
-            key={`details-${m.id}`}
+            key={shuffling ? 'details-shuffle' : `details-${m.id}`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.08, duration: 0.35 }}
             className="min-w-0"
           >
-            <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-300')}>
-              {current.closeMatch ? 'Close match' : "Tonight's pick"}
-            </p>
-            {/* Long titles step down on phones so the ratings still clear the action bar. */}
-            <h1
-              className={clsx(
-                'mt-2 font-display text-balance sm:text-6xl lg:text-7xl',
-                m.title.length > 28 ? 'text-[40px]' : 'text-5xl',
-              )}
-            >
-              {m.title}
-            </h1>
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] text-muted">
-              {m.year && <span>{m.year}</span>}
-              {runtime(m.runtime) && <span>{runtime(m.runtime)}</span>}
-              {m.certification && (
-                <span className="rounded-md px-1.5 py-0.5 text-xs font-semibold ring-1 ring-white/25">{m.certification}</span>
-              )}
-              <span className="text-faint">{m.genres.slice(0, 3).join(', ')}</span>
-            </div>
-            {m.saga && (
-              <p className="mt-2 text-[15px] text-muted">
-                Part {m.saga.part} of {m.saga.parts} in <span className="text-fg">{m.saga.title}</span>
+            {shuffling ? (
+              <p className="text-sm font-semibold text-indigo-300" role="status">
+                Shuffling {libraryTotal ? plural(libraryTotal, 'movie') : 'your movies'}…
               </p>
-            )}
+            ) : (
+              <>
+                <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-300')}>
+                  {current.closeMatch ? 'Close match' : "Tonight's pick"}
+                </p>
+                {/* Long titles step down on phones so the ratings still clear the action bar. */}
+                <h1
+                  className={clsx(
+                    'mt-2 font-display text-balance sm:text-6xl lg:text-7xl',
+                    m.title.length > 28 ? 'text-[40px]' : 'text-5xl',
+                  )}
+                >
+                  {m.title}
+                </h1>
 
-            <div className="mt-5">
-              <RatingBadges ratings={m.ratings} />
-            </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] text-muted">
+                  {m.year && <span>{m.year}</span>}
+                  {runtime(m.runtime) && <span>{runtime(m.runtime)}</span>}
+                  {m.certification && (
+                    <span className="rounded-md px-1.5 py-0.5 text-xs font-semibold ring-1 ring-white/25">{m.certification}</span>
+                  )}
+                  <span className="text-faint">{m.genres.slice(0, 3).join(', ')}</span>
+                </div>
+                {m.saga && (
+                  <p className="mt-2 text-[15px] text-muted">
+                    Part {m.saga.part} of {m.saga.parts} in <span className="text-fg">{m.saga.title}</span>
+                  </p>
+                )}
 
-            {reasons.length > 0 && (
-              <ul className="mt-5 flex flex-wrap gap-2" aria-label="Why this pick">
-                {reasons.map((r) => (
-                  <li key={r.kind + r.label} className="rounded-full bg-white/8 px-3 py-1 text-[13px] text-fg ring-1 ring-line">
-                    {r.label}
-                  </li>
-                ))}
-              </ul>
-            )}
+                <div className="mt-5">
+                  <RatingBadges ratings={m.ratings} />
+                </div>
 
-            <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-fg/85">{m.overview}</p>
+                {reasons.length > 0 && (
+                  <ul className="mt-5 flex flex-wrap gap-2" aria-label="Why this pick">
+                    {reasons.map((r) => (
+                      <li key={r.kind + r.label} className="rounded-full bg-white/8 px-3 py-1 text-[13px] text-fg ring-1 ring-line">
+                        {r.label}
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
-            {/* Desktop: actions inline with the details, laid out like the phone bar. */}
-            <div className="mt-7 hidden md:block">
-              {watchButton}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {declines.map(({ kind, label, Icon }) => (
-                  <Button key={kind} variant={kind === 'never' ? 'ghost' : 'secondary'} onClick={() => decline(kind)}>
-                    <Icon className="size-4" /> {label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+                <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-fg/85">{m.overview}</p>
 
-            {m.trailerId && (
-              <a
-                href={`https://www.youtube.com/watch?v=${m.trailerId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted hover:text-fg"
-              >
-                <Clapperboard className="size-4" /> Watch the trailer
-              </a>
+                {/* Desktop: actions inline with the details, laid out like the phone bar. */}
+                <div className="mt-7 hidden md:block">
+                  {watchButton}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {declines.map(({ kind, label, Icon }) => (
+                      <Button key={kind} variant={kind === 'never' ? 'ghost' : 'secondary'} onClick={() => decline(kind)}>
+                        <Icon className="size-4" /> {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {m.trailerId && (
+                  <a
+                    href={`https://www.youtube.com/watch?v=${m.trailerId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted hover:text-fg"
+                  >
+                    <Clapperboard className="size-4" /> Watch the trailer
+                  </a>
+                )}
+              </>
             )}
           </motion.div>
         </div>
 
-        {rest.length > 0 && (
+        {!shuffling && rest.length > 0 && (
           <section className="mt-14 mb-6" aria-labelledby="more-picks">
             <h2 id="more-picks" className="font-display text-3xl">
               Other good picks
@@ -364,22 +396,32 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
         <div className="h-40 md:hidden" aria-hidden />
       </Shell>
 
-      {/* Phones: actions stay under the thumb while reading. */}
-      <BottomBar>
-        {watchButton}
-        <div className="mt-2 grid grid-cols-4 gap-2">
-          {declines.map(({ kind, label, Icon }) => (
-            <button
-              key={kind}
-              onClick={() => decline(kind)}
-              className="flex h-14 flex-col items-center justify-center gap-1 rounded-xl bg-raised/80 text-[13px] font-medium text-fg ring-1 ring-line active:scale-[0.97]"
-            >
-              <Icon className="size-5 text-muted" aria-hidden />
-              {label}
-            </button>
-          ))}
-        </div>
-      </BottomBar>
+      {/* Phones: actions stay under the thumb while reading. They fade in once a shuffle lands;
+          opacity only, since a transform would break the bar's fixed positioning. */}
+      {!shuffling && (
+        <motion.div
+          className="relative z-30"
+          initial={shuffle === 'done' ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <BottomBar>
+            {watchButton}
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {declines.map(({ kind, label, Icon }) => (
+                <button
+                  key={kind}
+                  onClick={() => decline(kind)}
+                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-xl bg-raised/80 text-[13px] font-medium text-fg ring-1 ring-line active:scale-[0.97]"
+                >
+                  <Icon className="size-5 text-muted" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </BottomBar>
+        </motion.div>
+      )}
     </>
   );
 }

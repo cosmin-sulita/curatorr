@@ -9,6 +9,7 @@ import { errorMessage, useStatus, useWizardOptions } from '../lib/api';
 import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
+import { requestSurprise } from '../lib/surprise';
 
 const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   genre: { title: 'What kind of movie tonight?', any: 'Surprise me' },
@@ -54,9 +55,12 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const choose = (value: string) => navigate(nextUrl(step, criteria, value));
-  // "Surprise me" skips the rest of the questions.
-  const chooseAny = () =>
-    step === 'genre' ? navigate(withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' })) : choose('any');
+  // "Surprise me" skips the rest of the questions, and the pick lands after a quick shuffle.
+  const chooseAny = () => {
+    if (step !== 'genre') return choose('any');
+    requestSurprise();
+    navigate(withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' }));
+  };
   const genreLabel = criteria.genre && criteria.genre !== 'any' ? genreById.get(criteria.genre)?.label : null;
 
   if (error) {
