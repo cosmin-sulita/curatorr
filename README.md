@@ -55,7 +55,7 @@ Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Doc
    2. **Plex**: sign in with the account that owns the server, pick the server and its movie libraries. Plex Home users are imported as profiles.
    3. **Finish**: the library syncs right away, then every 6 hours (configurable).
 
-To update, run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`.
+To update, run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`. Phones and browsers that already have the app open switch to the new version the next time it comes back to the foreground, or straight away from the **Update** button in the header.
 
 ### HTTPS and installing the app
 

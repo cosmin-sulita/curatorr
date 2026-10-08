@@ -5,6 +5,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
 import { api, errorMessage, useSettings } from '../lib/api';
+import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
 import { PlexConnect } from './PlexConnect';
 
@@ -19,6 +20,8 @@ export function SetupScreen() {
   const settings = useSettings(true);
   const [step, setStep] = useState<Step | null>(null);
   const current: Step = step ?? (settings.data?.radarr ? 'plex' : 'radarr');
+  // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
+  useDeferUpdates();
 
   return (
     <Shell bare>

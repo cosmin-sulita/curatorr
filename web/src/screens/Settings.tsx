@@ -16,6 +16,7 @@ import {
   type HiddenMovie,
   type SettingsResponse,
 } from '../lib/api';
+import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime } from '../lib/format';
 import { usePlexSignIn } from '../lib/plexAuth';
 import { recentReleases } from '../lib/whatsNew';
@@ -37,6 +38,8 @@ export function SettingsScreen() {
   const isAdmin = Boolean(status?.isAdmin);
   const settings = useSettings(isAdmin);
   const [showNews, setShowNews] = useState(false);
+  // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
+  useDeferUpdates();
 
   return (
     <>

@@ -2,13 +2,13 @@ import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-qu
 import { MotionConfig } from 'motion/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { ToastProvider } from './components/Toast';
 import { ApiError, isNetworkError } from './lib/api';
+import { startUpdateChecks } from './lib/appUpdate';
 import './styles.css';
 
-registerSW({ immediate: true });
+startUpdateChecks();
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {

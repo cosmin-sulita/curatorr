@@ -1,7 +1,9 @@
 import clsx from 'clsx';
-import { ChevronLeft, Settings } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Settings } from 'lucide-react';
+import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { useStatus } from '../lib/api';
+import { applyUpdate, useUpdateReady } from '../lib/appUpdate';
 import { Link } from '../lib/router';
 import { Avatar } from './ui';
 
@@ -18,6 +20,7 @@ export function Wordmark({ className }: { className?: string }) {
 export function Shell({ children, wide = false, bare = false }: { children: ReactNode; wide?: boolean; bare?: boolean }) {
   const { data: status } = useStatus();
   const profile = status?.profile;
+  const updateReady = useUpdateReady();
 
   return (
     <div className="min-h-dvh">
@@ -30,30 +33,51 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
         <Link to="/" aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
           <Wordmark />
         </Link>
-        {!bare && (
-          <nav className="flex items-center gap-1">
-            <Link
-              to="/settings"
-              aria-label="Settings"
-              className="grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
-            >
-              <Settings className="size-5" />
-            </Link>
-            {profile && (
+        <nav className="flex items-center gap-1">
+          {updateReady && <UpdateChip />}
+          {!bare && (
+            <>
               <Link
-                to="/profiles"
-                className="flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
-                aria-label={`Watching as ${profile.name}. Switch profile`}
+                to="/settings"
+                aria-label="Settings"
+                className="grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
               >
-                <span className="hidden sm:inline">{profile.name}</span>
-                <Avatar name={profile.name} src={profile.avatarUrl} className="size-8 ring-2 ring-white/10" />
+                <Settings className="size-5" />
               </Link>
-            )}
-          </nav>
-        )}
+              {profile && (
+                <Link
+                  to="/profiles"
+                  className="flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
+                  aria-label={`Watching as ${profile.name}. Switch profile`}
+                >
+                  <span className="hidden sm:inline">{profile.name}</span>
+                  <Avatar name={profile.name} src={profile.avatarUrl} className="size-8 ring-2 ring-white/10" />
+                </Link>
+              )}
+            </>
+          )}
+        </nav>
       </header>
       <main className={clsx('relative z-10 mx-auto px-4 pb-safe sm:px-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>{children}</main>
     </div>
+  );
+}
+
+/** A new version is waiting. If it's left alone, it loads the next time the app comes back to the foreground. */
+function UpdateChip() {
+  return (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      onClick={applyUpdate}
+      aria-label="A new version of Curatorr is ready. Reload to update"
+      className="group grid min-h-11 place-items-center rounded-full px-1"
+    >
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/15 px-3 py-1.5 text-[13px] font-semibold text-indigo-200 ring-1 ring-indigo-400/40 transition group-hover:bg-indigo-500/25">
+        <RefreshCw className="size-3.5" aria-hidden />
+        Update
+      </span>
+    </motion.button>
   );
 }
 
