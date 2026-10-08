@@ -84,7 +84,7 @@ export function ProfilesScreen() {
                       )}
                       {p.pinProtected && !p.linked && (
                         <span className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full bg-raised ring-4 ring-ink">
-                          <Lock className="size-4 text-muted" aria-label="PIN protected" />
+                          <Lock className="size-4 text-muted" aria-hidden />
                         </span>
                       )}
                     </span>
@@ -92,6 +92,8 @@ export function ProfilesScreen() {
                     {p.restrictionProfile && (
                       <span className="-mt-2 text-xs text-faint">{RESTRICTION_LABEL[p.restrictionProfile]}</span>
                     )}
+                    {/* The lock badge is decorative; this says the same after the name. */}
+                    {p.pinProtected && !p.linked && <span className="sr-only">PIN protected</span>}
                   </button>
                 </li>
               );
