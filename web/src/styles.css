@@ -61,7 +61,8 @@
 }
 
 @utility pt-safe {
-  padding-top: max(env(safe-area-inset-top), 0.75rem);
+  /* Clear the status bar plus iOS's blurred edge below it, not just the safe area. */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
 }
 
 @utility pb-safe {
