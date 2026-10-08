@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
-import { HttpError, normalizeBaseUrl } from '../http.js';
+import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
 import { RadarrClient } from '../integrations/radarr.js';
 import {
   authUrl,
@@ -34,9 +34,9 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
   app.post('/api/setup/radarr', async (req) => {
     guard(req);
     const body = parse(radarrBody.extend({ apiKey: z.string().optional() }), req.body);
-    // An omitted key means "keep the saved one" (the UI never sees it).
-    const apiKey = body.apiKey || store.get('radarr')?.apiKey;
-    if (!apiKey) throw new HttpError(400, 'API key is required');
+    // An omitted key means "keep the saved one" (the UI never sees it), for the same address only.
+    const apiKey = body.apiKey || savedKeyFor(store.get('radarr'), body.url);
+    if (!apiKey) throw new HttpError(400, 'Enter the API key for this address');
     const client = new RadarrClient(body.url, apiKey);
     await client.status();
     store.set('radarr', { url: normalizeBaseUrl(body.url), apiKey });

@@ -124,6 +124,8 @@ export function ServiceForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // The server only keeps a saved key for the address it was saved with.
+  const keepsKey = hasKey && url.trim() === initialUrl;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -160,10 +162,10 @@ export function ServiceForm({
             className={inputClass}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={hasKey ? 'Saved. Leave empty to keep it' : config.keyPlaceholder}
+            placeholder={keepsKey ? 'Saved. Leave empty to keep it' : config.keyPlaceholder}
             autoComplete="off"
             spellCheck={false}
-            required={!hasKey}
+            required={!keepsKey}
           />
         </Field>
         {error && <Notice>{error}</Notice>}

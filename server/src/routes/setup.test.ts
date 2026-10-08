@@ -16,6 +16,8 @@ describe('setup', () => {
   const originalTv = PLEX_HOSTS.tv;
   /** Plex tokens that reached the fake Plex server's /identity. */
   const tokensSeen: string[] = [];
+  /** API keys that reached a fake Radarr or Seerr, and where. */
+  const keysSeen: { path: string; key: string | undefined }[] = [];
   const cleanups: (() => Promise<void>)[] = [];
 
   beforeAll(async () => {
@@ -37,6 +39,11 @@ describe('setup', () => {
         if (token) tokensSeen.push(token);
         return json(200, { MediaContainer: { machineIdentifier: 'elsewhere', version: '1' } });
       }
+      // Radarr and Seerr, under whatever address they were given.
+      if (url.pathname.endsWith('/api/v3/system/status') || url.pathname.endsWith('/api/v1/auth/me')) {
+        keysSeen.push({ path: url.pathname, key: req.headers['x-api-key'] as string | undefined });
+        return json(200, { version: '5.0', id: 1 });
+      }
       json(404, {});
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -46,6 +53,7 @@ describe('setup', () => {
 
   afterEach(async () => {
     tokensSeen.length = 0;
+    keysSeen.length = 0;
     for (const cleanup of cleanups.splice(0)) await cleanup();
   });
 
@@ -104,5 +112,27 @@ describe('setup', () => {
     expect(store.get('plex').adminToken).toBe('owner-token');
     const cookie = String(res.headers['set-cookie']).split(';')[0]!;
     expect((await app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } })).statusCode).toBe(200);
+  });
+
+  it('sends a saved API key only to the address it was saved for', async () => {
+    // Set up without Plex: there's no owner to sign in, so anyone can reach these routes.
+    const { app, store } = await freshInstall();
+    store.set('radarr', { url: `${base}/radarr`, apiKey: 'RADARR-KEY' });
+    store.set('seerr', { url: `${base}/seerr`, apiKey: 'SEERR-KEY' });
+
+    const radarr = await app.inject({ method: 'POST', url: '/api/setup/radarr', payload: { url: `${base}/elsewhere` } });
+    const seerr = await app.inject({ method: 'PUT', url: '/api/settings/seerr', payload: { url: `${base}/elsewhere` } });
+    expect([radarr.statusCode, seerr.statusCode]).toEqual([400, 400]);
+    expect(keysSeen).toEqual([]);
+    expect(store.get('radarr')!.url).toBe(`${base}/radarr`);
+
+    // The same address keeps the saved key, and a new address works with its key.
+    expect((await app.inject({ method: 'POST', url: '/api/setup/radarr', payload: { url: `${base}/radarr` } })).statusCode).toBe(200);
+    const moved = await app.inject({ method: 'POST', url: '/api/setup/radarr', payload: { url: `${base}/moved`, apiKey: 'NEW-KEY' } });
+    expect(moved.statusCode).toBe(200);
+    expect(keysSeen).toEqual([
+      { path: '/radarr/api/v3/system/status', key: 'RADARR-KEY' },
+      { path: '/moved/api/v3/system/status', key: 'NEW-KEY' },
+    ]);
   });
 });

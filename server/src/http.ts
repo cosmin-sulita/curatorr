@@ -25,6 +25,14 @@ export function normalizeBaseUrl(url: string): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 
+/**
+ * The saved API key when a form leaves it out, but only for the address it was saved with: a key
+ * must never be sent to a new address that only came with the form.
+ */
+export function savedKeyFor(saved: { url: string; apiKey: string } | null, url: string): string | undefined {
+  return saved && saved.url === normalizeBaseUrl(url) ? saved.apiKey : undefined;
+}
+
 function describeNetworkError(err: unknown): string {
   if (err instanceof Error) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') return 'timed out';

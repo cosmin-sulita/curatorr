@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
-import { HttpError, normalizeBaseUrl } from '../http.js';
+import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
 import { SeerrClient } from '../integrations/seerr.js';
 import { syncRequests } from '../services/requests.js';
 import { clearAdminCookie, requireAdmin } from '../session.js';
@@ -52,9 +52,9 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
   app.put('/api/settings/seerr', async (req) => {
     requireAdmin(req, store);
     const body = parse(z.object({ url: z.string().min(1), apiKey: z.string().optional() }), req.body);
-    // An omitted key means "keep the saved one" (the UI never sees it).
-    const apiKey = body.apiKey || store.get('seerr')?.apiKey;
-    if (!apiKey) throw new HttpError(400, 'API key is required');
+    // An omitted key means "keep the saved one" (the UI never sees it), for the same address only.
+    const apiKey = body.apiKey || savedKeyFor(store.get('seerr'), body.url);
+    if (!apiKey) throw new HttpError(400, 'Enter the API key for this address');
     await new SeerrClient(body.url, apiKey).me();
     store.set('seerr', { url: normalizeBaseUrl(body.url), apiKey });
     await syncRequests(store, req.log);
