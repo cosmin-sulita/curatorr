@@ -40,70 +40,73 @@ export function ProfilesScreen() {
   };
 
   return (
-    <Shell bare>
-      <div className="flex flex-col items-center pt-10 sm:pt-20">
-        <h1 className="font-display text-5xl sm:text-6xl">Who's watching?</h1>
-        <p className="mt-3 max-w-sm text-center text-muted">Picks skip the movies this person has already watched in Plex.</p>
+    <>
+      <Shell bare>
+        <div className="flex flex-col items-center pt-10 sm:pt-20">
+          <h1 className="font-display text-5xl sm:text-6xl">Who's watching?</h1>
+          <p className="mt-3 max-w-sm text-center text-muted">Picks skip the movies this person has already watched in Plex.</p>
 
-        {isLoading && <Spinner className="mt-16 size-8" />}
-        {error && (
-          <div className="mt-10">
-            <Notice>{errorMessage(error)}</Notice>
-          </div>
-        )}
-        {profiles && profiles.length === 0 && (
-          <CenteredState title="No profiles yet">
-            <p className="text-muted">The server owner can import Plex Home users in Settings.</p>
-          </CenteredState>
-        )}
+          {isLoading && <Spinner className="mt-16 size-8" />}
+          {error && (
+            <div className="mt-10">
+              <Notice>{errorMessage(error)}</Notice>
+            </div>
+          )}
+          {profiles && profiles.length === 0 && (
+            <CenteredState title="No profiles yet">
+              <p className="text-muted">The server owner can import Plex Home users in Settings.</p>
+            </CenteredState>
+          )}
 
-        <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 md:grid-cols-4">
-          {profiles?.map((p) => {
-            const busy = select.isPending && select.variables?.id === p.id;
-            return (
-              <li key={p.id}>
-                <button
-                  onClick={() => choose(p)}
-                  disabled={select.isPending}
-                  className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center disabled:cursor-wait"
-                >
-                  <span className="relative">
-                    <Avatar
-                      name={p.name}
-                      src={p.avatarUrl}
-                      className={clsx(
-                        'size-24 ring-4 ring-transparent transition group-hover:ring-accent-2 group-focus-visible:ring-accent-2 sm:size-28',
-                        select.isPending && !busy && 'opacity-40',
+          <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 md:grid-cols-4">
+            {profiles?.map((p) => {
+              const busy = select.isPending && select.variables?.id === p.id;
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => choose(p)}
+                    disabled={select.isPending}
+                    className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center disabled:cursor-wait"
+                  >
+                    <span className="relative">
+                      <Avatar
+                        name={p.name}
+                        src={p.avatarUrl}
+                        className={clsx(
+                          'size-24 ring-4 ring-transparent transition group-hover:ring-accent-2 group-focus-visible:ring-accent-2 sm:size-28',
+                          select.isPending && !busy && 'opacity-40',
+                        )}
+                      />
+                      {busy && (
+                        <span className="absolute inset-0 grid place-items-center rounded-full bg-ink/60">
+                          <Spinner className="size-8 text-white" />
+                        </span>
                       )}
-                    />
-                    {busy && (
-                      <span className="absolute inset-0 grid place-items-center rounded-full bg-ink/60">
-                        <Spinner className="size-8 text-white" />
-                      </span>
+                      {p.pinProtected && !p.linked && (
+                        <span className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full bg-raised ring-4 ring-ink">
+                          <Lock className="size-4 text-muted" aria-label="PIN protected" />
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-fg">{p.name}</span>
+                    {p.restrictionProfile && (
+                      <span className="-mt-2 text-xs text-faint">{RESTRICTION_LABEL[p.restrictionProfile]}</span>
                     )}
-                    {p.pinProtected && !p.linked && (
-                      <span className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full bg-raised ring-4 ring-ink">
-                        <Lock className="size-4 text-muted" aria-label="PIN protected" />
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-semibold text-fg">{p.name}</span>
-                  {p.restrictionProfile && (
-                    <span className="-mt-2 text-xs text-faint">{RESTRICTION_LABEL[p.restrictionProfile]}</span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-        {select.error && !(select.error instanceof ApiError && select.error.data.needPin) && (
-          <div className="mt-8 max-w-md">
-            <Notice>{errorMessage(select.error)}</Notice>
-          </div>
-        )}
-      </div>
+          {select.error && !(select.error instanceof ApiError && select.error.data.needPin) && (
+            <div className="mt-8 max-w-md">
+              <Notice>{errorMessage(select.error)}</Notice>
+            </div>
+          )}
+        </div>
+      </Shell>
 
+      {/* Outside Shell: its <main> is a stacking context below the header. */}
       <AnimatePresence>
         {pinFor && (
           <PinPad
@@ -118,7 +121,7 @@ export function ProfilesScreen() {
           />
         )}
       </AnimatePresence>
-    </Shell>
+    </>
   );
 }
 
