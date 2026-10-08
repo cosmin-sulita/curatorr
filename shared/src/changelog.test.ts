@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { compareVersions, parseChangelog, releasesSince, type Release } from './changelog.js';
+import { compareVersions, hasHeadlineNews, parseChangelog, releasesSince, type Release } from './changelog.js';
 
 const sample = `# Changelog
 
@@ -94,5 +94,23 @@ describe('releasesSince', () => {
     expect(releasesSince(releases, '0.3.0')).toEqual([]);
     expect(releasesSince(releases, '9.9.9')).toEqual([]);
     expect(releasesSince(releases.slice(1), '0.2.1')).toEqual([]);
+  });
+});
+
+describe('hasHeadlineNews', () => {
+  const [withIntro, , fixOnly, firstRelease] = parseChangelog(sample);
+  const release = (notes: Release['notes']): Release => ({ version: '0.4.0', date: null, intro: '', notes });
+
+  it('counts new features and hand-written intros', () => {
+    expect(hasHeadlineNews([release([{ kind: 'new', text: 'Pick for me' }])])).toBe(true);
+    expect(hasHeadlineNews([withIntro!])).toBe(true);
+    expect(hasHeadlineNews([firstRelease!])).toBe(true);
+    expect(hasHeadlineNews([fixOnly!, withIntro!])).toBe(true);
+  });
+
+  it('leaves out releases with only fixes or improvements', () => {
+    expect(hasHeadlineNews([fixOnly!])).toBe(false);
+    expect(hasHeadlineNews([release([{ kind: 'improved', text: 'Faster sync' }])])).toBe(false);
+    expect(hasHeadlineNews([])).toBe(false);
   });
 });

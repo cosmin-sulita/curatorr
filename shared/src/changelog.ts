@@ -58,6 +58,13 @@ export function compareVersions(a: string, b: string): number {
 
 const hasNews = (r: Release) => r.notes.length > 0 || r.intro !== '';
 
+/**
+ * Whether these releases are worth interrupting someone for: a new feature or a hand-written
+ * intro. Fixes alone stay in the Settings list instead of popping up.
+ */
+export const hasHeadlineNews = (releases: Release[]) =>
+  releases.some((r) => r.intro !== '' || r.notes.some((n) => n.kind === 'new'));
+
 /** How many releases to show when it's unknown what someone has already seen. */
 const RECENT = 3;
 

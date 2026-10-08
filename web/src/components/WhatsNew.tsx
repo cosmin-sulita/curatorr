@@ -1,4 +1,4 @@
-import type { Release, ReleaseNote } from '@curatorr/shared';
+import { hasHeadlineNews, type Release, type ReleaseNote } from '@curatorr/shared';
 import { Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -25,8 +25,9 @@ export function WhatsNew({ setupComplete }: { setupComplete: boolean }) {
   useEffect(() => {
     // A fresh install has nothing to call "new", including right after setup finishes.
     if (!setupComplete) return markSeen();
+    // Fix-only updates don't interrupt; their notes stay under Settings → What's new.
     const unseen = unseenReleases();
-    if (unseen.length) setShown(unseen);
+    if (hasHeadlineNews(unseen)) setShown(unseen);
     else markSeen();
   }, [setupComplete]);
 
