@@ -59,6 +59,8 @@ export interface ProfileContext {
   includeWatched: boolean;
   /** Movies on the profile's Plex Watchlist. */
   watchlist: Set<number>;
+  /** Unwatched movies the profile requested in Seerr. */
+  requested?: Set<number>;
   /** Where the profile stands in each saga; blocked sequels aren't offered. */
   sagas?: SagaState;
 }
@@ -125,6 +127,8 @@ const TAG_SATURATION = 6;
 const JITTER = 1.5;
 /** Movies the profile wants to watch: on their Plex Watchlist or added with "Watchlist" in a pick. */
 const WATCHLIST_BONUS = 6;
+/** Movies the profile asked for in Seerr and hasn't watched yet. */
+const REQUEST_BONUS = 8;
 /** The next part of a saga the profile has started. */
 export const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
@@ -199,6 +203,8 @@ export interface RankOptions {
   limit?: number;
   /** The profile's Plex Watchlist; local "later" events count too. */
   watchlist?: Set<number>;
+  /** Unwatched movies the profile requested in Seerr. */
+  requested?: Set<number>;
   sagas?: SagaState;
 }
 
@@ -213,6 +219,7 @@ export interface ProfileSignals {
   skipped: Map<number, number>;
   shown: Map<number, number>;
   wanted: Set<number>;
+  requested: Set<number>;
   day: string;
 }
 
@@ -221,11 +228,12 @@ export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): Pr
     skipped: latestByKind(feedback, 'skipped'),
     shown: latestByKind(feedback, 'shown'),
     wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
+    requested: opts.requested ?? new Set(),
     day: new Date(opts.now).toISOString().slice(0, 10),
   };
 }
 
-/** Skip and shown penalties, the watchlist bonus and the daily jitter. */
+/** Skip and shown penalties, the request or watchlist bonus and the daily jitter. */
 export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
   let delta = 0;
   const skippedAt = s.skipped.get(m.id);
@@ -233,9 +241,19 @@ export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOption
   const shownAt = s.shown.get(m.id);
   if (shownAt && opts.now - shownAt > SHOWN_GRACE && opts.now - shownAt < SHOWN_WINDOW) delta -= SHOWN_PENALTY;
   const onWatchlist = s.wanted.has(m.id);
-  if (onWatchlist) delta += WATCHLIST_BONUS;
+  const requested = s.requested.has(m.id);
+  // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.
+  delta += requested ? REQUEST_BONUS : onWatchlist ? WATCHLIST_BONUS : 0;
   delta += (seededUnit(`${opts.seed}|${s.day}|${m.id}`) * 2 - 1) * JITTER;
-  return { delta, onWatchlist };
+  return { delta, onWatchlist, requested };
+}
+
+/** Chips for movies the profile wants to watch: requested in Seerr first, then the watchlist. */
+export function wantedReasons(adj: { onWatchlist: boolean; requested: boolean }): Reason[] {
+  return [
+    ...(adj.requested ? [{ kind: 'requested' as const, label: 'You requested this' }] : []),
+    ...(adj.onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+  ];
 }
 
 /** Best first. Exact matches always lead; close ones only pad a short list. */
@@ -322,8 +340,8 @@ export function rankMovies(
     if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
     if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
 
-    const { delta, onWatchlist } = personalAdjustment(m, signals, opts);
-    score += delta;
+    const adj = personalAdjustment(m, signals, opts);
+    score += adj.delta;
 
     return {
       movie: m,
@@ -332,7 +350,7 @@ export function rankMovies(
       qualitySource: quality.source,
       tier: tierOf(m),
       reasons: [
-        ...(onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+        ...wantedReasons(adj),
         ...sagaReasons,
         ...reasonsFor(m, c, quality),
       ],

@@ -122,6 +122,13 @@ const SAGAS: Record<string, [number, string, number, number]> = {
 
 const demoId = (title: string) => FIXTURES.findIndex((f) => f[0] === title) + 1;
 
+/** Demo Seerr requests: [profile, movie]. */
+const DEMO_REQUESTS: [profile: string, title: string][] = [
+  ['Alex', 'Dune: Part Two'],
+  ['Alex', 'Everything Everywhere All at Once'],
+  ['Sam', 'Knives Out'],
+];
+
 export function demoMovies(): StoredMovie[] {
   return FIXTURES.map(([title, year, genres, runtime, cert, rt, imdb, keywords, overview], i) => {
     const id = i + 1;
@@ -165,6 +172,14 @@ export function seedDemo(store: Store) {
     store.replaceWatched(alex, alexWatched.map((movieId) => ({ movieId, viewedAt: now })), now);
     store.replaceWatched(sam, [31, 44].map((movieId) => ({ movieId, viewedAt: now })), now);
   }
+  // What each profile asked for in Seerr. Rebuilt every start, so older demo databases get them too.
+  const profileIds = new Map(store.profileRows(true).map((p) => [p.name, p.id]));
+  store.replaceRequests(
+    DEMO_REQUESTS.flatMap(([name, title]) => {
+      const profileId = profileIds.get(name);
+      return profileId ? [{ profileId, movieId: demoId(title), requestedAt: now - 30 * 24 * 60 * 60 * 1000 }] : [];
+    }),
+  );
   store.set('setupComplete', true);
   store.set('sync', { at: now, movies: FIXTURES.length, matchedInPlex: 0, error: null });
 }

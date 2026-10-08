@@ -101,7 +101,7 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'saga';
+  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'requested' | 'saga';
   label: string;
 }
 

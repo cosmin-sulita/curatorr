@@ -191,6 +191,27 @@ describe('API (demo data)', () => {
     expect(res.picks[0]!.reasons.some((r) => r.kind === 'theme' || r.kind === 'keyword')).toBe(true);
   });
 
+  it('favours Seerr requests for whoever made them, and labels them', async () => {
+    const dune = (res: RecommendationsResponse) => res.picks.find((p) => p.movie.title === 'Dune: Part Two')!;
+    const alex = await cookieFor('Alex');
+    const sam = await cookieFor('Sam');
+    expect(dune(await picksFor(alex, 'genre=Science%20Fiction')).reasons[0]).toEqual({
+      kind: 'requested',
+      label: 'You requested this',
+    });
+    expect(dune(await picksFor(sam, 'genre=Science%20Fiction')).reasons.some((r) => r.kind === 'requested')).toBe(false);
+
+    const setBoost = (boostRequests: boolean) =>
+      app.inject({ method: 'PUT', url: '/api/settings/app', headers: { cookie: alex }, payload: { boostRequests } });
+    await setBoost(false);
+    try {
+      const off = dune(await picksFor(alex, 'genre=Science%20Fiction'));
+      expect(off.reasons.some((r) => r.kind === 'requested')).toBe(false);
+    } finally {
+      await setBoost(true);
+    }
+  });
+
   it("leaves the liked movie's saga out", async () => {
     const alex = await cookieFor('Alex');
     const bttf = (await likeFor(alex, 'back to the future')).find((m) => m.title === 'Back to the Future')!;

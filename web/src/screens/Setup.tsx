@@ -42,7 +42,12 @@ export function SetupScreen() {
           {settings.isLoading ? (
             <Spinner />
           ) : current === 'radarr' ? (
-            <RadarrForm initialUrl={settings.data?.radarr?.url ?? ''} hasKey={false} onSaved={() => setStep('plex')} />
+            <ServiceForm
+              service="Radarr"
+              initialUrl={settings.data?.radarr?.url ?? ''}
+              hasKey={false}
+              onSaved={() => setStep('plex')}
+            />
           ) : current === 'plex' ? (
             <Panel title="Connect Plex">
               <PlexConnect
@@ -72,15 +77,36 @@ export function Panel({ title, children }: { title: string; children: ReactNode 
   );
 }
 
-export function RadarrForm({
+/** What differs between the services Curatorr connects to with an address and an API key. */
+const SERVICES = {
+  Radarr: {
+    endpoint: '/api/setup/radarr',
+    method: 'POST',
+    urlPlaceholder: 'http://192.168.1.10:7878',
+    keyHint: 'In Radarr: Settings, then General, then Security.',
+    keyPlaceholder: '32 characters',
+  },
+  Seerr: {
+    endpoint: '/api/settings/seerr',
+    method: 'PUT',
+    urlPlaceholder: 'http://192.168.1.10:5055',
+    keyHint: 'In Seerr: Settings, then General, then API Key.',
+    keyPlaceholder: 'Paste the key',
+  },
+};
+
+export function ServiceForm({
+  service,
   initialUrl,
   hasKey,
   onSaved,
 }: {
+  service: keyof typeof SERVICES;
   initialUrl: string;
   hasKey: boolean;
   onSaved: () => void;
 }) {
+  const config = SERVICES[service];
   const [url, setUrl] = useState(initialUrl);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
@@ -93,7 +119,7 @@ export function RadarrForm({
     setError(null);
     setSaved(false);
     try {
-      await api('/api/setup/radarr', { json: { url, apiKey: apiKey || undefined } });
+      await api(config.endpoint, { method: config.method, json: { url, apiKey: apiKey || undefined } });
       setSaved(true);
       onSaved();
     } catch (err) {
@@ -104,25 +130,25 @@ export function RadarrForm({
   };
 
   return (
-    <Panel title="Connect Radarr">
+    <Panel title={`Connect ${service}`}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Radarr address" hint="Include the port, and the URL base if you set one.">
+        <Field label={`${service} address`} hint="Include the port, and the URL base if you set one.">
           <input
             className={inputClass}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="http://192.168.1.10:7878"
+            placeholder={config.urlPlaceholder}
             inputMode="url"
             autoComplete="off"
             required
           />
         </Field>
-        <Field label="API key" hint="In Radarr: Settings, then General, then Security.">
+        <Field label="API key" hint={config.keyHint}>
           <input
             className={inputClass}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={hasKey ? 'Saved. Leave empty to keep it' : '32 characters'}
+            placeholder={hasKey ? 'Saved. Leave empty to keep it' : config.keyPlaceholder}
             autoComplete="off"
             spellCheck={false}
             required={!hasKey}
@@ -131,7 +157,7 @@ export function RadarrForm({
         {error && <Notice>{error}</Notice>}
         <div className="flex items-center gap-3">
           <Button variant="primary" size="lg" type="submit" loading={saving}>
-            Connect Radarr
+            Connect {service}
           </Button>
           {saved && (
             <span className="inline-flex items-center gap-1 text-sm text-emerald-300">

@@ -6,6 +6,7 @@ import {
   qualityScore,
   tagStrength,
   topRanked,
+  wantedReasons,
   type RankOptions,
   type RankedMovie,
 } from './scoring.js';
@@ -144,8 +145,8 @@ export function rankSimilar(
         .sort((x, y) => (idf.get(y) ?? 0) - (idf.get(x) ?? 0)),
     };
     const quality = qualityScore(m.ratings);
-    const { delta, onWatchlist } = personalAdjustment(m, signals, opts);
-    let score = SIMILARITY_POINTS * sim + QUALITY_SHARE * quality.value + delta;
+    const adj = personalAdjustment(m, signals, opts);
+    let score = SIMILARITY_POINTS * sim + QUALITY_SHARE * quality.value + adj.delta;
 
     const sagaReasons: Reason[] = [];
     if (sagas.next.has(m.id) && m.saga) {
@@ -162,7 +163,7 @@ export function rankSimilar(
       qualitySource: quality.source,
       tier: strong ? 0 : 1,
       reasons: [
-        ...(onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+        ...wantedReasons(adj),
         ...sagaReasons,
         ...tagReasons(shared),
       ],

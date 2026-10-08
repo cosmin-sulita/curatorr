@@ -148,6 +148,15 @@ export function useSelectProfile() {
 
 export interface SettingsResponse {
   radarr: { url: string; hasApiKey: boolean } | null;
+  /** The last read of Seerr: requested movies in the library, for how many profiles. */
+  seerr: {
+    url: string;
+    hasApiKey: boolean;
+    at: number | null;
+    requests: number;
+    profiles: number;
+    error: string | null;
+  } | null;
   plex: {
     signedIn: boolean;
     ownerName: string | null;
@@ -156,7 +165,7 @@ export interface SettingsResponse {
     machineId: string | null;
     sectionIds: string[];
   };
-  app: { includeWatched: boolean; syncIntervalHours: number; syncToPlex: boolean };
+  app: { includeWatched: boolean; syncIntervalHours: number; syncToPlex: boolean; boostRequests: boolean };
   sync: { at: number | null; movies: number; matchedInPlex: number; error: string | null; syncing: boolean };
   profiles: (Profile & { hidden: boolean; plexUser: boolean })[];
 }

@@ -1,7 +1,7 @@
 import type { Pick, WizardOptionsResponse } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
+import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Inbox, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotionConfig, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { PosterShuffle } from '../components/PosterShuffle';
@@ -23,6 +23,9 @@ import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
 
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
+
+/** The profile asked for this movie in Seerr. */
+const requested = (p: Pick) => p.reasons.some((r) => r.kind === 'requested');
 
 /** Toast after a mark, depending on what happened in Plex. */
 function markMessage(kind: Decline, title: string, plex: PlexSyncResult | undefined) {
@@ -340,11 +343,21 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
                 {reasons.length > 0 && (
                   <ul className="mt-5 flex flex-wrap gap-2" aria-label="Why this pick">
-                    {reasons.map((r) => (
-                      <li key={r.kind + r.label} className="rounded-full bg-white/8 px-3 py-1 text-[13px] text-fg ring-1 ring-line">
-                        {r.label}
-                      </li>
-                    ))}
+                    {reasons.map((r) =>
+                      r.kind === 'requested' ? (
+                        <li
+                          key={r.kind}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/15 px-3 py-1 text-[13px] font-medium text-indigo-200 ring-1 ring-indigo-400/40"
+                        >
+                          <Inbox className="size-3.5" aria-hidden />
+                          {r.label}
+                        </li>
+                      ) : (
+                        <li key={r.kind + r.label} className="rounded-full bg-white/8 px-3 py-1 text-[13px] text-fg ring-1 ring-line">
+                          {r.label}
+                        </li>
+                      ),
+                    )}
                   </ul>
                 )}
 
@@ -390,12 +403,25 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               {rest.map((p) => (
                 <li key={p.movie.id} className="w-28 shrink-0 snap-start sm:w-36">
                   <button onClick={() => bringForward(p)} className="group w-full text-left">
-                    <Img
-                      src={p.movie.posterUrl}
-                      alt=""
-                      className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
-                    />
-                    <span className="mt-2 line-clamp-2 text-sm font-medium">{p.movie.title}</span>
+                    <span className="relative block">
+                      <Img
+                        src={p.movie.posterUrl}
+                        alt=""
+                        className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
+                      />
+                      {requested(p) && (
+                        <span
+                          className="absolute top-1.5 left-1.5 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow-md shadow-black/40"
+                          aria-hidden
+                        >
+                          Requested
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-2 line-clamp-2 text-sm font-medium">
+                      {p.movie.title}
+                      {requested(p) && <span className="sr-only">, you requested this</span>}
+                    </span>
                     <span className="flex gap-2 text-xs text-muted">
                       {p.movie.ratings.rt != null ? (
                         <span className="font-semibold text-fg/80">{Math.round(p.movie.ratings.rt)}%</span>

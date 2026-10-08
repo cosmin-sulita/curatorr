@@ -20,7 +20,7 @@ import { plural, relativeTime } from '../lib/format';
 import { usePlexSignIn } from '../lib/plexAuth';
 import { recentReleases } from '../lib/whatsNew';
 import { PlexConnect } from './PlexConnect';
-import { RadarrForm } from './Setup';
+import { ServiceForm } from './Setup';
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -158,6 +158,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
   const qc = useQueryClient();
   const toast = useToast();
   const [editRadarr, setEditRadarr] = useState(false);
+  const [editSeerr, setEditSeerr] = useState(false);
   const [editPlex, setEditPlex] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -177,14 +178,18 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
     }
   };
 
+  const clearPicks = () => {
+    qc.removeQueries({ queryKey: ['wizard'] });
+    qc.removeQueries({ queryKey: ['recommendations'] });
+  };
+
   const updateApp = (patch: Partial<SettingsResponse['app']>) =>
     run(async () => {
       await api('/api/settings/app', { method: 'PUT', json: patch });
-      qc.removeQueries({ queryKey: ['wizard'] });
-      qc.removeQueries({ queryKey: ['recommendations'] });
+      clearPicks();
     });
 
-  const { sync } = data;
+  const { sync, seerr } = data;
 
   return (
     <>
@@ -245,6 +250,22 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               />
             </div>
           )}
+          {/* The demo has requests built in. */}
+          {(demo || seerr) && (
+            <div className="flex items-center justify-between gap-4">
+              <span>
+                <span className="block font-medium">Favour movies people requested</span>
+                <span className="block text-sm text-muted">
+                  Unwatched Seerr requests rank higher for whoever asked, and say so.
+                </span>
+              </span>
+              <Toggle
+                label="Favour movies people requested"
+                checked={data.app.boostRequests}
+                onChange={(v) => updateApp({ boostRequests: v })}
+              />
+            </div>
+          )}
           {!demo && (
             <label className="flex items-center justify-between gap-4">
               <span className="font-medium">Sync with Radarr every</span>
@@ -267,7 +288,8 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
       {!demo && (
         <Section title="Radarr" description={data.radarr?.url ?? 'Not connected'}>
           {editRadarr ? (
-            <RadarrForm
+            <ServiceForm
+              service="Radarr"
               initialUrl={data.radarr?.url ?? ''}
               hasKey={Boolean(data.radarr?.hasApiKey)}
               onSaved={() => {
@@ -314,6 +336,50 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                   }}
                 >
                   Refresh profiles from Plex Home
+                </Button>
+              )}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {!demo && (
+        <Section title="Seerr" description={seerr?.url ?? 'Optional. Picks favour movies each person requested in Seerr.'}>
+          {seerr && !editSeerr && (
+            <div className="mb-4 space-y-3">
+              <p className="text-sm text-muted">
+                {plural(seerr.requests, 'requested movie')} in your library, for {plural(seerr.profiles, 'profile')}
+                {seerr.at && ` · read ${relativeTime(seerr.at)}`}
+              </p>
+              {seerr.error && <Notice>Last read failed: {seerr.error}</Notice>}
+            </div>
+          )}
+          {editSeerr ? (
+            <ServiceForm
+              service="Seerr"
+              initialUrl={seerr?.url ?? ''}
+              hasKey={Boolean(seerr?.hasApiKey)}
+              onSaved={() => {
+                setEditSeerr(false);
+                clearPicks();
+                refresh();
+                toast({ message: 'Seerr connected' });
+              }}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setEditSeerr(true)}>{seerr ? 'Change connection' : 'Connect Seerr'}</Button>
+              {seerr && (
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    run(async () => {
+                      await api('/api/settings/seerr', { method: 'DELETE' });
+                      clearPicks();
+                    }, 'Seerr disconnected')
+                  }
+                >
+                  Disconnect
                 </Button>
               )}
             </div>

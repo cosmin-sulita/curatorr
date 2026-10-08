@@ -42,6 +42,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id.
   - `services/recommend.ts` builds the per-profile context and calls the shared ranking.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
+  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional and set up in Settings only; a failed read keeps the last requests.
   - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
@@ -54,7 +55,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts Plex only if Curatorr changed it.
-- **Ranking:** `skipped` costs −15 for 14 days. `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+- **Ranking:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off. `skipped` costs −15 for 14 days. `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
 
 ### Releases and What's new
 

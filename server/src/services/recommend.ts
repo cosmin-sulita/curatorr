@@ -40,14 +40,18 @@ export function profileContext(store: Store, row: ProfileRow): ProfileContext {
   // For sagas, "watched" also covers "Seen it", and only parts that can be played count.
   const seen = new Set([...watched, ...feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
   const playable = requirePlex ? movies.filter((m) => m.plexRatingKey) : movies;
+  const app = store.get('app');
+  // Only requests still waiting to be watched get the boost and the label.
+  const requested = app.boostRequests ? [...store.requestedIds(row.id)].filter((id) => !seen.has(id)) : [];
   return {
     watched,
     feedback,
     sagas: sagaState(playable, seen),
     allowedCerts: allowedCerts(row),
     requirePlex,
-    includeWatched: store.get('app').includeWatched,
+    includeWatched: app.includeWatched,
     watchlist: store.watchlistIds(row.id),
+    requested: new Set(requested),
   };
 }
 
@@ -128,6 +132,7 @@ export async function recommendFor(store: Store, row: ProfileRow, criteria: Crit
     now: Date.now(),
     seed: String(row.id),
     watchlist: ctx.watchlist,
+    requested: ctx.requested,
     sagas: ctx.sagas,
   });
   return toResponse(store, ranked);
@@ -143,6 +148,7 @@ export async function similarFor(store: Store, row: ProfileRow, likedId: number)
     now: Date.now(),
     seed: String(row.id),
     watchlist: ctx.watchlist,
+    requested: ctx.requested,
     sagas: ctx.sagas,
   });
   return { ...(await toResponse(store, ranked)), like: { id: liked.id, title: liked.title } };

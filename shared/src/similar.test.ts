@@ -91,7 +91,7 @@ describe('rankSimilar', () => {
     ]);
   });
 
-  it('still applies skips and the watchlist', () => {
+  it('still applies skips, the watchlist and requests', () => {
     const liked = movie({ keywords: ['zombie', 'outbreak'], themes: { zombies: 6 } });
     const [a, b] = [movie({ keywords: ['zombie', 'outbreak'] }), movie({ keywords: ['zombie', 'outbreak'] })];
     const skipped = like(liked, [a!, b!], { feedback: [{ movieId: a!.id, kind: 'skipped', createdAt: NOW - 1000 }] });
@@ -99,6 +99,9 @@ describe('rankSimilar', () => {
     const wanted = like(liked, [a!, b!], { watchlist: new Set([b!.id]) });
     expect(ids(wanted)[0]).toBe(b!.id);
     expect(wanted[0]!.reasons[0]).toEqual({ kind: 'watchlist', label: 'On your watchlist' });
+    const requested = like(liked, [a!, b!], { requested: new Set([a!.id]) });
+    expect(ids(requested)[0]).toBe(a!.id);
+    expect(requested[0]!.reasons[0]).toEqual({ kind: 'requested', label: 'You requested this' });
   });
 
   it('treats one small thing in common as a loose match', () => {

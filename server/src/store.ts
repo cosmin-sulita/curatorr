@@ -22,17 +22,32 @@ export interface PlexSettings {
   sectionIds: string[];
 }
 
+export interface SeerrSettings {
+  url: string;
+  apiKey: string;
+}
+
 export interface AppSettings {
   includeWatched: boolean;
   syncIntervalHours: number;
   /** "Seen it" marks the movie watched in Plex; "Later" adds it to the Plex Watchlist. */
   syncToPlex: boolean;
+  /** Unwatched Seerr requests rank higher for whoever made them. */
+  boostRequests: boolean;
 }
 
 export interface SyncInfo {
   at: number | null;
   movies: number;
   matchedInPlex: number;
+  error: string | null;
+}
+
+/** The last read of Seerr: requested movies found in the library, and for how many profiles. */
+export interface RequestSyncInfo {
+  at: number | null;
+  requests: number;
+  profiles: number;
   error: string | null;
 }
 
@@ -43,6 +58,8 @@ interface SettingsShape {
   plex: PlexSettings;
   app: AppSettings;
   sync: SyncInfo;
+  seerr: SeerrSettings | null;
+  seerrSync: RequestSyncInfo;
 }
 
 const defaults = (): SettingsShape => ({
@@ -59,8 +76,10 @@ const defaults = (): SettingsShape => ({
     serverUrl: null,
     sectionIds: [],
   },
-  app: { includeWatched: false, syncIntervalHours: 6, syncToPlex: true },
+  app: { includeWatched: false, syncIntervalHours: 6, syncToPlex: true, boostRequests: true },
   sync: { at: null, movies: 0, matchedInPlex: 0, error: null },
+  seerr: null,
+  seerrSync: { at: null, requests: 0, profiles: 0, error: null },
 });
 
 // ---------------------------------------------------------------------------
@@ -158,7 +177,7 @@ export class Store {
       .run(key, JSON.stringify(value));
   }
 
-  update<K extends 'plex' | 'app' | 'sync'>(key: K, patch: Partial<SettingsShape[K]>) {
+  update<K extends 'plex' | 'app' | 'sync' | 'seerrSync'>(key: K, patch: Partial<SettingsShape[K]>) {
     this.set(key, { ...this.get(key), ...patch });
   }
 
@@ -350,6 +369,25 @@ export class Store {
 
   removeFromWatchlist(profileId: number, movieId: number) {
     this.db.prepare('DELETE FROM watchlist WHERE profile_id = ? AND movie_id = ?').run(profileId, movieId);
+  }
+
+  // ---- Seerr requests (cached for every profile) ---------------------------
+
+  requestedIds(profileId: number): Set<number> {
+    const rows = this.db.prepare('SELECT movie_id FROM requests WHERE profile_id = ?').all(profileId) as {
+      movie_id: number;
+    }[];
+    return new Set(rows.map((r) => r.movie_id));
+  }
+
+  replaceRequests(entries: { profileId: number; movieId: number; requestedAt: number | null }[]) {
+    const insert = this.db.prepare(
+      'INSERT OR IGNORE INTO requests (profile_id, movie_id, requested_at) VALUES (?, ?, ?)',
+    );
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM requests').run();
+      for (const e of entries) insert.run(e.profileId, e.movieId, e.requestedAt);
+    });
   }
 
   // ---- feedback -----------------------------------------------------------

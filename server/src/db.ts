@@ -97,6 +97,15 @@ const migrations: string[] = [
   -- Forget the last sync so the library is re-read (with collections) on the next start.
   UPDATE settings SET value = json_set(value, '$.at', NULL) WHERE key = 'sync';
   `,
+  // v5: Seerr requests in the library, per profile, so picks can favour them.
+  `
+  CREATE TABLE requests (
+    profile_id INTEGER NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+    movie_id INTEGER NOT NULL,
+    requested_at INTEGER,
+    PRIMARY KEY (profile_id, movie_id)
+  );
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

@@ -177,6 +177,28 @@ describe('rankMovies', () => {
     }
   });
 
+  it('favours unwatched Seerr requests and says so', () => {
+    // +8 beats a 4-point rating gap even with the daily jitter (±1.5 each).
+    const top = movie({ ratings: { rt: 94 } });
+    const requested = movie({ ratings: { rt: 90 } });
+    const ranked = rankMovies([top, requested], {}, [], { now: NOW, seed: 'test', requested: new Set([requested.id]) });
+    expect(ranked.map((r) => r.movie.id)).toEqual([requested.id, top.id]);
+    expect(ranked[0]!.reasons[0]).toEqual({ kind: 'requested', label: 'You requested this' });
+    expect(ranked[1]!.reasons.some((r) => r.kind === 'requested')).toBe(false);
+  });
+
+  it('counts a request on the watchlist once', () => {
+    const m = movie({ ratings: { rt: 80 } });
+    const score = (opts: { watchlist?: Set<number>; requested?: Set<number> }) =>
+      rankMovies([m], {}, [], { now: NOW, seed: 'test', ...opts })[0]!;
+    const plain = score({});
+    const requested = score({ requested: new Set([m.id]) });
+    const both = score({ requested: new Set([m.id]), watchlist: new Set([m.id]) });
+    expect(requested.score - plain.score).toBeCloseTo(8, 0);
+    expect(both.score).toBe(requested.score);
+    expect(both.reasons.slice(0, 2).map((r) => r.kind)).toEqual(['requested', 'watchlist']);
+  });
+
   it('explains the pick', () => {
     const m = movie({ genres: ['Action'], themes: { heist: 2 }, ratings: { rt: 92 } });
     const labels = rank([m], { genre: 'Action', theme: 'heist' })[0]!.reasons.map((r) => r.label);

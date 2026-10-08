@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
+import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
 import { syncPlexState } from './profiles.js';
@@ -65,6 +66,32 @@ const plexMetadata: Record<string, object> = {
 };
 const metadataLookups: string[] = [];
 
+const SEERR_KEY = 'seerr-key';
+const OWNER_PLEX_ID = 5001;
+const MEMBER_PLEX_ID = 5002;
+const seerrUsers: SeerrUser[] = [
+  { id: 1, plexId: OWNER_PLEX_ID, displayName: 'owner' },
+  { id: 2, plexId: MEMBER_PLEX_ID, displayName: 'member' },
+  { id: 3, plexId: null, displayName: 'local' },
+];
+// Like older Seerr versions, the fake ignores mediaType=movie: the TV requests fill the first
+// page, so the real ones are only found by paging.
+const seerrRequests: SeerrRequest[] = [
+  ...Array.from({ length: 150 }, (_, i): SeerrRequest => ({
+    id: 100 + i,
+    status: 5,
+    type: 'tv',
+    media: { tmdbId: 10_000 + i, mediaType: 'tv' },
+    requestedBy: { id: 3 },
+  })),
+  { id: 1, status: 5, type: 'movie', createdAt: '2026-03-01T10:00:00Z', media: { tmdbId: 949 }, requestedBy: { id: 1 } },
+  { id: 2, status: 2, type: 'movie', media: { tmdbId: 603 }, requestedBy: { id: 2, plexId: MEMBER_PLEX_ID } },
+  { id: 3, status: 3, type: 'movie', media: { tmdbId: 348 }, requestedBy: { id: 1 } }, // declined
+  { id: 4, status: 5, type: 'tv', media: { tmdbId: 348, mediaType: 'tv' }, requestedBy: { id: 2 } }, // a show, same TMDB id as Alien
+  { id: 5, status: 1, type: 'movie', media: { tmdbId: 1 }, requestedBy: { id: 1 } }, // not downloaded yet
+  { id: 6, status: 5, type: 'movie', media: { tmdbId: 949 }, requestedBy: { id: 3 } }, // no Plex account
+];
+
 describe('library sync against fake Radarr and Plex servers', () => {
   let server: Server;
   let base: string;
@@ -98,6 +125,17 @@ describe('library sync against fake Radarr and Plex servers', () => {
         const token = req.headers['x-plex-token'] as string | undefined;
         if (token !== OWNER_TOKEN && token !== MEMBER_TOKEN) return json(401, {});
         return json(200, { MediaContainer: { Metadata: plexItems(token) } });
+      }
+      if (url.pathname.startsWith('/api/v1/')) {
+        if (req.headers['x-api-key'] !== SEERR_KEY) return json(401, { message: 'Unauthorized' });
+        const page = (all: unknown[]) => {
+          const skip = Number(url.searchParams.get('skip') ?? 0);
+          const take = Number(url.searchParams.get('take') ?? 10);
+          return json(200, { pageInfo: { results: all.length }, results: all.slice(skip, skip + take) });
+        };
+        if (url.pathname === '/api/v1/auth/me') return json(200, seerrUsers[0]);
+        if (url.pathname === '/api/v1/user') return page(seerrUsers);
+        if (url.pathname === '/api/v1/request') return page(seerrRequests);
       }
       const item = /^\/library\/metadata\/(\d+)$/.exec(url.pathname);
       if (item && plexMetadata[item[1]!] && req.headers['x-plex-token'] === OWNER_TOKEN) {
@@ -171,7 +209,40 @@ describe('library sync against fake Radarr and Plex servers', () => {
   it('fills settings added by newer versions into settings saved by older ones', () => {
     // As saved by 0.2.x, before syncToPlex existed.
     store.set('app', { includeWatched: true, syncIntervalHours: 3 } as never);
-    expect(store.get('app')).toEqual({ includeWatched: true, syncIntervalHours: 3, syncToPlex: true });
+    expect(store.get('app')).toEqual({ includeWatched: true, syncIntervalHours: 3, syncToPlex: true, boostRequests: true });
+  });
+
+  const plexProfile = (plexUserId: number, name: string) =>
+    store.upsertPlexProfile({
+      plexUserId,
+      plexUuid: null,
+      name,
+      avatarUrl: null,
+      isAdmin: plexUserId === OWNER_PLEX_ID,
+      restrictionProfile: null,
+      pinProtected: false,
+    });
+
+  it('reads Seerr requests and pairs them with Plex profiles and library movies', async () => {
+    const owner = plexProfile(OWNER_PLEX_ID, 'Plex owner');
+    const member = plexProfile(MEMBER_PLEX_ID, 'Plex member');
+    store.set('seerr', { url: base, apiKey: SEERR_KEY });
+    await new LibrarySync(store, silent).run();
+
+    // Heat; not the declined Alien, nor the movie that isn't downloaded yet.
+    expect([...store.requestedIds(owner)]).toEqual([2]);
+    // The Matrix; not the show that shares Alien's TMDB id.
+    expect([...store.requestedIds(member)]).toEqual([1]);
+    expect(store.get('seerrSync')).toMatchObject({ requests: 2, profiles: 2, error: null });
+  });
+
+  it('keeps the last requests when Seerr fails, without failing the library sync', async () => {
+    store.set('seerr', { url: base, apiKey: 'wrong' });
+    await new LibrarySync(store, silent).run();
+    expect(store.get('seerrSync').error).toMatch(/Seerr: unauthorized/);
+    expect(store.get('sync').error).toBeNull();
+    expect([...store.requestedIds(plexProfile(OWNER_PLEX_ID, 'Plex owner'))]).toEqual([2]);
+    store.set('seerr', null);
   });
 
   it('records a failed sync without losing the library', async () => {

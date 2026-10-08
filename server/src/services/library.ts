@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
+import { syncRequests } from './requests.js';
 
 export interface PlexIndex {
   byTmdb: Map<number, PlexItem>;
@@ -79,6 +80,8 @@ export class LibrarySync {
       this.store.replaceMovies(movies, startedAt);
       this.store.set('sync', { at: startedAt, movies: movies.length, matchedInPlex: matched, error: null });
       this.log.info({ movies: movies.length, matchedInPlex: matched, ms: Date.now() - startedAt }, 'library synced');
+      // Requested movies only show up once they're in the library, so read requests after it.
+      await syncRequests(this.store, this.log);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.store.update('sync', { error: message });
