@@ -2,6 +2,11 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.6.1 (2026-10-08)
+
+- fix(picks): drop movies you've since watched in Plex without re-picking your profile ([d5341ed](https://github.com/cosmin-sulita/curatorr/commit/d5341ed))
+- fix(app): load new versions without closing the app ([72b1877](https://github.com/cosmin-sulita/curatorr/commit/72b1877))
+
 ## 0.6.0 (2026-10-08)
 
 - feat(picks): favour movies you requested in Seerr ([0c2ad15](https://github.com/cosmin-sulita/curatorr/commit/0c2ad15))
