@@ -70,6 +70,25 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
   return store.profileRows(true);
 }
 
+/** Switches to the profile's Plex Home user; plex.tv checks the PIN of a protected one. */
+async function switchToUser(store: Store, row: ProfileRow, pin?: string) {
+  const plex = store.get('plex');
+  try {
+    return await switchHomeUser(plex.clientId, plex.adminToken!, row.plex_user_id!, pin);
+  } catch (err) {
+    if (err instanceof UpstreamError && (err.status === 401 || err.status === 403)) {
+      throw new HttpError(403, pin ? 'Wrong PIN, try again' : 'PIN required', { needPin: true });
+    }
+    throw err;
+  }
+}
+
+/** Checks a protected profile's PIN with plex.tv, the way Plex does when switching to that user. */
+export async function verifyPin(store: Store, row: ProfileRow, pin?: string) {
+  if (!pin) throw new HttpError(403, 'PIN required', { needPin: true });
+  await switchToUser(store, row, pin);
+}
+
 /** Obtains the Plex tokens a profile needs to read its own watch history. */
 export async function linkProfile(store: Store, row: ProfileRow, pin?: string) {
   const plex = store.get('plex');
@@ -80,14 +99,7 @@ export async function linkProfile(store: Store, row: ProfileRow, pin?: string) {
     userToken = plex.adminToken;
   } else {
     if (row.plex_user_id == null) throw new HttpError(400, 'Profile is not linked to Plex');
-    try {
-      userToken = await switchHomeUser(plex.clientId, plex.adminToken, row.plex_user_id, pin);
-    } catch (err) {
-      if (err instanceof UpstreamError && (err.status === 401 || err.status === 403)) {
-        throw new HttpError(403, pin ? 'Wrong PIN, try again' : 'PIN required', { needPin: true });
-      }
-      throw err;
-    }
+    userToken = await switchToUser(store, row, pin);
   }
 
   const serverToken = (await serverTokenFor(plex.clientId, userToken, plex.machineId)) ?? (row.is_admin ? userToken : null);

@@ -1,15 +1,17 @@
 import { z } from 'zod';
 import { parse, within, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
-import { linkProfile, syncPlexState } from '../services/profiles.js';
-import { clearProfileCookie, requireAdmin, setProfileCookie } from '../session.js';
+import { linkProfile, syncPlexState, verifyPin } from '../services/profiles.js';
+import { clearProfileCookie, pinNeededHere, rememberPin, requireAdmin, setProfileCookie } from '../session.js';
 import { toProfile } from '../store.js';
 
 /** How long selecting a profile waits for its Plex watch history before moving on. */
 const WATCHED_WAIT_MS = 8_000;
 
 export const profileRoutes: RouteModule = (app, { store }) => {
-  app.get('/api/profiles', async () => store.profileRows().map(toProfile));
+  app.get('/api/profiles', async (req) =>
+    store.profileRows().map((r) => ({ ...toProfile(r), locked: pinNeededHere(req, store, r) })),
+  );
 
   app.post('/api/profiles/:id/select', async (req, reply) => {
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
@@ -18,6 +20,11 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     let row = store.profileRow(id);
     if (!row || row.hidden) throw new HttpError(404, 'Profile not found');
 
+    // A protected profile needs its PIN once on each device, also after it's linked.
+    if (pinNeededHere(req, store, row)) {
+      await verifyPin(store, row, pin);
+      rememberPin(req, reply, row.id);
+    }
     if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
       row = await linkProfile(store, row, pin);
     }

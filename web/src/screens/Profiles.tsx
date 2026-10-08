@@ -82,7 +82,7 @@ export function ProfilesScreen() {
                           <Spinner className="size-8 text-white" />
                         </span>
                       )}
-                      {p.pinProtected && !p.linked && (
+                      {p.locked && (
                         <span className="absolute -right-1 -bottom-1 grid size-8 place-items-center rounded-full bg-raised ring-4 ring-ink">
                           <Lock className="size-4 text-muted" aria-hidden />
                         </span>
@@ -93,7 +93,7 @@ export function ProfilesScreen() {
                       <span className="-mt-2 text-xs text-faint">{RESTRICTION_LABEL[p.restrictionProfile]}</span>
                     )}
                     {/* The lock badge is decorative; this says the same after the name. */}
-                    {p.pinProtected && !p.linked && <span className="sr-only">PIN protected</span>}
+                    {p.locked && <span className="sr-only">PIN protected</span>}
                   </button>
                 </li>
               );
@@ -171,7 +171,7 @@ function PinPad({
       <div className="flex w-full max-w-xs flex-col items-center">
         <Avatar name={profile.name} src={profile.avatarUrl} className="size-20" />
         <h2 className="mt-4 text-lg font-semibold">Enter {profile.name}'s Plex PIN</h2>
-        <p className="mt-1 text-center text-sm text-muted">Only needed once on this server.</p>
+        <p className="mt-1 text-center text-sm text-muted">Only needed once on this device.</p>
         <div className="mt-6 flex gap-3" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <span key={i} className={clsx('size-3.5 rounded-full transition', i < pin.length ? 'bg-fg' : 'bg-raised ring-1 ring-line')} />

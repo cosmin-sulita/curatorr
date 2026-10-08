@@ -61,8 +61,9 @@ export function useStatus() {
   });
 }
 
+/** `locked`: the profile's Plex PIN hasn't been entered on this device yet. */
 export function useProfiles() {
-  return useQuery({ queryKey: ['profiles'], queryFn: () => api<Profile[]>('/api/profiles') });
+  return useQuery({ queryKey: ['profiles'], queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles') });
 }
 
 const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time });
