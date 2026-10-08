@@ -35,6 +35,8 @@ export async function fetchPlexItems(store: Store, token: string): Promise<PlexI
 
 export class LibrarySync {
   syncing = false;
+  /** Asked to sync during a sync: settings may have changed under it, so it runs once more. */
+  private again = false;
   private timer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -44,7 +46,10 @@ export class LibrarySync {
 
   /** Pulls the Radarr library, re-tags it and links each movie to its Plex item. */
   async run(): Promise<void> {
-    if (this.syncing) return;
+    if (this.syncing) {
+      this.again = true;
+      return;
+    }
     const radarr = this.store.get('radarr');
     if (!radarr) return;
 
@@ -90,6 +95,10 @@ export class LibrarySync {
       throw err;
     } finally {
       this.syncing = false;
+      if (this.again) {
+        this.again = false;
+        this.trigger();
+      }
     }
   }
 
@@ -118,7 +127,7 @@ export class LibrarySync {
   /** Checks every 10 minutes whether the configured sync interval has elapsed. */
   schedule() {
     const tick = () => {
-      if (!this.store.get('setupComplete')) return;
+      if (this.syncing || !this.store.get('setupComplete')) return;
       const { at } = this.store.get('sync');
       const intervalMs = this.store.get('app').syncIntervalHours * 60 * 60 * 1000;
       // Movies synced by an older version lack Plex ids that newer features rely on.

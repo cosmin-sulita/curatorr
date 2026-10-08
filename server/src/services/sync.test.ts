@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { openDb } from '../db.js';
 import { fromRadarr, type RadarrMovie } from '../integrations/radarr.js';
 import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
@@ -284,5 +284,66 @@ describe('re-tagging the stored library', () => {
 
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('sync requests while a sync is under way', () => {
+  let radarr: Server;
+  let base: string;
+  /** The Radarr addresses whose movies were read, in order; the old one answers slowly. */
+  const reads: string[] = [];
+  const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
+
+  beforeAll(async () => {
+    radarr = createServer(async (req, res) => {
+      const [prefix, rest] = req.url!.split('/api/v3/');
+      if (rest === 'movie') {
+        reads.push(prefix!);
+        if (prefix === '/old') await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('[]');
+    });
+    await new Promise<void>((resolve) => radarr.listen(0, '127.0.0.1', resolve));
+    base = `http://127.0.0.1:${(radarr.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    radarr.close();
+  });
+
+  function slowSync() {
+    reads.length = 0;
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-sync-'));
+    const store = new Store(openDb(dir));
+    store.set('radarr', { url: `${base}/old`, apiKey: 'k' });
+    store.set('setupComplete', true);
+    const library = new LibrarySync(store, silent);
+    const first = library.run();
+    const done = async () => {
+      await vi.waitFor(() => expect(library.syncing).toBe(false));
+      library.stop();
+      store.db.close();
+      rmSync(dir, { recursive: true, force: true });
+    };
+    return { store, library, first, done };
+  }
+
+  it('syncs again afterwards, so a new Radarr address is read straight away', async () => {
+    const { store, library, first, done } = slowSync();
+    store.set('radarr', { url: `${base}/new`, apiKey: 'k' }); // what saving it in Settings does
+    library.trigger();
+    await first;
+    await vi.waitFor(() => expect(reads).toEqual(['/old', '/new']));
+    await done();
+  });
+
+  it("doesn't queue another sync from the scheduler's check", async () => {
+    const { library, first, done } = slowSync();
+    library.schedule(); // checks at once: no sync yet, so one is due
+    await first;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reads).toEqual(['/old']);
+    await done();
   });
 });
