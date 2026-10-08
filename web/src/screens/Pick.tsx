@@ -289,14 +289,16 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
             <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-fg/85">{m.overview}</p>
 
-            {/* Desktop: actions inline with the details. */}
-            <div className="mt-7 hidden flex-wrap gap-3 md:flex">
+            {/* Desktop: actions inline with the details, laid out like the phone bar. */}
+            <div className="mt-7 hidden md:block">
               {watchButton}
-              {declines.map(({ kind, label, Icon }) => (
-                <Button key={kind} size="lg" variant={kind === 'never' ? 'ghost' : 'secondary'} onClick={() => decline(kind)}>
-                  <Icon className="size-4" /> {label}
-                </Button>
-              ))}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {declines.map(({ kind, label, Icon }) => (
+                  <Button key={kind} variant={kind === 'never' ? 'ghost' : 'secondary'} onClick={() => decline(kind)}>
+                    <Icon className="size-4" /> {label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {m.trailerId && (
