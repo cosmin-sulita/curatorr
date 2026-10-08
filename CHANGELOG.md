@@ -2,6 +2,11 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.3.0 (2026-10-08)
+
+- feat(app): show what's new after an update ([4e2227d](https://github.com/cosmin-sulita/curatorr/commit/4e2227d))
+- feat(plex): sync Seen it and Later with Plex ([68cd9c6](https://github.com/cosmin-sulita/curatorr/commit/68cd9c6))
+
 ## 0.2.1 (2026-10-08)
 
 - fix(plex): open picks in the redesigned Plex apps ([fd564ac](https://github.com/cosmin-sulita/curatorr/commit/fd564ac))
