@@ -2,6 +2,15 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.7.0 (2026-10-08)
+
+- fix(wizard): use updated themes and moods as soon as Curatorr restarts ([088d615](https://github.com/cosmin-sulita/curatorr/commit/088d615))
+- feat(wizard): a Moving mood for emotional dramas ([83fb9b6](https://github.com/cosmin-sulita/curatorr/commit/83fb9b6))
+- feat(wizard): new themes for prison escapes, family dramas, politics and addiction ([0472567](https://github.com/cosmin-sulita/curatorr/commit/0472567))
+- fix(wizard): match themes and moods to the right movies ([89ead3a](https://github.com/cosmin-sulita/curatorr/commit/89ead3a))
+- chore(tags): add a tagging report for real libraries ([5298076](https://github.com/cosmin-sulita/curatorr/commit/5298076))
+- feat(profiles): give people without a Plex photo their own blobatar ([d389d6b](https://github.com/cosmin-sulita/curatorr/commit/d389d6b))
+
 ## 0.6.2 (2026-10-08)
 
 - fix(app): keep toasts on screen when skipping quickly ([146ab83](https://github.com/cosmin-sulita/curatorr/commit/146ab83))
