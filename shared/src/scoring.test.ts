@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   eligibleMovies,
+  pickingDay,
   qualityScore,
   rankMovies,
   wizardOptions,
@@ -203,6 +204,27 @@ describe('rankMovies', () => {
     const m = movie({ genres: ['Action'], themes: { heist: 2 }, ratings: { rt: 92 } });
     const labels = rank([m], { genre: 'Action', theme: 'heist' })[0]!.reasons.map((r) => r.label);
     expect(labels).toEqual(['Action', 'Heists & Cons', '92% on Rotten Tomatoes']);
+  });
+});
+
+describe('the daily shuffle', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  // Equally rated, so the shuffle alone decides their order.
+  const tied = Array.from({ length: 10 }, () => movie({ ratings: { rt: 80 } }));
+  const order = (iso: string) => rankMovies(tied, {}, [], { now: Date.parse(iso), seed: 'test' }).map((r) => r.movie.id);
+
+  it('keeps the same order all evening, also where UTC midnight falls in it', () => {
+    vi.stubEnv('TZ', 'America/New_York');
+    // 7:59 pm and 8:01 pm on an October evening in New York are 23:59 and 00:01 UTC.
+    expect(order('2026-10-08T19:59:00-04:00')).toEqual(order('2026-10-08T20:01:00-04:00'));
+    expect(order('2026-10-08T18:00:00-04:00')).toEqual(order('2026-10-09T02:00:00-04:00'));
+    expect(order('2026-10-08T20:00:00-04:00')).not.toEqual(order('2026-10-09T20:00:00-04:00'));
+  });
+
+  it('turns over at 4 am in the server’s time zone', () => {
+    vi.stubEnv('TZ', 'Europe/Bucharest');
+    expect(pickingDay(Date.parse('2026-10-09T03:59:00+03:00'))).toBe('2026-10-08');
+    expect(pickingDay(Date.parse('2026-10-09T04:01:00+03:00'))).toBe('2026-10-09');
   });
 });
 

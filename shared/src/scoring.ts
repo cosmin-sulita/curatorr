@@ -223,13 +223,23 @@ export interface ProfileSignals {
   day: string;
 }
 
+/** The daily shuffle turns over at this hour, local time, so no evening spans two days. */
+const DAY_TURNS_AT_HOUR = 4;
+
+/** The evening `now` belongs to, as YYYY-MM-DD in the local time zone (the server's TZ). */
+export function pickingDay(now: number) {
+  const d = new Date(now - DAY_TURNS_AT_HOUR * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): ProfileSignals {
   return {
     skipped: latestByKind(feedback, 'skipped'),
     shown: latestByKind(feedback, 'shown'),
     wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
     requested: opts.requested ?? new Set(),
-    day: new Date(opts.now).toISOString().slice(0, 10),
+    day: pickingDay(opts.now),
   };
 }
 
