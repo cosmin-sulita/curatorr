@@ -37,9 +37,11 @@ export function profileContext(store: Store, row: ProfileRow): ProfileContext {
   const requirePlex = store.plexConfigured() && movies.some((m) => m.plexRatingKey);
   const watched = store.watchedIds(row.id);
   const feedback = store.feedback(row.id);
-  // For sagas, "watched" also covers "Seen it", and only parts that can be played count.
+  const certs = allowedCerts(row);
+  // For sagas, "watched" also covers "Seen it", and only parts this profile can play and may see
+  // count: a part held back by its restrictions mustn't hold back the sequels it may watch.
   const seen = new Set([...watched, ...feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
-  const playable = requirePlex ? movies.filter((m) => m.plexRatingKey) : movies;
+  const playable = movies.filter((m) => (!requirePlex || m.plexRatingKey) && certAllowed(m, certs));
   const app = store.get('app');
   // Only requests still waiting to be watched get the boost and the label.
   const requested = app.boostRequests ? [...store.requestedIds(row.id)].filter((id) => !seen.has(id)) : [];
@@ -47,7 +49,7 @@ export function profileContext(store: Store, row: ProfileRow): ProfileContext {
     watched,
     feedback,
     sagas: sagaState(playable, seen),
-    allowedCerts: allowedCerts(row),
+    allowedCerts: certs,
     requirePlex,
     includeWatched: app.includeWatched,
     watchlist: store.watchlistIds(row.id),
