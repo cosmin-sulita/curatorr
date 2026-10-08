@@ -243,7 +243,7 @@ function MoodGrid({ options, onChoose }: OptionsProps) {
             <span>
               <span className="block font-display text-3xl">{o.label}</span>
               <span className="block text-sm text-muted">
-                {o.description} <span className="text-faint">({o.count})</span>
+                {o.description} ({o.count})
               </span>
             </span>
           </span>

@@ -10,9 +10,10 @@
   --color-line: rgb(255 255 255 / 0.08);
   --color-fg: #eceef8;
   --color-muted: #98a0c0;
-  --color-faint: #6b7290;
+  /* faint: ≥ 4.5:1 on ink and surface. accent-2: dark enough for white text on the gradient. */
+  --color-faint: #858ca8;
   --color-accent: #6366f1;
-  --color-accent-2: #a855f7;
+  --color-accent-2: #9333ea;
   --color-fresh: #fa320a;
   --color-rotten: #3bb33b;
   --color-imdb: #f5c518;
