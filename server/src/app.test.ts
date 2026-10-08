@@ -90,6 +90,23 @@ describe('API (demo data)', () => {
     expect(restored.map((p) => p.movie.id)).toContain(first.movie.id);
   });
 
+  it('undoes a skip, so the pick is back on top', async () => {
+    const first = (await get<RecommendationsResponse>('/api/recommendations?genre=Family')).body.picks[0]!;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/feedback',
+      headers: { cookie },
+      payload: { movieId: first.movie.id, kind: 'skipped' },
+    });
+    const { id } = res.json() as { id: number };
+    const after = (await get<RecommendationsResponse>('/api/recommendations?genre=Family')).body.picks;
+    expect(after[0]!.movie.id).not.toBe(first.movie.id);
+
+    await app.inject({ method: 'DELETE', url: `/api/feedback/${id}`, headers: { cookie } });
+    const restored = (await get<RecommendationsResponse>('/api/recommendations?genre=Family')).body.picks;
+    expect(restored[0]!.movie.id).toBe(first.movie.id);
+  });
+
   it('saves for later without Plex and favours the movie next time', async () => {
     const last = (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks.at(-1)!;
     const res = await app.inject({

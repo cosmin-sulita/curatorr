@@ -23,7 +23,8 @@ import { criteriaFrom } from './Wizard';
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
 
 /** Toast after a mark, depending on what happened in Plex. */
-function markMessage(kind: Exclude<Decline, 'skipped'>, title: string, plex: PlexSyncResult | undefined) {
+function markMessage(kind: Decline, title: string, plex: PlexSyncResult | undefined) {
+  if (kind === 'skipped') return `Skipped ${title}`;
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
     if (plex === 'synced' || plex === 'already') return `${title} is on your Plex Watchlist`;
@@ -69,10 +70,11 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     setQueue((q) => q?.slice(1) ?? null);
     sendFeedback(pick.movie.id, kind)
       .then(({ id, plex }) => {
-        if (kind === 'skipped') return;
-        qc.invalidateQueries({ queryKey: ['wizard'] });
+        // A skip only demotes the movie; the other marks change what the questions can offer.
+        if (kind !== 'skipped') qc.invalidateQueries({ queryKey: ['wizard'] });
         toast({
           message: markMessage(kind, pick.movie.title, plex),
+          duration: kind === 'skipped' ? 3000 : undefined,
           action: {
             label: 'Undo',
             run: () => {
