@@ -297,6 +297,31 @@ export const THEMES: ThemeDef[] = [
     weak: ['medieval', 'empire', 'royalty', 'king', 'queen', 'historical'],
     overview: /\b1\d(th)? century\b|\bancient\b|\bmedieval\b/,
   },
+  {
+    id: 'prison', label: 'Prison & Escape', icon: 'LockKeyhole',
+    strong: ['prison', 'prisoner', 'prison escape', 'escape from prison', 'prison cell', 'prison guard', 'prison warden', 'prison drama', 'prison camp', 'prisoner of war', 'jailbreak', 'inmate', 'death row', 'wrongful imprisonment', 'penitentiary', 'jail', 'convict', 'escaped convict'],
+    weak: ['escape plan', 'ex-con', 'parole'],
+    exclude: ['prisoner exchange'],
+    overview: /\bprison\b|\binmates?\b|\bjail(ed|break)?\b|\bconvicts?\b/,
+  },
+  {
+    id: 'family', label: 'Family Ties', icon: 'HouseHeart', threshold: 3,
+    strong: ['dysfunctional family', 'family drama', 'family relationships', 'family conflict', 'family secret', 'family history', 'divorce', 'custody battle', 'child custody', 'single mother', 'single father', 'single parent', 'estranged father', 'estranged mother', 'family reunion', 'parenting'],
+    weak: ['family', 'marriage', 'husband wife relationship', 'parents separating', 'parent child relationship', 'father son relationship', 'father daughter relationship', 'mother son relationship', 'mother daughter relationship', 'sibling relationship', 'brother brother relationship', 'sister sister relationship', 'brother sister relationship', 'grandparent grandchild relationship'],
+    overview: /\bdivorc|\bestranged\b|\bcustody\b/,
+  },
+  {
+    id: 'politics', label: 'Politics & Journalism', icon: 'Newspaper', threshold: 3,
+    strong: ['politics', 'politician', 'political thriller', 'political drama', 'election', 'election campaign', 'president', 'president of the united states', 'white house', 'senator', 'prime minister', 'political corruption', 'political scandal', 'journalism', 'journalist', 'investigative journalism', 'newspaper', 'reporter', 'newsroom', 'whistleblower'],
+    weak: ['conspiracy', 'corruption', 'cover-up', 'scandal', 'government'],
+    overview: /\bjournalists?\b|\breporters?\b|\bpolitic(s|al|ian)\b|\belection\b|\bsenator\b/,
+  },
+  {
+    id: 'addiction', label: 'Addiction & Recovery', icon: 'Pill', threshold: 3,
+    strong: ['addiction', 'drug addiction', 'drug addict', 'alcoholism', 'alcoholic', 'heroin', 'overdose', 'rehab', 'recovering alcoholic', 'alcoholics anonymous', 'sobriety', 'relapse', 'junkie'],
+    weak: ['alcohol', 'drunk', 'drinking', 'intoxication', 'drugs', 'cocaine'],
+    overview: /\baddict(ion|ed|s)?\b|\balcoholi(c|sm)\b|\brehab\b|\bsobriety\b/,
+  },
 ];
 
 export interface MoodDef {

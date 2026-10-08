@@ -20,7 +20,7 @@ npm run tags         # tagging report on config/curatorr.db; -- --movie <title> 
 ```
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
-- **Demo mode:** seeds `curatorr-demo.db` with about 85 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). In demo mode everyone counts as admin and no profile has a PIN.
+- **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). In demo mode everyone counts as admin and no profile has a PIN.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
 - **CI** (`.github/workflows/docker.yml`) runs typecheck and tests on every push. It builds the multi-arch GHCR image on `main` and `v*` tags.
 

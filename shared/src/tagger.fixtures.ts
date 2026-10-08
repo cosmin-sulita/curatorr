@@ -30,7 +30,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'delinquent', 'friendship', 'freedom', 'parole board', 'prison escape', 'redemption',
       'wrongful imprisonment', 'interracial friendship', 'framed for murder', '1940s', 'voiceover', 'amused',
       'epic'],
-    notMoods: ['light'],
+    themes: ['prison'], notMoods: ['light'],
   },
   {
     title: 'Heat', genres: ['Crime', 'Drama', 'Action'], runtime: 170, overview: '',
@@ -67,14 +67,14 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     keywords: ['husband wife relationship', 'custody battle', 'marriage', 'divorce', 'family', 'couple',
       'selfishness', 'manhattan, new york city', 'child custody', 'abandonment', 'dramatic',
       'parents separating', 'compassionate'],
-    notThemes: ['war', 'romance'],
+    themes: ['family'], notThemes: ['war', 'romance'],
   },
   {
     title: 'Another Round', genres: ['Drama'], runtime: 117, overview: '',
     keywords: ['alcohol', 'copenhagen, denmark', 'experiment', 'melancholy', 'friendship', 'alcoholism',
       'family relationships', 'teacher', 'drunk', 'teacher student relationship', 'intoxication',
       'social pressure', 'pressure to perform', 'wistful', 'hilarious'],
-    notMoods: ['feel-good'],
+    themes: ['addiction'], notMoods: ['feel-good'],
   },
   {
     title: 'Léon: The Professional', genres: ['Crime', 'Drama', 'Action'], runtime: 111, overview: '',
@@ -118,7 +118,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     keywords: ['prison', 'san francisco, california', 'based on novel or book', 'island', 'alcatraz prison',
       'prison warden', 'based on true story', 'prison escape', 'escape', '1960s', 'escape plan', 'apologetic',
       'assertive', 'defiant'],
-    themes: ['true-story'], moods: ['edge'],
+    themes: ['prison', 'true-story'], moods: ['edge'],
   },
   {
     title: 'The Dark Knight', genres: ['Action', 'Thriller', 'Crime'], runtime: 152, overview: '',
@@ -131,7 +131,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     title: 'True Grit', genres: ['Drama', 'Adventure', 'Western'], runtime: 110, overview: '',
     keywords: ['alcoholism', 'arkansas', 'based on novel or book', 'betrayal', 'bounty hunter', 'eye patch',
       'father murder', 'loss of loved one', 'remake', 'somber', 'texas ranger'],
-    moods: ['dark'],
+    notThemes: ['addiction'], moods: ['dark'],
   },
   {
     title: 'Finding Nemo', genres: ['Animation', 'Family', 'Adventure'], runtime: 100, overview: '',
@@ -165,7 +165,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'florida', 'historical fiction', 'investigative journalism', 'journalism', 'journalist', 'judge',
       'lawyer', 'lgbt', 'newspaper', 'pedophilia', 'powerful', 'priest', 'roman catholic church', 'serious',
       'sex scandal', 'tragic', 'understated', 'victim'],
-    themes: ['true-story'],
+    themes: ['true-story', 'politics'],
   },
   {
     title: 'Civil War', genres: ['War', 'Action', 'Drama'], runtime: 109, overview: '',
@@ -174,14 +174,14 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'post-traumatic stress disorder (ptsd)', 'race against time', 'road trip', 'secession', 'secessionists',
       'sniper', 'soldier', 'the white house', 'usa politics', 'usa president', 'violence', 'war crimes',
       'war journalism', 'war photographer', 'war trauma', 'washington dc, usa', 'xenophobia'],
-    themes: ['war'],
+    themes: ['war', 'politics'],
   },
   {
     title: 'Encanto', genres: ['Animation', 'Comedy', 'Family', 'Fantasy'], runtime: 102, overview: '',
     keywords: ['3d animation', 'beauty', 'big family', 'colombia', 'family conflict', 'family relationships',
       'family secrets', 'female protagonist', 'flamenco', 'forest', 'helping children', 'immigration',
       'joy of life', 'magic', 'matriarch', 'musical', 'sadness', 'strong woman', 'supernatural', 'teenage girl'],
-    themes: ['magic'], moods: ['light', 'feel-good'],
+    themes: ['magic', 'family'], moods: ['light', 'feel-good'],
   },
   {
     title: 'Rental Family', genres: ['Comedy', 'Drama'], runtime: 110, overview: '',
@@ -204,7 +204,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
     keywords: ['alien invasion', 'alternate timeline', 'based on comic', 'father daughter relationship',
       'marvel cinematic universe (mcu)', 'sequel', 'sister sister relationship', 'space travel', 'superhero',
       'superhero team', 'teamwork', 'time machine', 'time travel'],
-    themes: ['superheroes', 'time-travel'], moods: ['epic'],
+    themes: ['superheroes', 'time-travel'], notThemes: ['family'], moods: ['epic'],
   },
   {
     title: 'The Lord of the Rings: The Return of the King', genres: ['Adventure', 'Fantasy', 'Action'], runtime: 201, overview: '',
@@ -276,7 +276,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'cautionary', 'confession', 'denial', 'dramatic', 'emergency landing', 'f word', 'flight',
       'flying upside down', 'hangover', 'hard', 'inspirational', 'investigation', 'narcissist',
       'national transportation safety board', 'perjury', 'pilot', 'relapse', 'substance abuse', 'syringe'],
-    notThemes: ['sports'], notMoods: ['feel-good'],
+    themes: ['addiction'], notThemes: ['sports'], notMoods: ['feel-good'],
   },
   {
     title: 'Mad Max: Fury Road', genres: ['Action', 'Adventure', 'Science Fiction'], runtime: 121, overview: '',
@@ -363,7 +363,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'interdimensional travel', 'intergenerational trauma', 'internal revenue service', 'kung fu',
       'laundromat', 'lgbt', 'martial arts', 'mother', 'mother daughter relationship', 'multiverse', 'nihilism',
       'philosophy', 'surrealism'],
-    themes: ['realities'], moods: ['mind-bending'],
+    themes: ['realities', 'family'], moods: ['mind-bending'],
   },
   {
     title: 'The Revenant', genres: ['Western', 'Drama', 'Adventure'], runtime: 157, overview: '',
@@ -435,7 +435,7 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'internment camp', 'japanese officers', 'martial arts skills', 'mental breakdown', 'military operation',
       'pow camp', 'prisoner abuse', 'prisoner of war', 'resistance spirit', 'struggle for survival',
       'world war ii'],
-    themes: ['war'], notThemes: ['supernatural'],
+    themes: ['war', 'prison'], notThemes: ['supernatural'],
   },
   {
     title: 'Edge of Tomorrow', genres: ['Action', 'Science Fiction'], runtime: 114, overview: '',
