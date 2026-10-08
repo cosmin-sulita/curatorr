@@ -15,10 +15,12 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Later" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
 - **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
 
-## Install on a UGREEN NAS (UGOS)
+## Install with Docker
 
-1. Create a folder for Curatorr's data, e.g. `/volume1/docker/curatorr`.
-2. In UGOS open **Docker → Project → Create**, name it `curatorr`, and paste [`docker-compose.yml`](docker-compose.yml):
+Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Docker host.
+
+1. Create a folder of its own for Curatorr, e.g. `/srv/curatorr`, and run the commands below from inside it. Curatorr keeps its data in that folder.
+2. Save [`docker-compose.yml`](docker-compose.yml) there and start it with `docker compose up -d`:
 
    ```yaml
    services:
@@ -33,20 +35,29 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
          - PUID=1000
          - PGID=1000
        volumes:
-         - /volume1/docker/curatorr:/config
+         - ./:/config
    ```
 
-   Set `PUID`/`PGID` to the user that owns the data folder (SSH into the NAS and run `id`).
-3. Deploy, then open `http://<nas-ip>:7979` and follow the setup:
+   Or with plain Docker:
+
+   ```sh
+   docker run -d --name curatorr --restart unless-stopped -p 7979:7979 \
+     -e TZ=Etc/UTC -e PUID=1000 -e PGID=1000 \
+     -v ./:/config \
+     ghcr.io/YOUR_GITHUB_USER/curatorr:latest
+   ```
+
+   Set `PUID`/`PGID` to the user that owns the data folder (run `id` on the host).
+3. Open `http://<host-ip>:7979` and follow the setup:
    1. **Radarr**: its address (e.g. `http://192.168.1.10:7878`) and API key (Radarr → Settings → General → Security).
    2. **Plex**: sign in with the account that owns the server, pick the server and its movie libraries. Plex Home users are imported as profiles.
    3. **Finish**: the library syncs right away, then every 6 hours (configurable).
 
-To update, pull the new image in UGOS (or `docker compose pull && docker compose up -d`). Everything Curatorr stores is in `/config`.
+To update, run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`.
 
 ### HTTPS and installing the app
 
-Browsers only install a PWA over HTTPS. Put Curatorr behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik, Cloudflare Tunnel…) and point it at `http://<nas-ip>:7979`. For Caddy:
+Browsers only install a PWA over HTTPS. Put Curatorr behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik, Cloudflare Tunnel…) and point it at `http://<host-ip>:7979`. For Caddy:
 
 ```
 curatorr.example.com {
@@ -99,7 +110,7 @@ The repo is an npm workspace:
 
 ## Publishing the image
 
-The GitHub Actions workflow in [`.github/workflows/docker.yml`](.github/workflows/docker.yml) tests every push. On `main` and `v*` tags it also builds a `linux/amd64` + `linux/arm64` image and pushes it to `ghcr.io/<owner>/curatorr`. After the first run, open the package on GitHub and set its visibility to **Public**, or run `docker login ghcr.io` on the NAS.
+The GitHub Actions workflow in [`.github/workflows/docker.yml`](.github/workflows/docker.yml) tests every push. On `main` and `v*` tags it also builds a `linux/amd64` + `linux/arm64` image and pushes it to `ghcr.io/<owner>/curatorr`. After the first run, either open the package on GitHub and set its visibility to **Public**, or keep it private and run `docker login ghcr.io` on the Docker host with a personal access token (classic) that has the `read:packages` scope.
 
 To build locally instead: `docker build -t curatorr .`
 

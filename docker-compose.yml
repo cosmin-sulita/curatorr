@@ -1,9 +1,9 @@
-# Paste into UGOS: Docker > Project > Create, or run `docker compose up -d`.
+# Start with `docker compose up -d`.
 # Replace YOUR_GITHUB_USER with the GitHub account that hosts the image.
 services:
   curatorr:
     image: ghcr.io/YOUR_GITHUB_USER/curatorr:latest
-    # To build from source on the NAS instead, comment out `image` and use:
+    # To build from source instead, comment out `image` and use:
     # build: .
     container_name: curatorr
     restart: unless-stopped
@@ -11,7 +11,7 @@ services:
       - "7979:7979"
     environment:
       - TZ=Etc/UTC          # your time zone, e.g. Europe/Berlin
-      - PUID=1000           # user/group that owns the config folder (run `id` on the NAS)
+      - PUID=1000           # user/group that owns the config folder (run `id` on the host)
       - PGID=1000
     volumes:
-      - /volume1/docker/curatorr:/config
+      - ./:/config
