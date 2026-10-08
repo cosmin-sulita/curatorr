@@ -36,6 +36,25 @@ function markMessage(kind: Decline, title: string, plex: PlexSyncResult | undefi
   return `Marked ${title} as seen`;
 }
 
+// Once someone has swiped a pick away, the hint under the poster has done its job.
+const SWIPED_KEY = 'curatorr:swiped';
+
+function hasSwiped() {
+  try {
+    return localStorage.getItem(SWIPED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function rememberSwipe() {
+  try {
+    localStorage.setItem(SWIPED_KEY, '1');
+  } catch {
+    // Storage blocked: the hint keeps showing, which is harmless.
+  }
+}
+
 export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);
   const { data, isLoading, error, refetch } = useRecommendations(criteria);
@@ -45,6 +64,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   const [queue, setQueue] = useState<Pick[] | null>(null);
   const shown = useRef(new Set<number>());
+  const [swiped, setSwiped] = useState(hasSwiped);
   useEffect(() => setQueue(data?.picks ?? null), [data]);
   // The list stays put while you're here; coming back later re-ranks with today's feedback.
   useEffect(() => () => qc.removeQueries({ queryKey: ['recommendations'] }), [qc]);
@@ -154,7 +174,13 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   const m = current.movie;
   const onDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.x < -110 || info.velocity.x < -650) decline('skipped');
+    if (info.offset.x < -110 || info.velocity.x < -650) {
+      decline('skipped');
+      if (!swiped) {
+        rememberSwipe();
+        setSwiped(true);
+      }
+    }
   };
   const link = status?.demo ? { href: '#', newTab: false, fallback: null } : plexLink(m.plexAppUrl, m.plexUrl);
   // Genre and rating are already shown above; chips explain the theme/mood/time match.
@@ -200,7 +226,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
               exit={{ x: -420, opacity: 0, rotate: -12, transition: { duration: 0.28 } }}
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-              className="mx-auto w-44 cursor-grab touch-pan-y active:cursor-grabbing sm:w-56 md:mx-0 md:w-full"
+              className="mx-auto w-36 cursor-grab touch-pan-y active:cursor-grabbing sm:w-56 md:mx-0 md:w-full"
             >
               <Img
                 src={m.posterUrl}
@@ -208,7 +234,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 draggable={false}
                 className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10"
               />
-              <p className="mt-3 text-center text-xs text-faint md:hidden">Swipe left for the next pick</p>
+              {!swiped && <p className="mt-3 text-center text-xs text-faint md:hidden">Swipe left for the next pick</p>}
             </motion.div>
           </AnimatePresence>
 
@@ -222,7 +248,15 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
             <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-300')}>
               {current.closeMatch ? 'Close match' : "Tonight's pick"}
             </p>
-            <h1 className="mt-2 font-display text-5xl text-balance sm:text-6xl lg:text-7xl">{m.title}</h1>
+            {/* Long titles step down on phones so the ratings still clear the action bar. */}
+            <h1
+              className={clsx(
+                'mt-2 font-display text-balance sm:text-6xl lg:text-7xl',
+                m.title.length > 28 ? 'text-[40px]' : 'text-5xl',
+              )}
+            >
+              {m.title}
+            </h1>
 
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px] text-muted">
               {m.year && <span>{m.year}</span>}
