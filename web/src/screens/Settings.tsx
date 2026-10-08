@@ -105,7 +105,7 @@ function ProfileLists({ name }: { name: string }) {
               {h.kind === 'later' ? 'On your watchlist' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
             </span>
           </span>
-          <Button size="sm" variant="ghost" onClick={() => unmark(h.id)}>
+          <Button variant="ghost" onClick={() => unmark(h.id)}>
             {action}
           </Button>
         </li>
