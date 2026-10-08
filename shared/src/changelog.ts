@@ -58,11 +58,15 @@ export function compareVersions(a: string, b: string): number {
 
 const hasNews = (r: Release) => r.notes.length > 0 || r.intro !== '';
 
+/** How many releases to show when it's unknown what someone has already seen. */
+const RECENT = 3;
+
 /**
  * The releases to show someone who last opened `lastSeen`: everything newer that has something to say.
- * Without a usable last-seen version, only the newest release.
+ * Without a usable last-seen version (a device from before the popup existed), the latest few that do.
  */
 export function releasesSince(releases: Release[], lastSeen: string | null): Release[] {
-  if (!lastSeen || !SEMVER.test(lastSeen)) return releases.slice(0, 1).filter(hasNews);
-  return releases.filter((r) => compareVersions(r.version, lastSeen) > 0 && hasNews(r));
+  const withNews = releases.filter(hasNews);
+  if (!lastSeen || !SEMVER.test(lastSeen)) return withNews.slice(0, RECENT);
+  return withNews.filter((r) => compareVersions(r.version, lastSeen) > 0);
 }

@@ -18,12 +18,9 @@ import {
 } from '../lib/api';
 import { plural, relativeTime } from '../lib/format';
 import { usePlexSignIn } from '../lib/plexAuth';
-import { releases } from '../lib/whatsNew';
+import { recentReleases } from '../lib/whatsNew';
 import { PlexConnect } from './PlexConnect';
 import { RadarrForm } from './Setup';
-
-// The last few releases with something to say, for the "What's new" link.
-const recentNews = releases.filter((r) => r.notes.length || r.intro).slice(0, 3);
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -73,7 +70,7 @@ export function SettingsScreen() {
       </Shell>
       {/* Outside Shell: its <main> is a stacking context below the header. */}
       <AnimatePresence>
-        {showNews && <WhatsNewDialog releases={recentNews} onClose={() => setShowNews(false)} />}
+        {showNews && <WhatsNewDialog releases={recentReleases} onClose={() => setShowNews(false)} />}
       </AnimatePresence>
     </>
   );

@@ -79,10 +79,15 @@ describe('releasesSince', () => {
     expect(versions(releasesSince(releases, '0.2.1'))).toEqual(['0.3.0']);
   });
 
-  it('shows only the newest release without a usable last-seen version', () => {
-    expect(versions(releasesSince(releases, null))).toEqual(['0.3.0']);
-    expect(versions(releasesSince(releases, 'dev'))).toEqual(['0.3.0']);
-    expect(versions(releasesSince(releases, 'latest'))).toEqual(['0.3.0']);
+  it('shows the latest few releases with news without a usable last-seen version', () => {
+    expect(versions(releasesSince(releases, null))).toEqual(['0.3.0', '0.2.1', '0.1.0']);
+    expect(versions(releasesSince(releases, 'dev'))).toEqual(['0.3.0', '0.2.1', '0.1.0']);
+    expect(versions(releasesSince(releases, 'latest'))).toEqual(['0.3.0', '0.2.1', '0.1.0']);
+    expect(releasesSince([...releases, ...releases], null)).toHaveLength(3);
+  });
+
+  it('looks past a housekeeping-only newest release when the last-seen version is unknown', () => {
+    expect(versions(releasesSince(releases.slice(1), null))).toEqual(['0.2.1', '0.1.0']);
   });
 
   it('shows nothing when up to date, downgraded, or the news is all housekeeping', () => {
