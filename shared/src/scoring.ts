@@ -115,6 +115,8 @@ const SKIP_PENALTY = 15;
 const SKIP_WINDOW = 14 * DAY;
 const SHOWN_PENALTY = 5;
 const SHOWN_WINDOW = 3 * DAY;
+/** A pick shown this evening isn't demoted yet, so answering the same way again gives the same pick. */
+const SHOWN_GRACE = 3 * 60 * 60 * 1000;
 const MAX_THEME_BONUS = 5;
 const MAX_MOOD_BONUS = 3;
 const TAG_SATURATION = 6;
@@ -286,7 +288,7 @@ export function rankMovies(
     const skippedAt = skipped.get(m.id);
     if (skippedAt && opts.now - skippedAt < SKIP_WINDOW) score -= SKIP_PENALTY;
     const shownAt = shown.get(m.id);
-    if (shownAt && opts.now - shownAt < SHOWN_WINDOW) score -= SHOWN_PENALTY;
+    if (shownAt && opts.now - shownAt > SHOWN_GRACE && opts.now - shownAt < SHOWN_WINDOW) score -= SHOWN_PENALTY;
     const onWatchlist = wanted.has(m.id);
     if (onWatchlist) score += WATCHLIST_BONUS;
 

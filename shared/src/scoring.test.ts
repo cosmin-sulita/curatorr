@@ -118,6 +118,20 @@ describe('rankMovies', () => {
     expect(ranked[0]!.movie.id).toBe(a.id);
   });
 
+  it('keeps a pick shown in the last few hours in place', () => {
+    const a = movie({ ratings: { rt: 90 } });
+    const fresh = rank([a])[0]!.score;
+    const shownTonight = rank([a], {}, [{ movieId: a.id, kind: 'shown', createdAt: NOW - 60 * 60_000 }])[0]!.score;
+    expect(shownTonight).toBe(fresh);
+  });
+
+  it('still demotes a pick shown yesterday', () => {
+    const a = movie({ ratings: { rt: 90 } });
+    const fresh = rank([a])[0]!.score;
+    const shownYesterday = rank([a], {}, [{ movieId: a.id, kind: 'shown', createdAt: NOW - 86_400_000 }])[0]!.score;
+    expect(shownYesterday).toBeCloseTo(fresh - 5, 5);
+  });
+
   it('filters by genre and runtime', () => {
     const action = movie({ genres: ['Action'], runtime: 100 });
     const longAction = movie({ genres: ['Action'], runtime: 170 });

@@ -66,7 +66,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const shown = useRef(new Set<number>());
   const [swiped, setSwiped] = useState(hasSwiped);
   useEffect(() => setQueue(data?.picks ?? null), [data]);
-  // The list stays put while you're here; coming back later re-ranks with today's feedback.
+  // The list stays put while you're here; coming back re-ranks with your marks and skips
+  // (picks you've only seen don't move until the next evening).
   useEffect(() => () => qc.removeQueries({ queryKey: ['recommendations'] }), [qc]);
 
   const current = queue?.[0];
