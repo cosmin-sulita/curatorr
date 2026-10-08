@@ -3,13 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Ban, Clapperboard, Eye, Play, RotateCcw, SkipForward } from 'lucide-react';
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { RatingBadges } from '../components/Ratings';
 import { CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, Img, Notice, Spinner } from '../components/ui';
+import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, sendFeedback, undoFeedback, useRecommendations, useStatus } from '../lib/api';
-import { openInPlex, runtime, vibrate } from '../lib/format';
+import { fallBackIfStillHere, plexLink, runtime, vibrate, type PlexLink } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
 import { criteriaFrom } from './Wizard';
 
@@ -68,14 +68,16 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const bringForward = (pick: Pick) =>
     setQueue((q) => (q && q[0] ? [pick, ...q.slice(1).filter((p) => p !== pick), q[0]] : q));
 
-  const watch = () => {
+  // The tap on the link itself does the navigation; this only records it (and handles demo mode).
+  const onWatch = (e: MouseEvent<HTMLAnchorElement>, link: PlexLink) => {
     if (!current) return;
     if (status?.demo) {
+      e.preventDefault();
       toast({ message: 'Demo mode: connect Plex in setup to play movies.' });
       return;
     }
-    sendFeedback(current.movie.id, 'accepted').catch(() => {});
-    openInPlex(current.movie.plexAppUrl, current.movie.plexUrl);
+    sendFeedback(current.movie.id, 'accepted', { keepalive: true }).catch(() => {});
+    if (link.fallback) fallBackIfStillHere(link.fallback);
   };
 
   if (isLoading || (data && !queue)) {
@@ -128,7 +130,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.x < -110 || info.velocity.x < -650) decline('skipped');
   };
-  const playable = Boolean(m.plexUrl || status?.demo);
+  const link = status?.demo ? { href: '#', newTab: false, fallback: null } : plexLink(m.plexAppUrl, m.plexUrl);
   // Genre and rating are already shown above; chips explain the theme/mood/time match.
   const reasons = current.reasons.filter((r) => r.kind !== 'genre' && r.kind !== 'rating');
 
@@ -138,9 +140,20 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     { kind: 'never' as const, label: 'Never', Icon: Ban },
   ];
 
-  const watchButton = (
-    <Button variant="primary" size="lg" onClick={watch} disabled={!playable} className="w-full md:w-auto md:min-w-52">
-      <Play className="size-5 fill-current" /> {playable ? 'Watch on Plex' : 'Not in Plex yet'}
+  const watchClass = 'w-full md:w-auto md:min-w-52';
+  const watchButton = link ? (
+    <a
+      href={link.href}
+      target={link.newTab ? '_blank' : undefined}
+      rel="noopener noreferrer"
+      onClick={(e) => onWatch(e, link)}
+      className={buttonClass('primary', 'lg', watchClass)}
+    >
+      <Play className="size-5 fill-current" /> Watch on Plex
+    </a>
+  ) : (
+    <Button variant="primary" size="lg" disabled className={watchClass}>
+      <Play className="size-5 fill-current" /> Not in Plex yet
     </Button>
   );
 

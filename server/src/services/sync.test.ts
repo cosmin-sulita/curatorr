@@ -9,6 +9,7 @@ import type { RadarrMovie } from '../integrations/radarr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
 import { syncWatched } from './profiles.js';
+import { ensurePlexSlugs, toDTO } from './recommend.js';
 
 const RADARR_KEY = 'radarr-key';
 const OWNER_TOKEN = 'owner-token';
@@ -43,10 +44,13 @@ const radarrMovies: RadarrMovie[] = [
 ];
 
 // What each Plex user sees in the movie library: same items, different watch state.
+// The Matrix carries its slug in the listing; Heat only in its full metadata; Alien
+// (legacy agent) has none at all.
 const plexItems = (token: string | undefined) => [
   {
     ratingKey: '101',
     title: 'The Matrix',
+    slug: 'the-matrix',
     viewCount: token === MEMBER_TOKEN ? 1 : 0,
     lastViewedAt: 1_700_000_000,
     Guid: [{ id: 'imdb://tt0133093' }, { id: 'tmdb://603' }],
@@ -54,6 +58,11 @@ const plexItems = (token: string | undefined) => [
   { ratingKey: '102', title: 'Heat', viewCount: token === OWNER_TOKEN ? 3 : 0, Guid: [{ id: 'tmdb://949' }] },
   { ratingKey: '103', title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748?lang=en' },
 ];
+const plexMetadata: Record<string, object> = {
+  '102': { ratingKey: '102', title: 'Heat', slug: 'heat', Guid: [{ id: 'tmdb://949' }] },
+  '103': { ratingKey: '103', title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748?lang=en' },
+};
+const metadataLookups: string[] = [];
 
 describe('library sync against fake Radarr and Plex servers', () => {
   let server: Server;
@@ -75,6 +84,11 @@ describe('library sync against fake Radarr and Plex servers', () => {
         const token = req.headers['x-plex-token'] as string | undefined;
         if (token !== OWNER_TOKEN && token !== MEMBER_TOKEN) return json(401, {});
         return json(200, { MediaContainer: { Metadata: plexItems(token) } });
+      }
+      const item = /^\/library\/metadata\/(\d+)$/.exec(url.pathname);
+      if (item && plexMetadata[item[1]!] && req.headers['x-plex-token'] === OWNER_TOKEN) {
+        metadataLookups.push(item[1]!);
+        return json(200, { MediaContainer: { Metadata: [plexMetadata[item[1]!]] } });
       }
       json(404, {});
     });
@@ -104,6 +118,25 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(store.movie(2)!.themes).toHaveProperty('heist');
     expect(store.movie(1)!.ratings.rt).toBe(83);
     expect(store.get('sync')).toMatchObject({ movies: 3, matchedInPlex: 3, error: null });
+    expect(movies.map((m) => m.plexSlug)).toEqual([null, null, 'the-matrix']);
+  });
+
+  it('looks up missing watch.plex.tv slugs once, and links phones to them', async () => {
+    await ensurePlexSlugs(store, store.movies());
+    await ensurePlexSlugs(store, store.movies());
+    expect(metadataLookups.sort()).toEqual(['102', '103']);
+    expect(store.movie(2)!.plexSlug).toBe('heat');
+    expect(store.movie(4)!.plexSlug).toBe(''); // legacy agent: Plex has none
+
+    expect(toDTO(store, store.movie(2)!).plexAppUrl).toBe('https://watch.plex.tv/movie/heat');
+    expect(toDTO(store, store.movie(4)!).plexAppUrl).toMatch(/^plex:\/\/preplay\//);
+    expect(toDTO(store, store.movie(4)!).plexUrl).toContain('app.plex.tv/desktop/#!/server/machine/details');
+  });
+
+  it('keeps looked-up slugs when the library syncs again', async () => {
+    await new LibrarySync(store, silent).run();
+    expect(store.movie(2)!.plexSlug).toBe('heat');
+    expect(store.movie(1)!.plexSlug).toBe('the-matrix');
   });
 
   it('reads each profile’s own watch history', async () => {

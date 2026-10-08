@@ -30,6 +30,7 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     fanartUrl: `fanart-${id}`,
     trailerId: null,
     plexRatingKey: String(id),
+    plexSlug: null,
     addedAt: null,
     ...partial,
     ratings: { ...noRatings, ...partial.ratings },

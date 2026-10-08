@@ -121,6 +121,7 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     fanartPath: fanart?.url ?? null,
     trailerId: r.youTubeTrailerId || null,
     plexRatingKey: null,
+    plexSlug: null,
     addedAt: r.added ?? null,
   };
 }

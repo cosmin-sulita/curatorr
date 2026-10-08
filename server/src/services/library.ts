@@ -62,6 +62,7 @@ export class LibrarySync {
           const item = findPlexItem(index, m);
           if (item) {
             m.plexRatingKey = item.ratingKey;
+            m.plexSlug = item.slug;
             matched++;
           }
         }

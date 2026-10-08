@@ -3,6 +3,23 @@ import { LoaderCircle } from 'lucide-react';
 import { useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'sm' | 'md' | 'lg';
+
+/** Button styling, shared with links that look like buttons. */
+export function buttonClass(variant: Variant = 'secondary', size: Size = 'md', className?: string) {
+  return clsx(
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none',
+    'disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]',
+    size === 'sm' && 'h-9 px-3 text-sm',
+    size === 'md' && 'h-11 px-4 text-[15px]',
+    size === 'lg' && 'h-14 px-6 text-base',
+    variant === 'primary' && 'bg-accent-gradient text-white shadow-lg shadow-accent/25 hover:brightness-110',
+    variant === 'secondary' && 'bg-raised text-fg ring-1 ring-line hover:bg-[#2a3150]',
+    variant === 'ghost' && 'text-muted hover:bg-white/5 hover:text-fg',
+    variant === 'danger' && 'bg-red-500/10 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20',
+    className,
+  );
+}
 
 export function Button({
   variant = 'secondary',
@@ -12,23 +29,12 @@ export function Button({
   children,
   disabled,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; loading?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean }) {
   return (
     <button
       {...rest}
       disabled={disabled || loading}
-      className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none',
-        'disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]',
-        size === 'sm' && 'h-9 px-3 text-sm',
-        size === 'md' && 'h-11 px-4 text-[15px]',
-        size === 'lg' && 'h-14 px-6 text-base',
-        variant === 'primary' && 'bg-accent-gradient text-white shadow-lg shadow-accent/25 hover:brightness-110',
-        variant === 'secondary' && 'bg-raised text-fg ring-1 ring-line hover:bg-[#2a3150]',
-        variant === 'ghost' && 'text-muted hover:bg-white/5 hover:text-fg',
-        variant === 'danger' && 'bg-red-500/10 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20',
-        className,
-      )}
+      className={buttonClass(variant, size, className)}
     >
       {loading && <LoaderCircle className="size-4 animate-spin" aria-hidden />}
       {children}

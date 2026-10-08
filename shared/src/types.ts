@@ -32,6 +32,8 @@ export interface Movie {
   fanartUrl: string | null;
   trailerId: string | null;
   plexRatingKey: string | null;
+  /** watch.plex.tv slug: null = not looked up yet, '' = Plex has none (legacy agent). */
+  plexSlug: string | null;
   addedAt: string | null;
 }
 

@@ -73,6 +73,10 @@ const migrations: string[] = [
   );
   CREATE INDEX feedback_profile ON feedback (profile_id, created_at);
   `,
+  // v2: watch.plex.tv slug, used to open a movie in the redesigned Plex mobile apps.
+  `
+  ALTER TABLE movies ADD COLUMN plex_slug TEXT;
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

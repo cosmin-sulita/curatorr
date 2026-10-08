@@ -24,12 +24,16 @@ export class ApiError extends Error {
 /** True when the server could not be reached at all (offline, container down). */
 export const isNetworkError = (err: unknown) => err instanceof TypeError;
 
-export async function api<T>(path: string, init: { method?: string; json?: unknown } = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: { method?: string; json?: unknown; keepalive?: boolean } = {},
+): Promise<T> {
   const res = await fetch(path, {
     method: init.method ?? (init.json !== undefined ? 'POST' : 'GET'),
     credentials: 'same-origin',
     headers: init.json !== undefined ? { 'content-type': 'application/json' } : undefined,
     body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
+    keepalive: init.keepalive,
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new ApiError(res.status, String(data.error ?? res.statusText), data);
@@ -79,8 +83,9 @@ export function useRecommendations(criteria: Criteria) {
   });
 }
 
-export function sendFeedback(movieId: number, kind: FeedbackKind) {
-  return api<{ id: number }>('/api/feedback', { json: { movieId, kind } });
+/** `keepalive` lets the request finish while the page is being left (e.g. opening Plex). */
+export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean } = {}) {
+  return api<{ id: number }>('/api/feedback', { json: { movieId, kind }, keepalive: opts.keepalive });
 }
 
 export function undoFeedback(id: number) {

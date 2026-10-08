@@ -122,6 +122,7 @@ export function demoMovies(): StoredMovie[] {
       fanartPath: null,
       trailerId: null,
       plexRatingKey: null,
+      plexSlug: null,
       addedAt: null,
     };
   });

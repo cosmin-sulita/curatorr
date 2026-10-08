@@ -25,6 +25,7 @@ describe('toPlexItem', () => {
       year: 1999,
       viewCount: 2,
       lastViewedAt: 1700000000,
+      slug: 'the-matrix',
       guid: 'plex://movie/abc',
       Guid: [{ id: 'imdb://tt0133093' }, { id: 'tmdb://603' }],
     });
@@ -34,17 +35,30 @@ describe('toPlexItem', () => {
       year: 1999,
       viewCount: 2,
       lastViewedAt: 1700000000000,
+      slug: 'the-matrix',
       tmdbId: 603,
       imdbId: 'tt0133093',
     });
   });
+
+  it('has no slug for legacy agents', () => {
+    expect(toPlexItem({ ratingKey: 1, title: 'Alien', guid: 'com.plexapp.agents.imdb://tt0078748' }).slug).toBeNull();
+  });
 });
 
 describe('plexLinks', () => {
-  it('builds web and app deep links', () => {
-    const links = plexLinks('abc123', '42');
+  it('sends phones to watch.plex.tv when the movie has a slug', () => {
+    const links = plexLinks('abc123', '42', 'godzilla-2014');
     expect(links.web).toBe('https://app.plex.tv/desktop/#!/server/abc123/details?key=%2Flibrary%2Fmetadata%2F42');
-    expect(links.app).toContain('plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F42');
+    expect(links.app).toBe('https://watch.plex.tv/movie/godzilla-2014');
+  });
+
+  it('falls back to the plex:// deep link without a slug', () => {
+    for (const slug of [null, '', undefined]) {
+      expect(plexLinks('abc123', '42', slug).app).toBe(
+        'plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F42&metadataType=1&server=abc123',
+      );
+    }
   });
 });
 

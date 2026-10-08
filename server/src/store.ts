@@ -89,6 +89,7 @@ interface MovieRow {
   fanart_path: string | null;
   trailer_id: string | null;
   plex_rating_key: string | null;
+  plex_slug: string | null;
   added_at: string | null;
 }
 
@@ -172,8 +173,8 @@ export class Store {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
         themes, moods, rt, rt_votes, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
-        trailer_id, plex_rating_key, added_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        trailer_id, plex_rating_key, plex_slug, added_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
@@ -181,7 +182,9 @@ export class Store {
         rt = excluded.rt, rt_votes = excluded.rt_votes, imdb = excluded.imdb, tmdb = excluded.tmdb,
         metacritic = excluded.metacritic, poster_url = excluded.poster_url, fanart_url = excluded.fanart_url,
         poster_path = excluded.poster_path, fanart_path = excluded.fanart_path, trailer_id = excluded.trailer_id,
-        plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at
+        plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at,
+        -- Keep a slug looked up earlier when the library listing doesn't include one.
+        plex_slug = COALESCE(excluded.plex_slug, movies.plex_slug)
     `);
     transaction(this.db, () => {
       for (const m of movies) {
@@ -189,12 +192,20 @@ export class Store {
           m.id, m.tmdbId, m.imdbId, m.title, m.year, m.overview, m.runtime, m.certification,
           JSON.stringify(m.genres), JSON.stringify(m.keywords), JSON.stringify(m.themes), JSON.stringify(m.moods),
           m.ratings.rt, m.ratings.rtVotes, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
-          m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.addedAt, syncedAt,
+          m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
+          m.addedAt, syncedAt,
         );
       }
       this.db.prepare('DELETE FROM movies WHERE synced_at <> ?').run(syncedAt);
     });
     this.movieCache = null;
+  }
+
+  /** Records a slug looked up on demand ('' when Plex has none). */
+  setPlexSlug(id: number, slug: string) {
+    this.db.prepare('UPDATE movies SET plex_slug = ? WHERE id = ?').run(slug, id);
+    const cached = this.movieCache?.find((m) => m.id === id);
+    if (cached) cached.plexSlug = slug;
   }
 
   // ---- profiles -----------------------------------------------------------
@@ -340,6 +351,7 @@ function rowToMovie(r: MovieRow): StoredMovie {
     fanartPath: r.fanart_path,
     trailerId: r.trailer_id,
     plexRatingKey: r.plex_rating_key,
+    plexSlug: r.plex_slug,
     addedAt: r.added_at,
   };
 }

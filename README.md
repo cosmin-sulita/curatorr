@@ -11,7 +11,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down.
 - **Ranked by the Tomatometer.** IMDb and TMDB scores are used as fallbacks when there's no RT score.
 - **Not tonight / Seen it / Never.** Swipe or tap. "Not tonight" lowers a movie for two weeks; "Seen it" and "Never" hide it until you restore it in Settings.
-- **Watch on Plex** opens the movie straight in the Plex app on phones, or Plex Web on desktop.
+- **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
 
 ## Install on a UGREEN NAS (UGOS)
 

@@ -200,6 +200,8 @@ export interface PlexItem {
   year: number | null;
   viewCount: number;
   lastViewedAt: number | null;
+  /** watch.plex.tv identifier, e.g. "godzilla-2014". */
+  slug: string | null;
   tmdbId: number | null;
   imdbId: string | null;
 }
@@ -238,6 +240,13 @@ export class PlexServerClient {
     const body = await this.get<any>(`/library/sections/${sectionKey}/all?type=1&includeGuids=1`, 120_000);
     return asArray<any>(body.MediaContainer?.Metadata).map(toPlexItem);
   }
+
+  /** Full metadata for one item; includes the slug even when library listings leave it out. */
+  async item(ratingKey: string, timeoutMs = 4_000): Promise<PlexItem | null> {
+    const body = await this.get<any>(`/library/metadata/${encodeURIComponent(ratingKey)}`, timeoutMs);
+    const m = asArray<any>(body.MediaContainer?.Metadata)[0];
+    return m ? toPlexItem(m) : null;
+  }
 }
 
 export function toPlexItem(m: any): PlexItem {
@@ -248,6 +257,8 @@ export function toPlexItem(m: any): PlexItem {
     year: m.year ?? null,
     viewCount: Number(m.viewCount ?? 0),
     lastViewedAt: m.lastViewedAt ? Number(m.lastViewedAt) * 1000 : null,
+    // Only items matched by the modern "Plex Movie" agent have one.
+    slug: typeof m.slug === 'string' && m.slug ? m.slug : null,
     ...ids,
   };
 }
@@ -270,12 +281,22 @@ export function parseGuids(guids: (string | undefined | null)[]): { tmdbId: numb
   return { tmdbId, imdbId };
 }
 
-/** Deep links that open a movie in Plex (web app and native apps). */
-export function plexLinks(machineId: string, ratingKey: string) {
+/**
+ * Links that open a movie in Plex.
+ *
+ * - `web`: Plex Web, straight to the item on this server (desktop).
+ * - `app`: the mobile apps. The redesigned apps ignore the old `plex://preplay` deep link
+ *   (they open on Home), but they claim `watch.plex.tv/movie/<slug>` as a universal/app link
+ *   and show its details page, which lists this server as a place to play it. Movies without a
+ *   slug (legacy metadata agents) fall back to `plex://preplay`, which older apps still honour.
+ */
+export function plexLinks(machineId: string, ratingKey: string, slug?: string | null) {
   const key = encodeURIComponent(`/library/metadata/${ratingKey}`);
   return {
     web: `https://app.plex.tv/desktop/#!/server/${machineId}/details?key=${key}`,
-    app: `plex://preplay/?metadataKey=${key}&metadataType=1&server=${machineId}`,
+    app: slug
+      ? `https://watch.plex.tv/movie/${encodeURIComponent(slug)}`
+      : `plex://preplay/?metadataKey=${key}&metadataType=1&server=${machineId}`,
   };
 }
 

@@ -18,20 +18,38 @@ export function relativeTime(epochMs: number | null) {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const MOBILE = /android|iphone|ipad|ipod/i;
+/** Phones and tablets. iPadOS reports itself as a Mac, so also look for touch. */
+export function isMobileDevice() {
+  const ua = navigator.userAgent;
+  return /android|iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
 
-/** Opens a movie in the Plex app on phones, falling back to Plex Web. */
-export function openInPlex(appUrl: string | null, webUrl: string | null) {
-  if (!webUrl) return;
-  if (appUrl && MOBILE.test(navigator.userAgent)) {
-    const fallback = window.setTimeout(() => {
-      if (document.visibilityState === 'visible') window.location.href = webUrl;
-    }, 1500);
-    document.addEventListener('visibilitychange', () => window.clearTimeout(fallback), { once: true });
-    window.location.href = appUrl;
-    return;
+export interface PlexLink {
+  href: string;
+  newTab: boolean;
+  /** For plex:// links: where to go if no app picks the link up. */
+  fallback: string | null;
+}
+
+/**
+ * The "Watch on Plex" link for this device. On phones it's a watch.plex.tv link, which the
+ * Plex apps claim as a universal/app link, opened in the same window because iOS hands those
+ * to the app most reliably on a direct tap. Movies without one use the plex:// scheme. On
+ * desktop it's Plex Web.
+ */
+export function plexLink(appUrl: string | null, webUrl: string | null): PlexLink | null {
+  if (appUrl && isMobileDevice()) {
+    return { href: appUrl, newTab: false, fallback: appUrl.startsWith('plex:') ? webUrl : null };
   }
-  window.open(webUrl, '_blank', 'noopener');
+  return webUrl ? { href: webUrl, newTab: true, fallback: null } : null;
+}
+
+/** After following a plex:// link: if no app opened within a moment, go to the fallback. */
+export function fallBackIfStillHere(url: string) {
+  const timer = window.setTimeout(() => {
+    if (document.visibilityState === 'visible') window.location.href = url;
+  }, 1500);
+  document.addEventListener('visibilitychange', () => window.clearTimeout(timer), { once: true });
 }
 
 export function vibrate(ms = 12) {
