@@ -377,7 +377,7 @@ function Backdrop({ src }: { src: string | null }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
-            className="absolute inset-0 h-[75vh] w-full object-cover md:h-full"
+            className="absolute inset-0 h-[75vh] w-full object-cover [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:h-full md:[mask-image:none]"
           />
         )}
       </AnimatePresence>
