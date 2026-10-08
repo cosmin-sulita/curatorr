@@ -4,6 +4,7 @@ import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, useStatus } from './lib/api';
 import { useLocation } from './lib/router';
+import { LikeScreen } from './screens/Like';
 import { PickScreen } from './screens/Pick';
 import { ProfilesScreen } from './screens/Profiles';
 import { SettingsScreen } from './screens/Settings';
@@ -54,6 +55,7 @@ function Screen({ path, search, status: s }: { path: string; search: URLSearchPa
   if (path === '/settings') return <SettingsScreen />;
   if (!s.profile || path === '/profiles') return <ProfilesScreen />;
   if (path === '/pick') return <PickScreen search={search} />;
+  if (path === '/like') return <LikeScreen search={search} />;
 
   const step = /^\/ask\/([a-z]+)$/.exec(path)?.[1];
   if (isStep(step)) return <WizardScreen step={step} search={search} />;

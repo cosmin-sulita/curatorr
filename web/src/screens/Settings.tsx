@@ -85,6 +85,7 @@ function ProfileLists({ name }: { name: string }) {
     }
     qc.invalidateQueries({ queryKey: ['hidden'] });
     qc.invalidateQueries({ queryKey: ['wizard'] });
+    qc.invalidateQueries({ queryKey: ['like'] });
     qc.removeQueries({ queryKey: ['recommendations'] });
   };
 

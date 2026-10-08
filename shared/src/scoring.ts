@@ -70,16 +70,18 @@ export function excludedIds(ctx: ProfileContext): Set<number> {
   return out;
 }
 
+/** Whether the profile's Plex restrictions allow the movie. */
+export function certAllowed(m: Movie, allowedCerts: Set<string> | null) {
+  return !allowedCerts || (Boolean(m.certification) && allowedCerts.has(m.certification!.toUpperCase()));
+}
+
 export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
   const excluded = excludedIds(ctx);
   return movies.filter((m) => {
     if (excluded.has(m.id)) return false;
     if (ctx.sagas?.blockedBy.has(m.id)) return false;
     if (ctx.requirePlex && !m.plexRatingKey) return false;
-    if (ctx.allowedCerts && (!m.certification || !ctx.allowedCerts.has(m.certification.toUpperCase()))) {
-      return false;
-    }
-    return true;
+    return certAllowed(m, ctx.allowedCerts);
   });
 }
 
@@ -124,7 +126,7 @@ const JITTER = 1.5;
 /** Movies the profile wants to watch: on their Plex Watchlist or added with "Watchlist" in a pick. */
 const WATCHLIST_BONUS = 6;
 /** The next part of a saga the profile has started. */
-const NEXT_PART_BONUS = 4;
+export const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
 const MAX_RESULTS = 12;
 
@@ -157,7 +159,8 @@ function latestByKind(feedback: FeedbackEvent[], kind: FeedbackEvent['kind']) {
   return map;
 }
 
-function tagStrength(score: number | undefined) {
+/** A tag score as 0..1; anything at or above the saturation point counts fully. */
+export function tagStrength(score: number | undefined) {
   return Math.min(score ?? 0, TAG_SATURATION) / TAG_SATURATION;
 }
 
@@ -205,6 +208,44 @@ function sagaTotals(parts: Movie[]) {
   return { quality, runtime };
 }
 
+/** What the profile did lately, looked up once per ranking. */
+export interface ProfileSignals {
+  skipped: Map<number, number>;
+  shown: Map<number, number>;
+  wanted: Set<number>;
+  day: string;
+}
+
+export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): ProfileSignals {
+  return {
+    skipped: latestByKind(feedback, 'skipped'),
+    shown: latestByKind(feedback, 'shown'),
+    wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
+    day: new Date(opts.now).toISOString().slice(0, 10),
+  };
+}
+
+/** Skip and shown penalties, the watchlist bonus and the daily jitter. */
+export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
+  let delta = 0;
+  const skippedAt = s.skipped.get(m.id);
+  if (skippedAt && opts.now - skippedAt < SKIP_WINDOW) delta -= SKIP_PENALTY;
+  const shownAt = s.shown.get(m.id);
+  if (shownAt && opts.now - shownAt > SHOWN_GRACE && opts.now - shownAt < SHOWN_WINDOW) delta -= SHOWN_PENALTY;
+  const onWatchlist = s.wanted.has(m.id);
+  if (onWatchlist) delta += WATCHLIST_BONUS;
+  delta += (seededUnit(`${opts.seed}|${s.day}|${m.id}`) * 2 - 1) * JITTER;
+  return { delta, onWatchlist };
+}
+
+/** Best first. Exact matches always lead; close ones only pad a short list. */
+export function topRanked(ranked: RankedMovie[], limit = MAX_RESULTS): RankedMovie[] {
+  ranked.sort((a, b) => a.tier - b.tier || b.score - a.score);
+  const exact = ranked.filter((r) => r.tier === 0);
+  if (exact.length >= MIN_RESULTS) return exact.slice(0, limit);
+  return ranked.slice(0, Math.max(limit, exact.length));
+}
+
 /**
  * Ranks eligible movies for the given criteria.
  * Exact matches always come first; if there are too few, close matches
@@ -216,11 +257,7 @@ export function rankMovies(
   feedback: FeedbackEvent[],
   opts: RankOptions,
 ): RankedMovie[] {
-  const limit = opts.limit ?? MAX_RESULTS;
-  const skipped = latestByKind(feedback, 'skipped');
-  const shown = latestByKind(feedback, 'shown');
-  const wanted = new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]);
-  const day = new Date(opts.now).toISOString().slice(0, 10);
+  const signals = profileSignals(feedback, opts);
   const sagas = opts.sagas ?? emptySagaState();
   const startingSaga = c.time === 'saga';
 
@@ -285,14 +322,8 @@ export function rankMovies(
     if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
     if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
 
-    const skippedAt = skipped.get(m.id);
-    if (skippedAt && opts.now - skippedAt < SKIP_WINDOW) score -= SKIP_PENALTY;
-    const shownAt = shown.get(m.id);
-    if (shownAt && opts.now - shownAt > SHOWN_GRACE && opts.now - shownAt < SHOWN_WINDOW) score -= SHOWN_PENALTY;
-    const onWatchlist = wanted.has(m.id);
-    if (onWatchlist) score += WATCHLIST_BONUS;
-
-    score += (seededUnit(`${opts.seed}|${day}|${m.id}`) * 2 - 1) * JITTER;
+    const { delta, onWatchlist } = personalAdjustment(m, signals, opts);
+    score += delta;
 
     return {
       movie: m,
@@ -308,11 +339,7 @@ export function rankMovies(
     };
   });
 
-  ranked.sort((a, b) => a.tier - b.tier || b.score - a.score);
-
-  const exact = ranked.filter((r) => r.tier === 0);
-  if (exact.length >= MIN_RESULTS) return exact.slice(0, limit);
-  return ranked.slice(0, Math.max(limit, exact.length));
+  return topRanked(ranked, opts.limit);
 }
 
 // ---------------------------------------------------------------------------

@@ -101,7 +101,7 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'time' | 'rating' | 'watchlist' | 'saga';
+  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'saga';
   label: string;
 }
 
@@ -115,6 +115,17 @@ export interface Pick {
 export interface RecommendationsResponse {
   total: number;
   picks: Pick[];
+  /** "Something like…": the movie the picks resemble. */
+  like?: { id: number; title: string };
+}
+
+/** A movie to start "Something like…" from. */
+export interface LikeSeed {
+  id: number;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+  watched: boolean;
 }
 
 /** Movie shape sent to the browser. */

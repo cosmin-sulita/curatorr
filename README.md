@@ -9,6 +9,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
 - **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get a pick right away.
+- **Something like…** Start from a movie you loved (what you watched lately is listed first, or search the library) and get the unwatched movies that share the most keywords and themes with it.
 - **Ranked by the Tomatometer.** IMDb and TMDB scores are used as fallbacks when there's no RT score.
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
@@ -75,6 +76,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 2. **Tags**: on every sync each movie gets *themes* (Superheroes, Supernatural, Heists & Cons, Time Travel… around 40) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts) and is easy to extend.
 3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing) + up to 8 points for how strongly the theme/mood matches + 6 if it's on the profile's watchlist − 15 if you passed on it in the last two weeks − 5 if it was shown between three hours and three days ago (so going back and answering the same way gives the same pick that evening). A small daily shuffle keeps near-ties from always landing on the same movie.
 4. **Close matches**: if fewer than six movies match every answer, the list is topped up with movies that match the genre plus the theme *or* the mood, clearly labelled.
+5. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, the watchlist and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
 
 ## Configuration
 

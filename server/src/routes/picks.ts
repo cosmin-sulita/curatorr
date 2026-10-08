@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
 import { applyToPlex, isPlexMark, revertInPlex } from '../services/plexSync.js';
-import { optionsFor, recommendFor, toDTO } from '../services/recommend.js';
+import { likeSeeds, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
 import { requireProfile } from '../session.js';
 
 const optional = z
@@ -12,6 +12,8 @@ const optional = z
   .transform((v) => (v && v !== 'any' ? v : null));
 
 const criteriaSchema = z.object({ genre: optional, theme: optional, mood: optional, time: optional });
+/** "Something like…": the movie the picks should resemble. */
+const likeSchema = z.object({ like: z.coerce.number().int().positive().optional() });
 
 export const pickRoutes: RouteModule = (app, { store }) => {
   const ready = () => {
@@ -29,8 +31,18 @@ export const pickRoutes: RouteModule = (app, { store }) => {
   app.get('/api/recommendations', async (req) => {
     ready();
     const profile = requireProfile(req, store);
+    const { like } = parse(likeSchema, req.query);
+    if (like) return similarFor(store, profile, like);
     const criteria: Criteria = parse(criteriaSchema, req.query);
     return recommendFor(store, profile, criteria);
+  });
+
+  /** Movies to start "Something like…" from: recently watched, or a title search. */
+  app.get('/api/like', async (req) => {
+    ready();
+    const profile = requireProfile(req, store);
+    const { q } = parse(z.object({ q: z.string().max(100).optional() }), req.query);
+    return likeSeeds(store, profile, q);
   });
 
   app.post('/api/feedback', async (req) => {

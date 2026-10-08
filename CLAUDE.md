@@ -31,6 +31,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time.
   - `scoring.ts`: `eligibleMovies`, `rankMovies` (quality score plus theme/mood bonus, skip/shown penalties, watchlist and next-saga bonuses, and a jitter seeded per profile per day) and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice).
+  - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres), reusing the skip/shown/watchlist adjustments from `scoring.ts`.
   - `sagas.ts`: collection ordering.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
@@ -45,7 +46,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
-  - `/pick` takes the full criteria. `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, pick or settings.
+  - `/pick` takes the full criteria, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick or settings.
   - The service worker caches the app shell and images. `/api/*` is network-only.
 
 ### Feedback model
@@ -72,6 +73,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`plexLink` in `web/src/lib/format.ts`). Desktop opens Plex Web.
   - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick.
+  - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 
 ## Checking UI changes

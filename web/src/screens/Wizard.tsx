@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { useEffect } from 'react';
 import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
-import { errorMessage, useStatus, useWizardOptions } from '../lib/api';
+import { errorMessage, useLikeSeeds, useStatus, useWizardOptions } from '../lib/api';
 import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
@@ -150,6 +150,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
           {data && ready && (
             <div className="mt-8">
+              {step === 'genre' && <LikeCard />}
               {step === 'genre' && <GenreGrid options={data.options} onChoose={choose} />}
               {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}
               {step === 'mood' && <MoodGrid options={data.options} onChoose={choose} />}
@@ -205,6 +206,27 @@ function PosterFan({ images }: { images: string[] }) {
         />
       ))}
     </span>
+  );
+}
+
+/** "Something like…": start from a movie you loved instead of answering the questions. */
+function LikeCard() {
+  const { data: recent } = useLikeSeeds('');
+  const posters = recent?.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3) ?? [];
+  return (
+    <Link
+      to="/like"
+      className="mb-3 flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 ring-1 ring-line transition hover:bg-raised active:scale-[0.99]"
+    >
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
+        <TagIcon name="Heart" className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block leading-snug font-semibold">Something like…</span>
+        <span className="block text-sm text-muted">Start from a movie you loved</span>
+      </span>
+      {posters.length > 0 && <PosterFan images={posters} />}
+    </Link>
   );
 }
 

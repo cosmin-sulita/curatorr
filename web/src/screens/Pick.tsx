@@ -59,7 +59,9 @@ function rememberSwipe() {
 
 export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);
-  const { data, isLoading, isFetching, error, refetch } = useRecommendations(criteria);
+  // "Something like…": picks resemble this movie instead of matching answers.
+  const like = search.get('like');
+  const { data, isLoading, isFetching, error, refetch } = useRecommendations(criteria, like);
   const { data: status } = useStatus();
   const toast = useToast();
   const qc = useQueryClient();
@@ -118,8 +120,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     setQueue((q) => q?.slice(1) ?? null);
     sendFeedback(pick.movie.id, kind)
       .then(({ id, plex }) => {
-        // A skip only demotes the movie; the other marks change what the questions can offer.
-        if (kind !== 'skipped') qc.invalidateQueries({ queryKey: ['wizard'] });
+        // A skip only demotes the movie; the other marks change what the questions can offer
+        // (and Seen it adds to "Something like…"'s recently watched).
+        if (kind !== 'skipped') {
+          qc.invalidateQueries({ queryKey: ['wizard'] });
+          qc.invalidateQueries({ queryKey: ['like'] });
+        }
         toast({
           message: markMessage(kind, pick.movie.title, plex),
           duration: kind === 'skipped' ? 3000 : undefined,
@@ -180,15 +186,22 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     const hadPicks = Boolean(data?.picks.length);
     // Skips only demote a movie, so a fresh list brings them back, or the next best ones.
     const lookAgain = () => refetch().then((r) => setQueue(r.data?.picks ?? []));
+    const likeTitle = data?.like?.title;
+    let title = hadPicks ? "That's every match" : 'Nothing fits those answers';
+    let hint = hadPicks ? 'You passed on all of them. Change an answer or look again.' : 'Try a different combination of answers.';
+    if (like) {
+      if (!hadPicks) title = 'Nothing like that left to watch';
+      hint = hadPicks
+        ? 'You passed on all of them. Pick another movie or look again.'
+        : `You've seen everything like ${likeTitle ?? 'it'}. Try another movie.`;
+    }
     return (
       <Shell>
-        <CenteredState title={hadPicks ? "That's every match" : 'Nothing fits those answers'}>
-          <p className="text-muted">
-            {hadPicks ? 'You passed on all of them. Change an answer or look again.' : 'Try a different combination of answers.'}
-          </p>
+        <CenteredState title={title}>
+          <p className="text-muted">{hint}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-3">
             <Button variant="primary" onClick={() => window.history.back()}>
-              <ChevronLeft className="size-4" /> Change answers
+              <ChevronLeft className="size-4" /> {like ? 'Pick another movie' : 'Change answers'}
             </Button>
             {hadPicks && (
               <Button onClick={lookAgain} loading={isFetching}>
@@ -291,7 +304,11 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
             ) : (
               <>
                 <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-300')}>
-                  {current.closeMatch ? 'Close match' : "Tonight's pick"}
+                  {data?.like
+                    ? `${current.closeMatch ? 'A bit like' : 'Something like'} ${data.like.title}`
+                    : current.closeMatch
+                      ? 'Close match'
+                      : "Tonight's pick"}
                 </p>
                 {/* Long titles step down on phones so the ratings still clear the action bar. */}
                 <h1
@@ -363,7 +380,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
         {!shuffling && rest.length > 0 && (
           <section className="mt-14 mb-6" aria-labelledby="more-picks">
             <h2 id="more-picks" className="font-display text-3xl">
-              Other good picks
+              {data?.like ? `More like ${data.like.title}` : 'Other good picks'}
             </h2>
             {/* Scroll padding lines the first poster up with the heading; pt-1.5 leaves room for the focus ring. */}
             <ul

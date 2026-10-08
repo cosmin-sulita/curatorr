@@ -4,3 +4,4 @@ export * from './tagger.js';
 export * from './sagas.js';
 export * from './scoring.js';
 export * from './changelog.js';
+export * from './similar.js';

@@ -302,6 +302,14 @@ export class Store {
     return new Set(rows.map((r) => r.movie_id));
   }
 
+  /** Movies the profile watched in Plex, most recent first. */
+  watchHistory(profileId: number): { movieId: number; viewedAt: number | null }[] {
+    const rows = this.db
+      .prepare('SELECT movie_id, viewed_at FROM watched WHERE profile_id = ? ORDER BY viewed_at DESC')
+      .all(profileId) as { movie_id: number; viewed_at: number | null }[];
+    return rows.map((r) => ({ movieId: r.movie_id, viewedAt: r.viewed_at }));
+  }
+
   replaceWatched(profileId: number, entries: { movieId: number; viewedAt: number | null }[], syncedAt: number) {
     const insert = this.db.prepare('INSERT OR REPLACE INTO watched (profile_id, movie_id, viewed_at) VALUES (?, ?, ?)');
     transaction(this.db, () => {

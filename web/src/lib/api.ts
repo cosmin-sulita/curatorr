@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppStatus,
   Criteria,
   FeedbackKind,
+  LikeSeed,
   MovieDTO,
   Profile,
   RecommendationsResponse,
@@ -74,12 +75,25 @@ export function useWizardOptions(step: WizardStep, criteria: Criteria) {
   });
 }
 
-export function useRecommendations(criteria: Criteria) {
+/** With `like` (a movie id), picks resemble that movie instead of matching the answers. */
+export function useRecommendations(criteria: Criteria, like?: string | null) {
   return useQuery({
-    queryKey: ['recommendations', criteria],
-    queryFn: () => api<RecommendationsResponse>(withQuery('/api/recommendations', criteriaParams(criteria))),
+    queryKey: ['recommendations', criteria, like ?? null],
+    queryFn: () =>
+      api<RecommendationsResponse>(withQuery('/api/recommendations', { ...criteriaParams(criteria), like })),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+}
+
+/** Movies to start "Something like…" from: recently watched, or titles matching `q`. */
+export function useLikeSeeds(q: string) {
+  return useQuery({
+    queryKey: ['like', q],
+    queryFn: () => api<LikeSeed[]>(withQuery('/api/like', { q })),
+    staleTime: 60_000,
+    // Keep the last results on screen while the next search loads.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -121,6 +135,7 @@ export function useSelectProfile() {
       // Everything below depends on who is watching.
       qc.removeQueries({ queryKey: ['wizard'] });
       qc.removeQueries({ queryKey: ['recommendations'] });
+      qc.removeQueries({ queryKey: ['like'] });
       qc.removeQueries({ queryKey: ['hidden'] });
       return qc.invalidateQueries({ queryKey: ['status'] });
     },

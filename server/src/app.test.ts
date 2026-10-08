@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { AppStatus, Profile, RecommendationsResponse, WizardOptionsResponse } from '@curatorr/shared';
+import type { AppStatus, LikeSeed, Profile, RecommendationsResponse, WizardOptionsResponse } from '@curatorr/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 
@@ -165,6 +165,49 @@ describe('API (demo data)', () => {
     const recs = await app.inject({ method: 'GET', url: '/api/recommendations', headers: { cookie: kidCookie } });
     const certs = new Set((recs.json() as RecommendationsResponse).picks.map((p) => p.movie.certification));
     expect([...certs].every((c) => c === 'G' || c === 'PG')).toBe(true);
+  });
+
+  const likeFor = async (who: string, q = '') =>
+    (await app.inject({ method: 'GET', url: `/api/like?q=${encodeURIComponent(q)}`, headers: { cookie: who } })).json() as LikeSeed[];
+
+  it('lists watched movies to start "Something like…" from, and searches the library', async () => {
+    const alex = await cookieFor('Alex');
+    const recent = await likeFor(alex);
+    expect(recent.map((m) => m.title).sort()).toEqual(['Back to the Future', 'Inception', 'The Dark Knight', 'The Godfather']);
+    expect(recent.every((m) => m.watched)).toBe(true);
+    const found = await likeFor(alex, 'MATRIX');
+    expect(found.map((m) => [m.title, m.watched])).toEqual([['The Matrix', false]]);
+  });
+
+  it('suggests unwatched movies like one you loved', async () => {
+    const alex = await cookieFor('Alex');
+    const inception = (await likeFor(alex, 'inception'))[0]!;
+    const res = await picksFor(alex, `like=${inception.id}`);
+    expect(res.like).toEqual({ id: inception.id, title: 'Inception' });
+    const titles = res.picks.map((p) => p.movie.title);
+    expect(titles).toContain('The Matrix');
+    expect(titles).not.toContain('Inception');
+    expect(titles).not.toContain('The Dark Knight'); // watched
+    expect(res.picks[0]!.reasons.some((r) => r.kind === 'theme' || r.kind === 'keyword')).toBe(true);
+  });
+
+  it("leaves the liked movie's saga out", async () => {
+    const alex = await cookieFor('Alex');
+    const bttf = (await likeFor(alex, 'back to the future')).find((m) => m.title === 'Back to the Future')!;
+    const titles = (await picksFor(alex, `like=${bttf.id}`)).picks.map((p) => p.movie.title);
+    expect(titles.length).toBeGreaterThan(0);
+    expect(titles.filter((t) => t.startsWith('Back to the Future'))).toEqual([]);
+  });
+
+  it('only starts from movies the profile may see', async () => {
+    const godfather = (await likeFor(await cookieFor('Alex'), 'godfather'))[0]!;
+    const kids = await cookieFor('Kids');
+    expect(await likeFor(kids)).toEqual([]);
+    expect(await likeFor(kids, 'godfather')).toEqual([]);
+    const restricted = await app.inject({ method: 'GET', url: `/api/recommendations?like=${godfather.id}`, headers: { cookie: kids } });
+    expect(restricted.statusCode).toBe(404);
+    const unknown = await app.inject({ method: 'GET', url: '/api/recommendations?like=99999', headers: { cookie: kids } });
+    expect(unknown.statusCode).toBe(404);
   });
 
   it('serves generated demo art', async () => {
