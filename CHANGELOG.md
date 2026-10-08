@@ -2,6 +2,11 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.6.0 (2026-10-08)
+
+- feat(picks): favour movies you requested in Seerr ([0c2ad15](https://github.com/cosmin-sulita/curatorr/commit/0c2ad15))
+- feat(picks): suggest movies like one you loved ([d479d7b](https://github.com/cosmin-sulita/curatorr/commit/d479d7b))
+
 ## 0.5.0 (2026-10-08)
 
 - feat(picks): shuffle the posters before a Surprise me pick lands ([9795ba9](https://github.com/cosmin-sulita/curatorr/commit/9795ba9))
