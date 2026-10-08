@@ -43,7 +43,9 @@ export function Button({
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <LoaderCircle className={clsx('animate-spin text-muted', className ?? 'size-6')} aria-label="Loading" />;
+  return (
+    <LoaderCircle role="status" aria-label="Loading" className={clsx('animate-spin text-muted', className ?? 'size-6')} />
+  );
 }
 
 /** An image that fades in when loaded and degrades to a tinted block when missing. */
@@ -82,7 +84,9 @@ export function Avatar({ name, src, className }: { name: string; src: string | n
       {src && !failed ? (
         <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <span className="grid size-full place-items-center bg-accent-gradient font-bold text-white">{initials}</span>
+        <span className="grid size-full place-items-center bg-accent-gradient font-bold text-white" aria-hidden>
+          {initials}
+        </span>
       )}
     </span>
   );
