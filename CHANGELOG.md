@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.4.0 (2026-10-08)
+
+- feat(picks): keep sagas in order and offer to start one ([1306b5c](https://github.com/cosmin-sulita/curatorr/commit/1306b5c))
+
 ## 0.3.2 (2026-10-08)
 
 - fix(app): show what's new on devices updating from before 0.3.0 ([c6e3485](https://github.com/cosmin-sulita/curatorr/commit/c6e3485))
