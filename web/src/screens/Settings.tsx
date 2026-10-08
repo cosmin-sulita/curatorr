@@ -1,9 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, LogOut, RefreshCw } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
+import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   api,
   errorMessage,
@@ -16,8 +18,12 @@ import {
 } from '../lib/api';
 import { plural, relativeTime } from '../lib/format';
 import { usePlexSignIn } from '../lib/plexAuth';
+import { releases } from '../lib/whatsNew';
 import { PlexConnect } from './PlexConnect';
 import { RadarrForm } from './Setup';
+
+// The last few releases with something to say, for the "What's new" link.
+const recentNews = releases.filter((r) => r.notes.length || r.intro).slice(0, 3);
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -33,29 +39,43 @@ export function SettingsScreen() {
   const { data: status } = useStatus();
   const isAdmin = Boolean(status?.isAdmin);
   const settings = useSettings(isAdmin);
+  const [showNews, setShowNews] = useState(false);
 
   return (
-    <Shell>
-      <button
-        onClick={() => window.history.back()}
-        className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
-      >
-        <ChevronLeft className="size-5" /> Back
-      </button>
-      <h1 className="mt-4 font-display text-5xl">Settings</h1>
+    <>
+      <Shell>
+        <button
+          onClick={() => window.history.back()}
+          className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
+        >
+          <ChevronLeft className="size-5" /> Back
+        </button>
+        <h1 className="mt-4 font-display text-5xl">Settings</h1>
 
-      <div className="mt-8 space-y-5">
-        {status?.profile && <ProfileLists name={status.profile.name} />}
-        {!isAdmin && <AdminSignIn />}
-        {isAdmin && settings.isLoading && <Spinner />}
-        {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
-        {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
-        <p className="pt-2 pb-6 text-center text-xs text-faint">
-          Curatorr {status?.version}
-          {status?.demo && ', demo mode'}
-        </p>
-      </div>
-    </Shell>
+        <div className="mt-8 space-y-5">
+          {status?.profile && <ProfileLists name={status.profile.name} />}
+          {!isAdmin && <AdminSignIn />}
+          {isAdmin && settings.isLoading && <Spinner />}
+          {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
+          {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
+          <p className="pt-2 pb-6 text-center text-xs text-faint">
+            Curatorr {status?.version}
+            {status?.demo && ', demo mode'}
+            {' · '}
+            <button
+              className="font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
+              onClick={() => setShowNews(true)}
+            >
+              What's new
+            </button>
+          </p>
+        </div>
+      </Shell>
+      {/* Outside Shell: its <main> is a stacking context below the header. */}
+      <AnimatePresence>
+        {showNews && <WhatsNewDialog releases={recentNews} onClose={() => setShowNews(false)} />}
+      </AnimatePresence>
+    </>
   );
 }
 

@@ -14,8 +14,6 @@ COPY web/package.json web/
 RUN npm ci
 
 COPY . .
-ARG CURATORR_VERSION=dev
-ENV CURATORR_VERSION=${CURATORR_VERSION}
 RUN npm run build
 
 # Runtime dependencies of the server only (pure JS, no native modules).

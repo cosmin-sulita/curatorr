@@ -1,6 +1,7 @@
-import { STEP_ORDER, type WizardStep } from '@curatorr/shared';
+import { STEP_ORDER, type AppStatus, type WizardStep } from '@curatorr/shared';
 import { CenteredState, Shell, Wordmark } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
+import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, useStatus } from './lib/api';
 import { useLocation } from './lib/router';
 import { PickScreen } from './screens/Pick';
@@ -40,7 +41,15 @@ export function App() {
     );
   }
 
-  const s = status.data;
+  return (
+    <>
+      <Screen path={path} search={search} status={status.data} />
+      <WhatsNew setupComplete={status.data.setupComplete} />
+    </>
+  );
+}
+
+function Screen({ path, search, status: s }: { path: string; search: URLSearchParams; status: AppStatus }) {
   if (!s.setupComplete) return <SetupScreen />;
   if (path === '/settings') return <SettingsScreen />;
   if (!s.profile || path === '/profiles') return <ProfilesScreen />;
