@@ -1,3 +1,4 @@
+import { blobatarUri } from 'blobatar/uri';
 import clsx from 'clsx';
 import { LoaderCircle } from 'lucide-react';
 import { useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
@@ -82,20 +83,14 @@ export function Img({
 
 export function Avatar({ name, src, className }: { name: string; src: string | null; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const initials = name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
   return (
     <span className={clsx('relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full', className)}>
       {src && !failed ? (
         <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <span className="grid size-full place-items-center bg-accent-gradient font-bold text-white" aria-hidden>
-          {initials}
-        </span>
+        // No photo: a blobatar seeded by the name, the same creature on every device. A square plate,
+        // since this span already clips it round and a circle inside the clip leaves a halo.
+        <img src={blobatarUri(name, { background: 'square' })} alt="" aria-hidden className="size-full" />
       )}
     </span>
   );

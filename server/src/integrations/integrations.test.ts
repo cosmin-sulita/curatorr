@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { connectionCandidates, parseGuids, plexLinks, toPlexItem } from './plex.js';
+import { connectionCandidates, parseGuids, plexDefaultAvatar, plexLinks, toPlexItem } from './plex.js';
 import { assignSagas, fromRadarr, sagaTitle, tmdbSized } from './radarr.js';
 
 describe('parseGuids', () => {
@@ -14,6 +14,33 @@ describe('parseGuids', () => {
 
   it('ignores plex:// guids', () => {
     expect(parseGuids(['plex://movie/5d7768', null, undefined])).toEqual({ tmdbId: null, imdbId: null });
+  });
+});
+
+describe('plexDefaultAvatar', () => {
+  const gravatar = 'https://secure.gravatar.com/avatar/bbb5ce66';
+
+  it('keeps uploaded photos', () => {
+    expect(plexDefaultAvatar('https://assets.plex.tv/avatars/3d9a6449.?1771108800')).toBe('own');
+  });
+
+  it("probes Gravatar when Plex's letter avatar is the fallback", () => {
+    const location = `${gravatar}?d=https%3A%2F%2Fplex.tv%2Favatars%2FC6B299%2F41%2F3&s=80`;
+    expect(plexDefaultAvatar(location)).toBe(`${gravatar}?d=404&s=80`);
+  });
+
+  it('keeps Gravatars with any other fallback', () => {
+    expect(plexDefaultAvatar(`${gravatar}?d=identicon&s=80`)).toBe('own');
+    expect(plexDefaultAvatar(`${gravatar}?s=80`)).toBe('own');
+  });
+
+  it("spots Plex's letter avatar served directly", () => {
+    expect(plexDefaultAvatar('https://plex.tv/avatars/F18052/41/3')).toBe('default');
+  });
+
+  it('keeps the thumb when there is no usable redirect', () => {
+    expect(plexDefaultAvatar('')).toBe('own');
+    expect(plexDefaultAvatar('not a url')).toBe('own');
   });
 });
 

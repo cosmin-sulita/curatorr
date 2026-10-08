@@ -162,6 +162,42 @@ export async function getHomeUsers(clientId: string, token: string): Promise<Ple
   }));
 }
 
+const PLEX_LETTER_AVATAR = 'https://plex.tv/avatars/';
+
+/**
+ * Reads where a plex.tv avatar URL redirects to. Uploaded photos go to assets.plex.tv; users without one
+ * go to Gravatar with Plex's letter avatar as the fallback, so the answer is a `d=404` probe that tells
+ * whether they have a real Gravatar.
+ */
+export function plexDefaultAvatar(location: string): 'own' | 'default' | string {
+  let url: URL;
+  try {
+    url = new URL(location);
+  } catch {
+    return 'own';
+  }
+  if (url.href.startsWith(PLEX_LETTER_AVATAR)) return 'default';
+  if (!/(^|\.)gravatar\.com$/.test(url.hostname)) return 'own';
+  if (!url.searchParams.get('d')?.startsWith(PLEX_LETTER_AVATAR)) return 'own';
+  url.searchParams.set('d', '404');
+  return url.href;
+}
+
+/** The user's own avatar, or null when Plex would only draw its letter avatar. Keeps the thumb on any error. */
+export async function ownAvatar(thumb: string | null): Promise<string | null> {
+  if (!thumb) return null;
+  try {
+    const res = await fetch(thumb, { redirect: 'manual', signal: AbortSignal.timeout(5_000) });
+    const verdict = plexDefaultAvatar(res.headers.get('location') ?? '');
+    if (verdict === 'default') return null;
+    if (verdict === 'own') return thumb;
+    const gravatar = await fetch(verdict, { method: 'HEAD', signal: AbortSignal.timeout(5_000) });
+    return gravatar.status === 404 ? null : thumb;
+  } catch {
+    return thumb;
+  }
+}
+
 /** Switches to a Plex Home user and returns that user's plex.tv token. */
 export async function switchHomeUser(clientId: string, adminToken: string, userId: number, pin?: string) {
   const qs = pin ? `?pin=${encodeURIComponent(pin)}` : '';

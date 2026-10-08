@@ -62,6 +62,7 @@ export type RestrictionProfile = 'little_kid' | 'older_kid' | 'teen' | null;
 export interface Profile {
   id: number;
   name: string;
+  /** Null when the person has no photo of their own; the UI draws a blobatar instead. */
   avatarUrl: string | null;
   isAdmin: boolean;
   restrictionProfile: RestrictionProfile;

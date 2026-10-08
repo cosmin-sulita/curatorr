@@ -1,6 +1,13 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { HttpError, UpstreamError } from '../http.js';
-import { getHomeUsers, getWatchlist, serverTokenFor, switchHomeUser, type PlexHomeUser } from '../integrations/plex.js';
+import {
+  getHomeUsers,
+  getWatchlist,
+  ownAvatar,
+  serverTokenFor,
+  switchHomeUser,
+  type PlexHomeUser,
+} from '../integrations/plex.js';
 import type { ProfileRow, Store } from '../store.js';
 import { fetchPlexItems, findPlexItem, indexPlexItems } from './library.js';
 
@@ -34,7 +41,10 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
     });
   }
 
-  const real = users.filter((u) => !u.guest);
+  // Plex gives everyone a thumb; people without a photo get null so the UI draws their blobatar.
+  const real = await Promise.all(
+    users.filter((u) => !u.guest).map(async (u) => ({ ...u, thumb: await ownAvatar(u.thumb) })),
+  );
   store.removeLocalProfiles();
   for (const u of real) {
     const id = store.upsertPlexProfile({
