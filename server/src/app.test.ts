@@ -105,6 +105,41 @@ describe('API (demo data)', () => {
     expect(again.indexOf(saved)).toBeLessThan(again.length - 1);
   });
 
+  const cookieFor = async (name: string) => {
+    const { body: profiles } = await get<Profile[]>('/api/profiles');
+    const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles.find((p) => p.name === name)!.id}/select` });
+    return String(res.headers['set-cookie']).split(';')[0]!;
+  };
+  const picksFor = async (who: string, query: string) =>
+    (await app.inject({ method: 'GET', url: `/api/recommendations?${query}`, headers: { cookie: who } })).json() as RecommendationsResponse;
+
+  it('keeps sagas in order: part 1 before its sequels', async () => {
+    const sam = await cookieFor('Sam'); // hasn't seen any Back to the Future
+    const picks = (await picksFor(sam, 'theme=time-travel')).picks;
+    const titles = picks.map((p) => p.movie.title);
+    expect(titles).not.toContain('Back to the Future Part II');
+    expect(titles).not.toContain('Back to the Future Part III');
+    const part1 = picks.find((p) => p.movie.title === 'Back to the Future')!;
+    expect(part1.reasons.map((r) => r.label)).toContain('Start of Back to the Future');
+    expect(part1.movie.saga).toEqual({ title: 'Back to the Future', part: 1, parts: 3 });
+  });
+
+  it('moves on to the next part once the first is watched', async () => {
+    const alex = await cookieFor('Alex'); // watched part 1
+    const titles = (await picksFor(alex, 'theme=time-travel')).picks;
+    const part2 = titles.find((p) => p.movie.title === 'Back to the Future Part II')!;
+    expect(part2.reasons[0]).toEqual({ kind: 'saga', label: 'Next in Back to the Future' });
+    expect(titles.map((p) => p.movie.title)).not.toContain('Back to the Future Part III');
+  });
+
+  it('"Start a saga" offers first parts of sagas not started yet', async () => {
+    const sam = await cookieFor('Sam');
+    const titles = (await picksFor(sam, 'time=saga')).picks.map((p) => p.movie.title).sort();
+    expect(titles).toEqual(['Back to the Future', 'John Wick', 'The Lord of the Rings: The Fellowship of the Ring']);
+    const options = (await app.inject({ method: 'GET', url: '/api/wizard/time', headers: { cookie: sam } })).json() as WizardOptionsResponse;
+    expect(options.options.find((o) => o.id === 'saga')?.count).toBe(3);
+  });
+
   it('applies Plex parental restrictions', async () => {
     const { body: profiles } = await get<Profile[]>('/api/profiles');
     const kids = profiles.find((p) => p.name === 'Kids')!;

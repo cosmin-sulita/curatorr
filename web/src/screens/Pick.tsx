@@ -230,6 +230,11 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               )}
               <span className="text-faint">{m.genres.slice(0, 3).join(', ')}</span>
             </div>
+            {m.saga && (
+              <p className="mt-2 text-[15px] text-muted">
+                Part {m.saga.part} of {m.saga.parts} in <span className="text-fg">{m.saga.title}</span>
+              </p>
+            )}
 
             <div className="mt-5">
               <RatingBadges ratings={m.ratings} />

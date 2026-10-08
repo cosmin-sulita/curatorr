@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger } from 'fastify';
-import { fromRadarr, RadarrClient } from '../integrations/radarr.js';
+import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
 
@@ -52,6 +52,12 @@ export class LibrarySync {
       const client = new RadarrClient(radarr.url, radarr.apiKey);
       const raw = await client.movies();
       const movies: StoredMovie[] = raw.filter((m) => m.hasFile).map(fromRadarr);
+      // Collections give each saga's full part list; without them only owned parts are counted.
+      const collections = await client.collections().catch((err) => {
+        this.log.warn({ err }, 'could not read Radarr collections; numbering owned parts only');
+        return null;
+      });
+      assignSagas(movies, collections);
 
       let matched = 0;
       const plex = this.store.get('plex');

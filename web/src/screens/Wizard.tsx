@@ -270,7 +270,7 @@ function TimeList({ options, onChoose }: OptionsProps) {
             <span className="block font-display text-[28px]">{o.label}</span>
             <span className="block text-sm text-muted">{o.description}</span>
           </span>
-          <span className="text-sm text-muted tabular-nums">{plural(o.count, 'movie')}</span>
+          <span className="text-sm text-muted tabular-nums">{plural(o.count, o.id === 'saga' ? 'saga' : 'movie')}</span>
         </button>
       ))}
     </div>

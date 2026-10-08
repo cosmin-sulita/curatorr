@@ -6,6 +6,7 @@ import {
   wizardOptions,
   type ProfileContext,
 } from './scoring.js';
+import { sagaState } from './sagas.js';
 import type { FeedbackEvent, Movie, Ratings } from './types.js';
 
 const noRatings: Ratings = { rt: null, rtVotes: null, imdb: null, tmdb: null, metacritic: null };
@@ -31,6 +32,8 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     trailerId: null,
     plexRatingKey: String(id),
     plexSlug: null,
+    plexGuid: null,
+    saga: null,
     addedAt: null,
     ...partial,
     ratings: { ...noRatings, ...partial.ratings },
@@ -43,6 +46,7 @@ const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
   allowedCerts: null,
   requirePlex: true,
   includeWatched: false,
+  watchlist: new Set(),
   ...over,
 });
 
@@ -222,5 +226,68 @@ describe('wizardOptions', () => {
   it('skips a step that would not narrow anything', () => {
     const movies = Array.from({ length: 6 }, () => movie({ runtime: 90 }));
     expect(wizardOptions(movies, 'time', {}, { image }).skip).toBe(true);
+  });
+});
+
+describe('sagas in picks', () => {
+  const image = (m: Movie) => m.posterUrl;
+  const part = (id: number, n: number, parts: number, extra: Partial<Movie> & { ratings?: Partial<Ratings> } = {}) =>
+    movie({ genres: ['Comedy'], saga: { id, title: 'Back to the Future', part: n, parts }, ...extra });
+  const opts = (sagas: ReturnType<typeof sagaState>) => ({ now: NOW, seed: 'test', sagas });
+
+  it('does not offer a sequel before its first part', () => {
+    const [p1, p2] = [part(50, 1, 2), part(50, 2, 2)];
+    const sagas = sagaState([p1, p2], new Set());
+    expect(eligibleMovies([p1, p2], ctx({ sagas })).map((m) => m.id)).toEqual([p1.id]);
+  });
+
+  it('suggests the first part instead of a matching sequel', () => {
+    // Only the sequel matches the theme answer; part 1 still fits the genre.
+    const p1 = part(51, 1, 2);
+    const p2 = part(51, 2, 2, { themes: { 'time-travel': 4 } });
+    const others = Array.from({ length: 6 }, () =>
+      movie({ genres: ['Comedy'], themes: { 'time-travel': 2 }, ratings: { rt: 60 } }),
+    );
+    const library = [p1, p2, ...others];
+    const sagas = sagaState(library, new Set());
+    const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { genre: 'Comedy', theme: 'time-travel' }, [], opts(sagas));
+    const first = ranked.find((r) => r.movie.id === p1.id)!;
+    expect(first.tier).toBe(0);
+    expect(first.reasons.map((r) => r.label)).toContain('Start of Back to the Future');
+    expect(ranked.some((r) => r.movie.id === p2.id)).toBe(false);
+  });
+
+  it('does not swap in a first part from another genre', () => {
+    const [p1, p2] = [part(52, 1, 2, { genres: ['Drama'] }), part(52, 2, 2)];
+    const sagas = sagaState([p1, p2], new Set());
+    const ranked = rankMovies(eligibleMovies([p1, p2], ctx({ sagas })), { genre: 'Comedy' }, [], opts(sagas));
+    expect(ranked).toEqual([]);
+  });
+
+  it('favours the next part of a started saga', () => {
+    const [p1, p2] = [part(53, 1, 2), part(53, 2, 2, { ratings: { rt: 80 } })];
+    const sagas = sagaState([p1, p2], new Set([p1.id]));
+    const [ranked] = rankMovies([p2], {}, [], opts(sagas));
+    expect(ranked!.reasons[0]).toEqual({ kind: 'saga', label: 'Next in Back to the Future' });
+    expect(ranked!.score).toBeGreaterThan(80 + 4 - 1.5 - 0.1);
+  });
+
+  it('"Start a saga" offers first parts, judged by the whole saga', () => {
+    // Saga A averages 85 although its first part is weaker; saga B averages 75.
+    const a = [part(54, 1, 2, { ratings: { rt: 70 } }), part(54, 2, 2, { ratings: { rt: 100 } })];
+    const b = [part(55, 1, 2, { ratings: { rt: 90 } }), part(55, 2, 2, { ratings: { rt: 60 } })];
+    const lone = movie({ genres: ['Comedy'], ratings: { rt: 99 } });
+    const library = [...a, ...b, lone];
+    const sagas = sagaState(library, new Set());
+    const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { time: 'saga' }, [], opts(sagas));
+    expect(ranked.map((r) => r.movie.id)).toEqual([a[0]!.id, b[0]!.id]);
+    expect(ranked[0]!.reasons.map((r) => r.label)).toEqual(['Start of Back to the Future', '2 parts, 3h 40m in all']);
+  });
+
+  it('offers "Start a saga" in the time question when one can be started', () => {
+    const library = [part(56, 1, 3), part(56, 2, 3), ...Array.from({ length: 5 }, () => movie({ runtime: 150 }))];
+    const sagas = sagaState(library, new Set());
+    const res = wizardOptions(eligibleMovies(library, ctx({ sagas })), 'time', {}, { image, sagaStarters: sagas.starters });
+    expect(res.options.find((o) => o.id === 'saga')).toMatchObject({ label: 'Start a saga', count: 1 });
   });
 });

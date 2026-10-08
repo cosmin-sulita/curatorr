@@ -88,6 +88,15 @@ const migrations: string[] = [
     PRIMARY KEY (profile_id, movie_id)
   );
   `,
+  // v4: sagas (Radarr/TMDB collections), to keep sequels in order.
+  `
+  ALTER TABLE movies ADD COLUMN saga_id INTEGER;
+  ALTER TABLE movies ADD COLUMN saga_title TEXT;
+  ALTER TABLE movies ADD COLUMN saga_part INTEGER;
+  ALTER TABLE movies ADD COLUMN saga_parts INTEGER;
+  -- Forget the last sync so the library is re-read (with collections) on the next start.
+  UPDATE settings SET value = json_set(value, '$.at', NULL) WHERE key = 'sync';
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

@@ -1,6 +1,7 @@
 import {
   RESTRICTION_CERTS,
   eligibleMovies,
+  sagaState,
   rankMovies,
   wizardOptions,
   type Criteria,
@@ -21,9 +22,15 @@ export function profileContext(store: Store, row: ProfileRow): ProfileContext {
   const movies = store.movies();
   // Only insist on a Plex match when matching is actually working.
   const requirePlex = store.plexConfigured() && movies.some((m) => m.plexRatingKey);
+  const watched = store.watchedIds(row.id);
+  const feedback = store.feedback(row.id);
+  // For sagas, "watched" also covers "Seen it", and only parts that can be played count.
+  const seen = new Set([...watched, ...feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
+  const playable = requirePlex ? movies.filter((m) => m.plexRatingKey) : movies;
   return {
-    watched: store.watchedIds(row.id),
-    feedback: store.feedback(row.id),
+    watched,
+    feedback,
+    sagas: sagaState(playable, seen),
     allowedCerts: restriction && RESTRICTION_CERTS[restriction] ? new Set(RESTRICTION_CERTS[restriction]) : null,
     requirePlex,
     includeWatched: store.get('app').includeWatched,
@@ -48,6 +55,7 @@ export function toDTO(store: Store, m: StoredMovie): MovieDTO {
     trailerId: m.trailerId,
     plexUrl: links?.web ?? null,
     plexAppUrl: links?.app ?? null,
+    saga: m.saga ? { title: m.saga.title, part: m.saga.part, parts: m.saga.parts } : null,
     imdbId: m.imdbId,
     tmdbId: m.tmdbId,
   };
@@ -79,9 +87,11 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
 }
 
 export function optionsFor(store: Store, row: ProfileRow, step: WizardStep, criteria: Criteria): WizardOptionsResponse {
-  const eligible = eligibleMovies(store.movies(), profileContext(store, row));
+  const ctx = profileContext(store, row);
+  const eligible = eligibleMovies(store.movies(), ctx);
   return wizardOptions(eligible, step, criteria, {
     image: (m, kind) => (kind === 'fanart' ? (m.fanartUrl ?? m.posterUrl) : (m.posterUrl ?? m.fanartUrl)),
+    sagaStarters: ctx.sagas?.starters,
   });
 }
 
@@ -92,6 +102,7 @@ export async function recommendFor(store: Store, row: ProfileRow, criteria: Crit
     now: Date.now(),
     seed: String(row.id),
     watchlist: ctx.watchlist,
+    sagas: ctx.sagas,
   });
   await ensurePlexIds(store, ranked.map((r) => r.movie as StoredMovie));
   return {

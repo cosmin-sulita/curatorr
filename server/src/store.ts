@@ -93,6 +93,10 @@ interface MovieRow {
   plex_rating_key: string | null;
   plex_slug: string | null;
   plex_guid: string | null;
+  saga_id: number | null;
+  saga_title: string | null;
+  saga_part: number | null;
+  saga_parts: number | null;
   added_at: string | null;
 }
 
@@ -182,8 +186,8 @@ export class Store {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
         themes, moods, rt, rt_votes, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
-        trailer_id, plex_rating_key, plex_slug, plex_guid, added_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        trailer_id, plex_rating_key, plex_slug, plex_guid, saga_id, saga_title, saga_part, saga_parts, added_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
@@ -192,6 +196,8 @@ export class Store {
         metacritic = excluded.metacritic, poster_url = excluded.poster_url, fanart_url = excluded.fanart_url,
         poster_path = excluded.poster_path, fanart_path = excluded.fanart_path, trailer_id = excluded.trailer_id,
         plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at,
+        saga_id = excluded.saga_id, saga_title = excluded.saga_title, saga_part = excluded.saga_part,
+        saga_parts = excluded.saga_parts,
         -- Keep ids looked up earlier when the library listing doesn't include them.
         plex_slug = COALESCE(excluded.plex_slug, movies.plex_slug),
         plex_guid = COALESCE(excluded.plex_guid, movies.plex_guid)
@@ -203,7 +209,8 @@ export class Store {
           JSON.stringify(m.genres), JSON.stringify(m.keywords), JSON.stringify(m.themes), JSON.stringify(m.moods),
           m.ratings.rt, m.ratings.rtVotes, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
           m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
-          m.plexGuid, m.addedAt, syncedAt,
+          m.plexGuid, m.saga?.id ?? null, m.saga?.title ?? null, m.saga?.part ?? null, m.saga?.parts ?? null,
+          m.addedAt, syncedAt,
         );
       }
       this.db.prepare('DELETE FROM movies WHERE synced_at <> ?').run(syncedAt);
@@ -431,6 +438,10 @@ function rowToMovie(r: MovieRow): StoredMovie {
     plexRatingKey: r.plex_rating_key,
     plexSlug: r.plex_slug,
     plexGuid: r.plex_guid,
+    saga:
+      r.saga_id != null && r.saga_part
+        ? { id: r.saga_id, title: r.saga_title ?? '', part: r.saga_part, parts: r.saga_parts ?? r.saga_part }
+        : null,
     addedAt: r.added_at,
   };
 }

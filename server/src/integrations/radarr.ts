@@ -35,6 +35,14 @@ export interface RadarrMovie {
     metacritic?: RadarrRating;
     rottenTomatoes?: RadarrRating;
   };
+  collection?: { title?: string; tmdbId?: number };
+}
+
+/** A Radarr collection; `movies` lists every part, owned or not. */
+export interface RadarrCollection {
+  tmdbId: number;
+  title: string;
+  movies?: { tmdbId: number; title: string; year?: number }[];
 }
 
 const SERVICE = 'Radarr';
@@ -65,6 +73,14 @@ export class RadarrClient {
     return requestJson<RadarrMovie[]>(SERVICE, `${this.baseUrl}/api/v3/movie`, {
       headers: this.headers(),
       timeoutMs: 120_000,
+    });
+  }
+
+  /** Collections with all their parts (Radarr 4.3+). */
+  collections() {
+    return requestJson<RadarrCollection[]>(SERVICE, `${this.baseUrl}/api/v3/collection`, {
+      headers: this.headers(),
+      timeoutMs: 60_000,
     });
   }
 
@@ -123,6 +139,47 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     plexRatingKey: null,
     plexSlug: null,
     plexGuid: null,
+    // Part numbers are filled in by assignSagas once all collections are known.
+    saga: r.collection?.tmdbId
+      ? { id: r.collection.tmdbId, title: sagaTitle(r.collection.title ?? r.title), part: 0, parts: 0 }
+      : null,
     addedAt: r.added ?? null,
   };
+}
+
+/** "The Matrix Collection" → "The Matrix". */
+export function sagaTitle(title: string) {
+  return title.replace(/\s+collection$/i, '').trim() || title;
+}
+
+// Release order; unknown years (unannounced parts) go last.
+const byRelease = (a: { year?: number | null; tmdbId?: number | null }, b: typeof a) =>
+  (a.year || Infinity) - (b.year || Infinity) || (a.tmdbId ?? 0) - (b.tmdbId ?? 0);
+
+/**
+ * Numbers each movie's part within its collection, counting every part in release
+ * order, owned or not. Without collection data (older Radarr) only the owned parts
+ * are counted.
+ */
+export function assignSagas(movies: StoredMovie[], collections: RadarrCollection[] | null) {
+  const byId = new Map((collections ?? []).map((c) => [c.tmdbId, c]));
+  const groups = new Map<number, StoredMovie[]>();
+  for (const m of movies) {
+    if (!m.saga) continue;
+    groups.set(m.saga.id, [...(groups.get(m.saga.id) ?? []), m]);
+  }
+
+  for (const [id, owned] of groups) {
+    const collection = byId.get(id);
+    const order = collection?.movies?.length ? [...collection.movies].sort(byRelease).map((p) => p.tmdbId) : null;
+    if (order && owned.every((m) => m.tmdbId != null && order.includes(m.tmdbId))) {
+      for (const m of owned) {
+        m.saga = { id, title: sagaTitle(collection!.title), part: order.indexOf(m.tmdbId!) + 1, parts: order.length };
+      }
+    } else {
+      [...owned].sort(byRelease).forEach((m, i) => {
+        m.saga = { ...m.saga!, part: i + 1, parts: owned.length };
+      });
+    }
+  }
 }

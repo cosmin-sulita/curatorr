@@ -98,11 +98,34 @@ const FIXTURES: Fixture[] = [
   ['The Martian', 2015, ['Drama', 'Adventure', 'Science Fiction'], 144, 'PG-13', 91, 8.0, ['mars', 'stranded', 'survival', 'astronaut', 'space', 'hopeful'], 'An astronaut stranded on Mars uses his wits to survive until rescue is possible.'],
   ['Gravity', 2013, ['Science Fiction', 'Thriller', 'Drama'], 91, 'PG-13', 96, 7.7, ['space', 'astronaut', 'survival', 'space station', 'intense'], 'Two astronauts are left adrift after debris destroys their shuttle.'],
   ['Top Gun: Maverick', 2022, ['Action', 'Drama'], 131, 'PG-13', 96, 8.2, ['navy', 'fighter pilot', 'military', 'mentor', 'exciting'], 'A veteran test pilot trains a squad of young aviators for a near-impossible mission.'],
+  // Sequels, appended so the ids above stay stable.
+  ['Back to the Future Part II', 1989, ['Adventure', 'Comedy', 'Science Fiction'], 108, 'PG', 63, 7.8, ['time travel', 'time machine', 'alternate timeline', 'sequel', 'lighthearted'], "Marty and Doc jump to 2015 to save Marty's future children, and accidentally rewrite 1985."],
+  ['Back to the Future Part III', 1990, ['Adventure', 'Comedy', 'Science Fiction', 'Western'], 118, 'PG', 79, 7.5, ['time travel', 'time machine', 'wild west', 'sequel', 'lighthearted'], 'Stranded in 1885, Doc needs Marty to get him home before an outlaw catches up with him.'],
+  ['The Lord of the Rings: The Two Towers', 2002, ['Adventure', 'Fantasy', 'Action'], 179, 'PG-13', 95, 8.8, ['wizard', 'magic', 'elves', 'dwarf', 'battle', 'middle-earth (tolkien)', 'epic'], "The fellowship is broken, but its members fight on as Sauron's armies close in on Rohan."],
+  ['The Lord of the Rings: The Return of the King', 2003, ['Adventure', 'Fantasy', 'Action'], 201, 'PG-13', 94, 9.0, ['wizard', 'magic', 'elves', 'battle', 'middle-earth (tolkien)', 'epic', 'quest'], 'The last battle for Middle-earth begins as Frodo and Sam near Mount Doom.'],
+  ['John Wick: Chapter 2', 2017, ['Action', 'Thriller', 'Crime'], 122, 'R', 89, 7.4, ['hitman', 'assassin', 'revenge', 'sequel', 'violence', 'intense'], 'An old debt pulls John Wick back in, and a bounty on his head brings every assassin in the city.'],
 ];
+
+/** Demo sagas: [collection id, title, part, parts]. Parts not listed here aren't owned. */
+const SAGAS: Record<string, [number, string, number, number]> = {
+  'Back to the Future': [264, 'Back to the Future', 1, 3],
+  'Back to the Future Part II': [264, 'Back to the Future', 2, 3],
+  'Back to the Future Part III': [264, 'Back to the Future', 3, 3],
+  'The Lord of the Rings: The Fellowship of the Ring': [119, 'The Lord of the Rings', 1, 3],
+  'The Lord of the Rings: The Two Towers': [119, 'The Lord of the Rings', 2, 3],
+  'The Lord of the Rings: The Return of the King': [119, 'The Lord of the Rings', 3, 3],
+  'John Wick': [404609, 'John Wick', 1, 4],
+  'John Wick: Chapter 2': [404609, 'John Wick', 2, 4],
+  'Toy Story': [10194, 'Toy Story', 1, 4],
+  'Avengers: Endgame': [86311, 'The Avengers', 4, 4],
+};
+
+const demoId = (title: string) => FIXTURES.findIndex((f) => f[0] === title) + 1;
 
 export function demoMovies(): StoredMovie[] {
   return FIXTURES.map(([title, year, genres, runtime, cert, rt, imdb, keywords, overview], i) => {
     const id = i + 1;
+    const saga = SAGAS[title];
     return {
       id,
       tmdbId: 100000 + id,
@@ -124,6 +147,7 @@ export function demoMovies(): StoredMovie[] {
       plexRatingKey: null,
       plexSlug: null,
       plexGuid: null,
+      saga: saga ? { id: saga[0], title: saga[1], part: saga[2], parts: saga[3] } : null,
       addedAt: null,
     };
   });
@@ -136,7 +160,9 @@ export function seedDemo(store: Store) {
     const alex = store.createLocalProfile('Alex', true);
     const sam = store.createLocalProfile('Sam', false);
     store.createLocalProfile('Kids', false, 'older_kid');
-    store.replaceWatched(alex, [1, 11, 49].map((movieId) => ({ movieId, viewedAt: now })), now);
+    // Alex has started Back to the Future, so part II comes up as "Next in".
+    const alexWatched = [1, 11, 49, demoId('Back to the Future')];
+    store.replaceWatched(alex, alexWatched.map((movieId) => ({ movieId, viewedAt: now })), now);
     store.replaceWatched(sam, [31, 44].map((movieId) => ({ movieId, viewedAt: now })), now);
   }
   store.set('setupComplete', true);

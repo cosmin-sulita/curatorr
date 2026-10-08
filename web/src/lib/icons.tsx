@@ -28,6 +28,7 @@ import {
   Hourglass,
   Infinity as InfinityIcon,
   Landmark,
+  Library,
   Laugh,
   Map,
   Moon,
@@ -61,7 +62,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   Anchor, BookOpen, Biohazard, Bot, Brain, Briefcase, Bug, Camera, Car, Castle, Clock, CloudMoon, Compass,
   Crosshair, Crown, Drama, Eye, Fingerprint, Flame, Gavel, Gem, Ghost, Glasses, GraduationCap, Heart,
-  HeartPulse, Hourglass, Infinity: InfinityIcon, Landmark, Laugh, Map, Moon, Mountain, Music, Orbit, Palette,
+  HeartPulse, Hourglass, Infinity: InfinityIcon, Landmark, Library, Laugh, Map, Moon, Mountain, Music, Orbit, Palette,
   PawPrint, Radiation, Rocket, Search, Shield, Siren, Skull, Smile, Sparkles, Sunset, Swords, Timer, Tornado,
   TreePine, Trophy, Tv, Users, Video, WandSparkles, Zap,
 };

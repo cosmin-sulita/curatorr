@@ -26,6 +26,7 @@ const radarrMovies: RadarrMovie[] = [
     genres: ['Action', 'Science Fiction'],
     keywords: ['simulated reality', 'artificial intelligence (a.i.)', 'hacker'],
     ratings: { rottenTomatoes: { value: 83 }, imdb: { value: 8.7 } },
+    collection: { title: 'The Matrix Collection', tmdbId: 2344 },
   },
   {
     id: 2,
@@ -80,6 +81,19 @@ describe('library sync against fake Radarr and Plex servers', () => {
       if (url.pathname === '/api/v3/movie') {
         return req.headers['x-api-key'] === RADARR_KEY ? json(200, radarrMovies) : json(401, { error: 'nope' });
       }
+      if (url.pathname === '/api/v3/collection') {
+        return json(200, [
+          {
+            tmdbId: 2344,
+            title: 'The Matrix Collection',
+            movies: [
+              { tmdbId: 604, title: 'The Matrix Reloaded', year: 2003 },
+              { tmdbId: 603, title: 'The Matrix', year: 1999 },
+              { tmdbId: 605, title: 'The Matrix Revolutions', year: 2003 },
+            ],
+          },
+        ]);
+      }
       if (url.pathname === '/library/sections/1/all') {
         const token = req.headers['x-plex-token'] as string | undefined;
         if (token !== OWNER_TOKEN && token !== MEMBER_TOKEN) return json(401, {});
@@ -119,6 +133,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(store.movie(1)!.ratings.rt).toBe(83);
     expect(store.get('sync')).toMatchObject({ movies: 3, matchedInPlex: 3, error: null });
     expect(movies.map((m) => m.plexSlug)).toEqual([null, null, 'the-matrix']);
+    expect(store.movie(1)!.saga).toEqual({ id: 2344, title: 'The Matrix', part: 1, parts: 3 });
+    expect(store.movie(2)!.saga).toBeNull();
   });
 
   it('looks up missing watch.plex.tv slugs once, and links phones to them', async () => {

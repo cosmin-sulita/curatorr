@@ -9,6 +9,7 @@ import {
   themeById,
   timeById,
 } from './taxonomy.js';
+import { emptySagaState, type SagaState } from './sagas.js';
 import type {
   Criteria,
   FeedbackEvent,
@@ -58,6 +59,8 @@ export interface ProfileContext {
   includeWatched: boolean;
   /** Movies on the profile's Plex Watchlist. */
   watchlist: Set<number>;
+  /** Where the profile stands in each saga; blocked sequels aren't offered. */
+  sagas?: SagaState;
 }
 
 export function excludedIds(ctx: ProfileContext): Set<number> {
@@ -71,6 +74,7 @@ export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
   const excluded = excludedIds(ctx);
   return movies.filter((m) => {
     if (excluded.has(m.id)) return false;
+    if (ctx.sagas?.blockedBy.has(m.id)) return false;
     if (ctx.requirePlex && !m.plexRatingKey) return false;
     if (ctx.allowedCerts && (!m.certification || !ctx.allowedCerts.has(m.certification.toUpperCase()))) {
       return false;
@@ -117,6 +121,8 @@ const TAG_SATURATION = 6;
 const JITTER = 1.5;
 /** Movies the profile wants to watch: on their Plex Watchlist or saved with "Later". */
 const WATCHLIST_BONUS = 6;
+/** The next part of a saga the profile has started. */
+const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
 const MAX_RESULTS = 12;
 
@@ -188,6 +194,13 @@ export interface RankOptions {
   limit?: number;
   /** The profile's Plex Watchlist; local "later" events count too. */
   watchlist?: Set<number>;
+  sagas?: SagaState;
+}
+
+function sagaTotals(parts: Movie[]) {
+  const quality = parts.reduce((sum, m) => sum + qualityScore(m.ratings).value, 0) / parts.length;
+  const runtime = parts.reduce((sum, m) => sum + (m.runtime ?? 0), 0);
+  return { quality, runtime };
 }
 
 /**
@@ -206,10 +219,35 @@ export function rankMovies(
   const shown = latestByKind(feedback, 'shown');
   const wanted = new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]);
   const day = new Date(opts.now).toISOString().slice(0, 10);
+  const sagas = opts.sagas ?? emptySagaState();
+  const startingSaga = c.time === 'saga';
 
-  const base = eligible.filter((m) => matchesGenre(m, c.genre) && matchesTime(m, c.time));
+  // "Start a saga" only offers first parts of sagas the profile hasn't started.
+  const base = eligible.filter(
+    (m) => matchesGenre(m, c.genre) && matchesTime(m, c.time) && (!startingSaga || sagas.starters.has(m.id)),
+  );
+
+  // A matching sequel whose earlier part is unwatched brings in that part instead,
+  // as long as it fits the genre and time answers.
+  const startsFor = new Set<number>();
+  if (!startingSaga) {
+    const eligibleById = new Map(eligible.map((m) => [m.id, m]));
+    const inBase = new Set(base.map((m) => m.id));
+    for (const parts of sagas.owned.values()) {
+      for (const sequel of parts) {
+        const first = eligibleById.get(sagas.blockedBy.get(sequel.id)?.id ?? -1);
+        if (!first || !matchesCriteria(sequel, c) || !matchesGenre(first, c.genre) || !matchesTime(first, c.time)) continue;
+        startsFor.add(first.id);
+        if (!inBase.has(first.id)) {
+          base.push(first);
+          inBase.add(first.id);
+        }
+      }
+    }
+  }
 
   const tierOf = (m: Movie): number => {
+    if (startsFor.has(m.id)) return 0;
     const theme = matchesTheme(m, c.theme);
     const mood = matchesMood(m, c.mood);
     if (theme && mood) return 0;
@@ -219,7 +257,29 @@ export function rankMovies(
 
   const ranked = base.map((m): RankedMovie => {
     const quality = qualityScore(m.ratings);
+    const sagaReasons: Reason[] = [];
     let score = quality.value;
+
+    const parts = m.saga ? sagas.owned.get(m.saga.id) : undefined;
+    if (startingSaga && parts && m.saga) {
+      // Judge a saga by all of its parts, not just the first.
+      const totals = sagaTotals(parts);
+      score = totals.quality;
+      sagaReasons.push({ kind: 'saga', label: `Start of ${m.saga.title}` });
+      sagaReasons.push({
+        kind: 'saga',
+        label:
+          parts.length === m.saga.parts
+            ? `${parts.length} parts, ${formatRuntime(totals.runtime)} in all`
+            : `${parts.length} of ${m.saga.parts} parts in your library`,
+      });
+    } else if (sagas.next.has(m.id) && m.saga) {
+      // Also covers a later part pulled in for a sequel: it continues a saga already started.
+      score += NEXT_PART_BONUS;
+      sagaReasons.push({ kind: 'saga', label: `Next in ${m.saga.title}` });
+    } else if (startsFor.has(m.id) && m.saga) {
+      sagaReasons.push({ kind: 'saga', label: `Start of ${m.saga.title}` });
+    }
     if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
     if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
 
@@ -240,6 +300,7 @@ export function rankMovies(
       tier: tierOf(m),
       reasons: [
         ...(onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+        ...sagaReasons,
         ...reasonsFor(m, c, quality),
       ],
     };
@@ -259,6 +320,8 @@ export function rankMovies(
 export interface FacetOptions {
   /** Picks the best image for a movie (fanart for wide cards, poster for tiles). */
   image: (m: Movie, kind: 'fanart' | 'poster') => string | null;
+  /** First parts of sagas the profile hasn't started, for the "Start a saga" answer. */
+  sagaStarters?: Set<number>;
 }
 
 function byQuality(a: Movie, b: Movie) {
@@ -344,8 +407,14 @@ export function wizardOptions(
         images: topImages(movies, 'fanart', 1, opts),
       }));
   } else {
-    options = TIME_OPTIONS.map((t) => ({ t, movies: pool.filter((m) => matchesTime(m, t.id)) }))
-      .filter(({ t, movies }) => t.maxRuntime == null || movies.length >= MIN_OPTION_COUNT)
+    options = TIME_OPTIONS.map((t) => ({
+      t,
+      movies: pool.filter((m) => (t.id === 'saga' ? opts.sagaStarters?.has(m.id) : matchesTime(m, t.id))),
+    }))
+      // "Any length" is always offered; one saga is enough to offer starting it.
+      .filter(({ t, movies }) =>
+        t.id === 'saga' ? movies.length > 0 : t.maxRuntime == null || movies.length >= MIN_OPTION_COUNT,
+      )
       .map(({ t, movies }) => ({
         id: t.id,
         label: t.label,

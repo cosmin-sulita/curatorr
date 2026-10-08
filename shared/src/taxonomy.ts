@@ -358,6 +358,8 @@ export const TIME_OPTIONS: TimeOption[] = [
   { id: 'quick', label: 'A quick one', description: 'Under 1h45', icon: 'Timer', maxRuntime: 105 },
   { id: 'standard', label: 'A regular movie', description: 'Up to 2h15', icon: 'Clock', maxRuntime: 135 },
   { id: 'any', label: "I've got all night", description: 'Any length', icon: 'Moon', maxRuntime: null },
+  // Only first parts of sagas the profile hasn't started; see sagas.ts.
+  { id: 'saga', label: 'Start a saga', description: 'Part 1 tonight, the rest another night', icon: 'Library', maxRuntime: null },
 ];
 
 /** Certifications allowed per Plex Home restriction profile (US, UK and DE ratings). */

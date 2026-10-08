@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { connectionCandidates, parseGuids, plexLinks, toPlexItem } from './plex.js';
-import { fromRadarr, tmdbSized } from './radarr.js';
+import { assignSagas, fromRadarr, sagaTitle, tmdbSized } from './radarr.js';
 
 describe('parseGuids', () => {
   it('reads the modern Plex agent', () => {
@@ -84,6 +84,52 @@ describe('connectionCandidates', () => {
       'https://1-2-3-4.abc.plex.direct:32400',
       'https://relay.plex.direct:8443',
     ]);
+  });
+});
+
+describe('assignSagas', () => {
+  const matrix = (id: number, tmdbId: number, year: number) =>
+    fromRadarr({ id, title: `Matrix ${id}`, year, tmdbId, hasFile: true, collection: { title: 'The Matrix Collection', tmdbId: 2344 } });
+  const collection = {
+    tmdbId: 2344,
+    title: 'The Matrix Collection',
+    movies: [
+      { tmdbId: 624860, title: 'The Matrix Resurrections', year: 2021 },
+      { tmdbId: 605, title: 'The Matrix Revolutions', year: 2003 },
+      { tmdbId: 604, title: 'The Matrix Reloaded', year: 2003 },
+      { tmdbId: 603, title: 'The Matrix', year: 1999 },
+      { tmdbId: 999999, title: 'The Matrix 5', year: 0 }, // announced, no date yet
+    ],
+  };
+
+  it('numbers parts in release order, counting parts you do not own', () => {
+    const owned = [matrix(1, 604, 2003), matrix(2, 605, 2003)];
+    assignSagas(owned, [collection]);
+    expect(owned.map((m) => m.saga)).toEqual([
+      { id: 2344, title: 'The Matrix', part: 2, parts: 5 },
+      { id: 2344, title: 'The Matrix', part: 3, parts: 5 },
+    ]);
+  });
+
+  it('numbers owned parts by year without collection data', () => {
+    const owned = [matrix(1, 605, 2003), matrix(2, 603, 1999)];
+    assignSagas(owned, null);
+    expect(owned.map((m) => [m.saga!.part, m.saga!.parts])).toEqual([
+      [2, 2],
+      [1, 2],
+    ]);
+    expect(owned[0]!.saga!.title).toBe('The Matrix');
+  });
+
+  it('leaves movies outside collections alone', () => {
+    const solo = fromRadarr({ id: 9, title: 'Heat', tmdbId: 949, hasFile: true });
+    assignSagas([solo], [collection]);
+    expect(solo.saga).toBeNull();
+  });
+
+  it('drops the word Collection from titles', () => {
+    expect(sagaTitle('The Lord of the Rings Collection')).toBe('The Lord of the Rings');
+    expect(sagaTitle('Collection')).toBe('Collection');
   });
 });
 

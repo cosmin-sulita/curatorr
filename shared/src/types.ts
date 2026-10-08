@@ -36,7 +36,17 @@ export interface Movie {
   plexSlug: string | null;
   /** Plex metadata id from the item's `plex://movie/<id>` guid (same null/'' convention). */
   plexGuid: string | null;
+  /** The Radarr/TMDB collection the movie belongs to, if any. */
+  saga: Saga | null;
   addedAt: string | null;
+}
+
+/** A movie's place in its collection. Parts count every movie in it, owned or not, by release. */
+export interface Saga {
+  id: number; // TMDB collection id
+  title: string;
+  part: number;
+  parts: number;
 }
 
 export type FeedbackKind = 'shown' | 'skipped' | 'seen' | 'never' | 'accepted' | 'later';
@@ -91,7 +101,7 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'time' | 'rating' | 'watchlist';
+  kind: 'genre' | 'theme' | 'mood' | 'time' | 'rating' | 'watchlist' | 'saga';
   label: string;
 }
 
@@ -122,6 +132,7 @@ export interface MovieDTO {
   trailerId: string | null;
   plexUrl: string | null;
   plexAppUrl: string | null;
+  saga: Omit<Saga, 'id'> | null;
   imdbId: string | null;
   tmdbId: number | null;
 }
