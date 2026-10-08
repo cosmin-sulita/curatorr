@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { ChevronLeft, Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
-import { CenteredState, Shell } from '../components/Shell';
+import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, useStatus, useWizardOptions } from '../lib/api';
 import { plural } from '../lib/format';
@@ -92,74 +92,79 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     );
   }
 
+  const ready = Boolean(data && !data.skip);
+  const anyLabel = COPY[step].any;
+  const anyButton = (className?: string) => (
+    <Button variant={step === 'genre' ? 'primary' : 'secondary'} size="lg" className={className} onClick={() => choose('any')}>
+      {step === 'genre' && <Shuffle className="size-5" />}
+      {anyLabel}
+    </Button>
+  );
+
   return (
-    <Shell>
-      <div className="flex h-10 items-center justify-between">
-        {index > 0 ? (
-          <button
-            onClick={() => window.history.back()}
-            className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
-          >
-            <ChevronLeft className="size-5" /> Back
-          </button>
-        ) : (
-          <span />
-        )}
-        <ol className="flex gap-1.5" aria-label={`Question ${index + 1} of ${STEP_ORDER.length}`}>
-          {STEP_ORDER.map((s, i) => (
-            <li
-              key={s}
-              className={clsx('h-1.5 rounded-full transition-all', i === index ? 'w-6 bg-accent-gradient' : 'w-1.5', i < index ? 'bg-fg/60' : i > index && 'bg-raised')}
-            />
-          ))}
-        </ol>
-      </div>
+    <>
+      <Shell>
+        <div className="flex h-10 items-center justify-between">
+          {index > 0 ? (
+            <button
+              onClick={() => window.history.back()}
+              className="-ml-2 inline-flex items-center gap-1 rounded-lg py-2 pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
+            >
+              <ChevronLeft className="size-5" /> Back
+            </button>
+          ) : (
+            <span />
+          )}
+          <ol className="flex gap-1.5" aria-label={`Question ${index + 1} of ${STEP_ORDER.length}`}>
+            {STEP_ORDER.map((s, i) => (
+              <li
+                key={s}
+                className={clsx('h-1.5 rounded-full transition-all', i === index ? 'w-6 bg-accent-gradient' : 'w-1.5', i < index ? 'bg-fg/60' : i > index && 'bg-raised')}
+              />
+            ))}
+          </ol>
+        </div>
 
-      <motion.section
-        key={step + JSON.stringify(criteria)}
-        initial={{ opacity: 0, x: 28 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-        className="pt-6"
-      >
-        {/* The question appears with its answers, so a skipped step never flashes. */}
-        {data && !data.skip && (
-          <>
-            <h1 className="font-display text-[44px] sm:text-6xl">{COPY[step].title}</h1>
-            <p className="mt-3 text-muted">
-              {plural(data.total, genreLabel ? `${genreLabel} movie` : 'movie')} to choose from
-            </p>
-          </>
-        )}
+        <motion.section
+          key={step + JSON.stringify(criteria)}
+          initial={{ opacity: 0, x: 28 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          className="pt-6"
+        >
+          {/* The question appears with its answers, so a skipped step never flashes. */}
+          {data && ready && (
+            <>
+              <h1 className="font-display text-[44px] sm:text-6xl">{COPY[step].title}</h1>
+              <p className="mt-3 text-muted">
+                {plural(data.total, genreLabel ? `${genreLabel} movie` : 'movie')} to choose from
+              </p>
+              {/* Desktop: "no preference" before the list, not after it. */}
+              {anyLabel && <div className="mt-6 hidden md:block">{anyButton()}</div>}
+            </>
+          )}
 
-        {(isLoading || data?.skip) && (
-          <div className="grid place-items-center py-24">
-            <Spinner className="size-8" />
-          </div>
-        )}
+          {(isLoading || data?.skip) && (
+            <div className="grid place-items-center py-24">
+              <Spinner className="size-8" />
+            </div>
+          )}
 
-        {data && !data.skip && (
-          <div className="mt-8">
-            {step === 'genre' && <GenreGrid options={data.options} onChoose={choose} />}
-            {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}
-            {step === 'mood' && <MoodGrid options={data.options} onChoose={choose} />}
-            {step === 'time' && <TimeList options={data.options} onChoose={choose} />}
+          {data && ready && (
+            <div className="mt-8">
+              {step === 'genre' && <GenreGrid options={data.options} onChoose={choose} />}
+              {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}
+              {step === 'mood' && <MoodGrid options={data.options} onChoose={choose} />}
+              {step === 'time' && <TimeList options={data.options} onChoose={choose} />}
+              {anyLabel && <div className="h-28 md:hidden" aria-hidden />}
+            </div>
+          )}
+        </motion.section>
+      </Shell>
 
-            {COPY[step].any && (
-              <Button
-                variant={step === 'genre' ? 'primary' : 'secondary'}
-                size="lg"
-                className="mt-6 w-full"
-                onClick={() => choose('any')}
-              >
-                {step === 'genre' && <Shuffle className="size-5" />}
-                {COPY[step].any}
-              </Button>
-            )}
-          </div>
-        )}
-      </motion.section>
-    </Shell>
+      {/* Phones: "no preference" stays under the thumb, however long the list. */}
+      {ready && anyLabel && <BottomBar>{anyButton('w-full')}</BottomBar>}
+    </>
   );
 }
 

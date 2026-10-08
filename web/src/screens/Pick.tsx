@@ -5,7 +5,7 @@ import { Ban, BookmarkPlus, Clapperboard, Eye, Play, RotateCcw, SkipForward } fr
 import { AnimatePresence, motion, type PanInfo } from 'motion/react';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { RatingBadges } from '../components/Ratings';
-import { CenteredState, Shell } from '../components/Shell';
+import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
 import {
@@ -308,7 +308,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       </Shell>
 
       {/* Phones: actions stay under the thumb while reading. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 px-4 pt-3 pb-safe backdrop-blur-xl md:hidden">
+      <BottomBar>
         {watchButton}
         <div className="mt-2 grid grid-cols-4 gap-2">
           {declines.map(({ kind, label, Icon }) => (
@@ -322,7 +322,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
             </button>
           ))}
         </div>
-      </div>
+      </BottomBar>
     </>
   );
 }

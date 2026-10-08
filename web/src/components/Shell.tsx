@@ -57,6 +57,15 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
   );
 }
 
+/** Phones only: actions pinned under the thumb, above the home indicator. Render it outside Shell. */
+export function BottomBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 px-4 pt-3 pb-safe backdrop-blur-xl md:hidden">
+      {children}
+    </div>
+  );
+}
+
 export function CenteredState({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mx-auto flex max-w-sm flex-col items-center gap-4 py-24 text-center">
