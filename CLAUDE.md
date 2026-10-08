@@ -30,7 +30,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 
 - **`shared/`**: pure, unit-tested logic used by both sides.
   - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
-  - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods at sync time. `explainTags` keeps the evidence behind each tag.
+  - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods. `explainTags` keeps the evidence behind each tag.
     - Each keyword counts once per tag, through its best term, and each term counts once.
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
     - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals); some themes need two signals (`threshold: 3`).
@@ -44,7 +44,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - Routes in `routes/` are `RouteModule`s that receive an `AppContext { store, library }`. Validate input with zod through `parse()` from `context.ts`, and throw `HttpError` for 4xx responses, which can carry flags like `needPin`, `needProfile` or `needSetup` that the client acts on.
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
-  - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id.
+  - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id. `retag()` also runs at startup, so a vocabulary change applies without a sync.
   - `scripts/tags.ts` (`npm run tags`): a read-only report on a copy of a real database. Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against it: coverage, untagged movies, unmatched keywords, and terms found inside longer keywords (idiom candidates), compared with the stored tags.
   - `services/recommend.ts` builds the per-profile context and calls the shared ranking.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.

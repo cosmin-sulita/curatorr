@@ -234,6 +234,15 @@ export class Store {
     this.movieCache = null;
   }
 
+  /** Rewrites movies' themes and moods, for a vocabulary that changed since the last sync. */
+  updateTags(movies: Pick<Movie, 'id' | 'themes' | 'moods'>[]) {
+    const update = this.db.prepare('UPDATE movies SET themes = ?, moods = ? WHERE id = ?');
+    transaction(this.db, () => {
+      for (const m of movies) update.run(JSON.stringify(m.themes), JSON.stringify(m.moods), m.id);
+    });
+    this.movieCache = null;
+  }
+
   /** Records Plex ids looked up on demand ('' when Plex has none). */
   setPlexIds(id: number, ids: { slug: string; guid: string }) {
     this.db.prepare('UPDATE movies SET plex_slug = ?, plex_guid = ? WHERE id = ?').run(ids.slug, ids.guid, id);

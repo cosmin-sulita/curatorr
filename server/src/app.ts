@@ -29,6 +29,7 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
     trustProxy: true,
   });
   const library = new LibrarySync(store, app.log);
+  library.retag();
   const ctx: AppContext = { store, library };
 
   await app.register(cookie, { secret: store.get('cookieSecret') });

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
-import type { RadarrMovie } from '../integrations/radarr.js';
+import { fromRadarr, type RadarrMovie } from '../integrations/radarr.js';
 import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
@@ -266,5 +266,23 @@ describe('library sync against fake Radarr and Plex servers', () => {
     await expect(new LibrarySync(store, silent).run()).rejects.toThrow(/unauthorized/);
     expect(store.get('sync').error).toMatch(/Radarr: unauthorized/);
     expect(store.movies()).toHaveLength(3);
+  });
+});
+
+describe('re-tagging the stored library', () => {
+  it('applies the current vocabulary at startup, without waiting for a sync', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-retag-'));
+    const store = new Store(openDb(dir));
+    const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
+    // Heat, as tagged by a vocabulary that matched "cat" inside "cat and mouse".
+    store.replaceMovies([{ ...fromRadarr(radarrMovies[1]!), themes: { animals: 2, heist: 4 } }], Date.now());
+
+    const library = new LibrarySync(store, silent);
+    expect(library.retag()).toBe(1);
+    expect(store.movie(2)!.themes).toEqual({ heist: 4 });
+    expect(library.retag()).toBe(0);
+
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
   });
 });

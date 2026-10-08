@@ -1,3 +1,4 @@
+import { tagMovie } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
@@ -90,6 +91,23 @@ export class LibrarySync {
     } finally {
       this.syncing = false;
     }
+  }
+
+  /**
+   * Re-derives the stored movies' themes and moods from their genres, keywords and overview, so a
+   * new vocabulary applies as soon as Curatorr restarts instead of at the next library sync.
+   */
+  retag(): number {
+    const changed = this.store.movies().flatMap((m) => {
+      const tags = tagMovie(m);
+      const same = JSON.stringify([tags.themes, tags.moods]) === JSON.stringify([m.themes, m.moods]);
+      return same ? [] : [{ id: m.id, ...tags }];
+    });
+    if (changed.length) {
+      this.store.updateTags(changed);
+      this.log.info({ movies: changed.length }, 're-tagged movies for the current vocabulary');
+    }
+    return changed.length;
   }
 
   /** Runs `run()` in the background, swallowing errors (they are recorded in settings). */
