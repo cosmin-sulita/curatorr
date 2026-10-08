@@ -7,6 +7,7 @@ import { CenteredState, Shell } from '../components/Shell';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
 import { ApiError, errorMessage, useProfiles, useSelectProfile } from '../lib/api';
 import { navigate } from '../lib/router';
+import { useScrollLock } from '../lib/scrollLock';
 
 const RESTRICTION_LABEL: Record<string, string> = {
   little_kid: 'Kids',
@@ -135,6 +136,7 @@ function PinPad({
   onCancel: () => void;
 }) {
   const [pin, setPin] = useState('');
+  useScrollLock();
 
   const press = (digit: string) => {
     if (busy) return;
@@ -148,7 +150,7 @@ function PinPad({
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 grid place-items-center bg-ink/85 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

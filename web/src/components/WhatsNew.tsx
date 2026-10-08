@@ -2,6 +2,7 @@ import type { Release, ReleaseNote } from '@curatorr/shared';
 import { Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
+import { useScrollLock } from '../lib/scrollLock';
 import { appVersion, markSeen, unseenReleases } from '../lib/whatsNew';
 import { Button } from './ui';
 
@@ -46,10 +47,11 @@ export function WhatsNew({ setupComplete }: { setupComplete: boolean }) {
 
 export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onClose: () => void }) {
   const several = releases.length > 1;
+  useScrollLock();
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 grid place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md"
+      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -73,7 +75,7 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
         </h2>
         <p className="mt-1 text-sm text-muted">Curatorr {appVersion}</p>
 
-        <div className="-mx-6 mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto px-6">
+        <div className="-mx-6 mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-6">
           {releases.map((r) => (
             <section key={r.version}>
               {several && (
