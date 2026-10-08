@@ -54,6 +54,9 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const choose = (value: string) => navigate(nextUrl(step, criteria, value));
+  // "Surprise me" skips the rest of the questions.
+  const chooseAny = () =>
+    step === 'genre' ? navigate(withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' })) : choose('any');
   const genreLabel = criteria.genre && criteria.genre !== 'any' ? genreById.get(criteria.genre)?.label : null;
 
   if (error) {
@@ -95,7 +98,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   const ready = Boolean(data && !data.skip);
   const anyLabel = COPY[step].any;
   const anyButton = (className?: string) => (
-    <Button variant={step === 'genre' ? 'primary' : 'secondary'} size="lg" className={className} onClick={() => choose('any')}>
+    <Button variant={step === 'genre' ? 'primary' : 'secondary'} size="lg" className={className} onClick={chooseAny}>
       {step === 'genre' && <Shuffle className="size-5" />}
       {anyLabel}
     </Button>
