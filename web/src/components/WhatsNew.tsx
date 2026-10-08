@@ -1,7 +1,8 @@
 import { hasHeadlineNews, type Release, type ReleaseNote } from '@curatorr/shared';
 import { Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useDialogFocus } from '../lib/dialogFocus';
 import { useScrollLock } from '../lib/scrollLock';
 import { appVersion, markSeen, unseenReleases } from '../lib/whatsNew';
 import { Button } from './ui';
@@ -48,10 +49,13 @@ export function WhatsNew({ setupComplete }: { setupComplete: boolean }) {
 
 export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onClose: () => void }) {
   const several = releases.length > 1;
+  const dialog = useRef<HTMLDivElement>(null);
   useScrollLock();
+  useDialogFocus(dialog);
 
   return (
     <motion.div
+      ref={dialog}
       className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}

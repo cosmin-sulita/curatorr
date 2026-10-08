@@ -2,10 +2,11 @@ import type { Profile } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Delete, Lock } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CenteredState, Shell } from '../components/Shell';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
 import { ApiError, errorMessage, useProfiles, useSelectProfile } from '../lib/api';
+import { useDialogFocus } from '../lib/dialogFocus';
 import { navigate } from '../lib/router';
 import { useScrollLock } from '../lib/scrollLock';
 
@@ -22,6 +23,7 @@ export function ProfilesScreen() {
   const [pinError, setPinError] = useState<string | null>(null);
 
   const choose = (profile: Profile, pin?: string) => {
+    if (select.isPending) return;
     select.mutate(
       { id: profile.id, pin },
       {
@@ -63,10 +65,11 @@ export function ProfilesScreen() {
               const busy = select.isPending && select.variables?.id === p.id;
               return (
                 <li key={p.id}>
+                  {/* Not `disabled` while a pick is pending: that would drop focus, which the PIN pad gives back. */}
                   <button
                     onClick={() => choose(p)}
-                    disabled={select.isPending}
-                    className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center disabled:cursor-wait"
+                    aria-disabled={select.isPending}
+                    className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center aria-disabled:cursor-wait"
                   >
                     <span className="relative">
                       <Avatar
@@ -141,7 +144,9 @@ function PinPad({
   onCancel: () => void;
 }) {
   const [pin, setPin] = useState('');
+  const dialog = useRef<HTMLDivElement>(null);
   useScrollLock();
+  useDialogFocus(dialog);
 
   const press = (digit: string) => {
     if (busy) return;
@@ -155,6 +160,7 @@ function PinPad({
 
   return (
     <motion.div
+      ref={dialog}
       className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
