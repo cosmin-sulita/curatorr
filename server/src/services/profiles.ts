@@ -22,6 +22,8 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
   try {
     users = await getHomeUsers(plex.clientId, plex.adminToken);
   } catch (err) {
+    // A refresh that can't read Plex Home must not change anyone's profile, let alone delete it.
+    if (store.profileRows(true).some((p) => p.plex_user_id != null)) throw err;
     log.warn({ err }, 'could not list Plex Home users; falling back to the owner only');
     users = [];
   }
