@@ -2,7 +2,7 @@ import { STEP_ORDER, type AppStatus, type WizardStep } from '@curatorr/shared';
 import { CenteredState, Shell, Wordmark } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
-import { errorMessage, useStatus } from './lib/api';
+import { errorMessage, isNetworkError, useStatus } from './lib/api';
 import { useLocation } from './lib/router';
 import { LikeScreen } from './screens/Like';
 import { PickScreen } from './screens/Pick';
@@ -28,11 +28,14 @@ export function App() {
     );
   }
 
-  if (status.error || !status.data) {
+  // Only when nothing has loaded yet. A later check that fails (say, coming back to the app while
+  // Wi-Fi reconnects) leaves the screen as it is, and its own requests say what went wrong.
+  if (!status.data) {
     return (
       <Shell bare>
         <CenteredState title="Can't reach Curatorr">
-          <Notice>{errorMessage(status.error)}</Notice>
+          {/* A server error adds something; a network error would only repeat the title. */}
+          {status.error && !isNetworkError(status.error) && <Notice>{errorMessage(status.error)}</Notice>}
           <p className="text-muted">Check that the Curatorr container is running and your device is on the right network.</p>
           <Button onClick={() => status.refetch()} loading={status.isFetching}>
             Try again
