@@ -90,7 +90,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
                 : 'No downloaded movies were found in Radarr yet.'}
             </p>
             {status?.library.lastError && <Notice>{status.library.lastError}</Notice>}
-            <Link to="/settings" className="font-semibold text-indigo-300 hover:underline">
+            <Link to="/settings" className="inline-flex min-h-11 items-center font-semibold text-indigo-300 hover:underline">
               Open settings
             </Link>
           </CenteredState>

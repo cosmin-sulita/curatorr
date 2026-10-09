@@ -140,7 +140,7 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrar
                 <label
                   key={c.url}
                   className={clsx(
-                    'flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition',
+                    'flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition',
                     active ? 'bg-accent/15 ring-1 ring-accent/50' : 'hover:bg-white/5',
                   )}
                 >

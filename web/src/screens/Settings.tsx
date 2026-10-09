@@ -280,7 +280,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             <label className="flex items-center justify-between gap-4">
               <span className="font-medium">Sync with Radarr every</span>
               <select
-                className="h-10 rounded-xl bg-ink px-3 ring-1 ring-line"
+                className="h-11 rounded-xl bg-ink px-3 ring-1 ring-line"
                 value={data.app.syncIntervalHours}
                 onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
               >
