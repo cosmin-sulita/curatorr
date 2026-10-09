@@ -2,7 +2,7 @@
 
 # Curatorr
 
-**What should we watch tonight?** Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived. Turn one down and the next is already waiting.
+**What should we watch tonight?** Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
 
 It's a self-hosted, installable PWA built for the *arr stack, with a look borrowed from Seerr.
 
@@ -10,7 +10,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get a pick right away.
 - **Something like…** Start from a movie you loved (what you watched lately is listed first, or search the library) and get the unwatched movies that share the most keywords and themes with it.
-- **Ranked by the Tomatometer.** IMDb and TMDB scores stand in when there's no RT score. Movies that just arrived rank higher for a few weeks.
+- **Ranked by the Tomatometer, and by you.** IMDb and TMDB scores stand in when there's no RT score. Movies that just arrived rank higher for a few weeks, and each person's picks lean toward what they watched lately, saying "Because you watched …" when that made the difference.
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
 - **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Watchlist" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
@@ -77,14 +77,16 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 2. **Tags**: each movie gets *themes* (Superheroes, Heists & Cons, Time Travel, Prison & Escape, Family Ties… 43 in all) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic, Moving). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse or match nothing. Generic keywords (*army*, *computer*) and TMDB's tone words (*amused*, *hopeful*) only back up a stronger signal, and idioms don't count (*cat and mouse* isn't about cats). Tags are refreshed on every sync and whenever Curatorr starts. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts); `npm run tags` shows how it fits your library (see Development).
 3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing), then:
    - up to + 8 for how strongly the theme/mood matches;
+   - up to ± 12 for taste (see below);
    - up to + 12 for a movie that just arrived in the library, fading over a few weeks. A movie only someone else requested doesn't get it;
    - + 8 if they requested it in Seerr and haven't watched it yet, otherwise + 6 if it's on their watchlist;
    - − 15 if you passed on it in the last two weeks. Each other pass in the last three months keeps it down two weeks longer;
    - − 4 for each earlier evening it was shown and not played, up to − 16, for a month. A pick shown in the last three hours doesn't count yet, so going back and answering the same way gives the same pick that evening.
 
    A small daily shuffle keeps near-ties from always landing on the same movie. It turns over at 4 am in the `TZ` you set, so it never changes mid-evening.
-4. **Close matches**: if fewer than six movies match every answer, the list is topped up with other movies of that genre and length, clearly labelled: first those matching the theme *or* the mood, then the rest.
-5. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, shown picks, requests, the watchlist, new arrivals and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
+4. **Taste**: what a profile watched (in Plex, started from Curatorr, or marked "Seen it") is summed up the way "Something like…" compares movies, with recent watches counting most. Movies that resemble it rank higher than the other matches, and ones that don't, lower. It counts for little until a profile has watched a few movies, and tonight's watches only count from tomorrow, so picks don't shift mid-evening. A pick it helped says "Because you watched …".
+5. **Close matches**: if fewer than six movies match every answer, the list is topped up with other movies of that genre and length, clearly labelled: first those matching the theme *or* the mood, then the rest.
+6. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, shown picks, requests, the watchlist, new arrivals and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
 
 ## Configuration
 

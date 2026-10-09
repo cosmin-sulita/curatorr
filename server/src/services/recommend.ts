@@ -6,6 +6,8 @@ import {
   rankMovies,
   rankSimilar,
   sagaState,
+  tasteEvents,
+  tasteProfile,
   wizardOptions,
   type Criteria,
   type FeedbackEvent,
@@ -80,7 +82,8 @@ export interface Picking {
   opts: RankOptions;
 }
 
-export function picking(d: ProfileData, now: number): Picking {
+/** `taste` also works out the profile's taste, which only ranking the picks needs. */
+export function picking(d: ProfileData, now: number, { taste = false } = {}): Picking {
   // Only insist on a Plex match when matching is actually working.
   const requirePlex = d.plexConfigured && d.movies.some((m) => m.plexRatingKey);
   const watched = new Set(d.watched.map((w) => w.movieId));
@@ -106,7 +109,15 @@ export function picking(d: ProfileData, now: number): Picking {
   return {
     ctx,
     eligible: eligibleMovies(d.movies, ctx),
-    opts: { now, seed: String(d.profileId), watchlist: d.watchlist, requested, othersRequested, sagas: ctx.sagas },
+    opts: {
+      now,
+      seed: String(d.profileId),
+      watchlist: d.watchlist,
+      requested,
+      othersRequested,
+      sagas: ctx.sagas,
+      taste: taste ? tasteProfile(d.movies, tasteEvents(d.watched, d.feedback), now) : undefined,
+    },
   };
 }
 
@@ -182,7 +193,7 @@ async function toResponse(store: Store, ranked: RankedMovie[]): Promise<Recommen
 }
 
 export async function recommendFor(store: Store, row: ProfileRow, criteria: Criteria): Promise<RecommendationsResponse> {
-  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now());
+  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now(), { taste: true });
   return toResponse(store, rankMovies(eligible, criteria, ctx.feedback, opts));
 }
 

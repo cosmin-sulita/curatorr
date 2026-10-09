@@ -5,3 +5,4 @@ export * from './sagas.js';
 export * from './scoring.js';
 export * from './changelog.js';
 export * from './similar.js';
+export * from './taste.js';

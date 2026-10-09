@@ -141,6 +141,14 @@ const ADDED_BONUS = 12;
 const ADDED_FADE_DAYS = 21;
 /** The "Added … ago" chip shows while the bonus is at least this (about two weeks). */
 const ADDED_CHIP_BONUS = 6;
+/**
+ * Taste: points per standard deviation of likeness to what the profile watched, among the movies
+ * being ranked, and the most it can add or take away. Scaled down while there's little history.
+ */
+const TASTE_POINTS = 6;
+const TASTE_MAX = 12;
+/** The "Because you watched …" chip shows when taste added at least this. */
+const TASTE_CHIP = 4;
 /** The next part of a saga the profile has started. */
 export const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
@@ -220,6 +228,36 @@ export interface RankOptions {
   /** Movies only other profiles requested: their arrival isn't news to this one. */
   othersRequested?: Set<number>;
   sagas?: SagaState;
+  /** What the profile tends to watch (see taste.ts). */
+  taste?: TasteProfile;
+}
+
+/** A profile's taste, learned from what it watched. */
+export interface TasteProfile {
+  /** How much taste counts: 0 without any history, nearing 1 with plenty. */
+  confidence: number;
+  /** How much a movie resembles what the profile watched, 0 to 1. */
+  affinity(m: Movie): number;
+  /** The watched movie a pick resembles most, to explain it. */
+  because(m: Movie): Movie | null;
+}
+
+/**
+ * Taste points per movie: its likeness compared with the other movies being ranked, so taste
+ * reorders them without favouring one question's movies over another's.
+ */
+export function tastePoints(pool: Movie[], taste?: TasteProfile): Map<number, number> {
+  const out = new Map<number, number>();
+  if (!taste?.confidence || pool.length < 2) return out;
+  const likeness = pool.map((m) => taste.affinity(m));
+  const mean = likeness.reduce((a, b) => a + b, 0) / likeness.length;
+  const sd = Math.sqrt(likeness.reduce((a, x) => a + (x - mean) ** 2, 0) / likeness.length);
+  if (sd < 1e-6) return out;
+  pool.forEach((m, i) => {
+    const points = (TASTE_POINTS * taste.confidence * (likeness[i]! - mean)) / sd;
+    out.set(m.id, Math.max(-TASTE_MAX, Math.min(TASTE_MAX, points)));
+  });
+  return out;
 }
 
 function sagaTotals(parts: Movie[]) {
@@ -248,6 +286,12 @@ export function pickingDay(now: number) {
   const d = new Date(now - DAY_TURNS_AT_HOUR * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** When the evening `now` belongs to began: the turnover hour on its picking day. */
+export function dayStart(now: number) {
+  const d = new Date(now - DAY_TURNS_AT_HOUR * 60 * 60 * 1000);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_TURNS_AT_HOUR).getTime();
 }
 
 export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): ProfileSignals {
@@ -361,6 +405,10 @@ export function rankMovies(
     }
   }
 
+  const taste = tastePoints(base, opts.taste);
+  /** Where each pick's taste chip goes: after the personal chips, before the ones for the answers. */
+  const tasteChipAt = new Map<number, number>();
+
   const tierOf = (m: Movie): number => {
     if (startsFor.has(m.id)) return 0;
     const theme = matchesTheme(m, c.theme);
@@ -397,26 +445,31 @@ export function rankMovies(
     }
     if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
     if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
+    score += taste.get(m.id) ?? 0;
 
     const adj = personalAdjustment(m, signals, opts);
     score += adj.delta;
 
+    const personal = [...wantedReasons(adj), ...sagaReasons, ...addedReasons(adj)];
+    tasteChipAt.set(m.id, personal.length);
     return {
       movie: m,
       score: Math.round(score * 10) / 10,
       quality: quality.value,
       qualitySource: quality.source,
       tier: tierOf(m),
-      reasons: [
-        ...wantedReasons(adj),
-        ...sagaReasons,
-        ...addedReasons(adj),
-        ...reasonsFor(m, c, quality),
-      ],
+      reasons: [...personal, ...reasonsFor(m, c, quality)],
     };
   });
 
-  return topRanked(ranked, opts.limit);
+  const top = topRanked(ranked, opts.limit);
+  // Explaining taste compares a pick with every watched movie, so only the picks that are shown get it.
+  for (const r of top.slice(0, MAX_RESULTS)) {
+    if ((taste.get(r.movie.id) ?? 0) < TASTE_CHIP) continue;
+    const like = opts.taste?.because(r.movie);
+    if (like) r.reasons.splice(tasteChipAt.get(r.movie.id)!, 0, { kind: 'taste', label: `Because you watched ${like.title}` });
+  }
+  return top;
 }
 
 // ---------------------------------------------------------------------------

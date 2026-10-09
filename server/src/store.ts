@@ -465,9 +465,10 @@ export class Store {
       .all(profileId) as { id: number; movieId: number; kind: 'seen' | 'never' | 'later'; createdAt: number }[];
   }
 
+  /** Shows and skips only matter for a while. Plays started from Curatorr are kept: they're part of a profile's taste. */
   private pruneFeedback() {
     this.db
-      .prepare("DELETE FROM feedback WHERE kind IN ('shown', 'skipped', 'accepted') AND created_at < ?")
+      .prepare("DELETE FROM feedback WHERE kind IN ('shown', 'skipped') AND created_at < ?")
       .run(Date.now() - FEEDBACK_RETENTION_MS);
   }
 }

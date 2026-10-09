@@ -261,7 +261,7 @@ function replay(profileId: number): Watch[] {
   return replayable.map((w) => {
     const m = movieById.get(w.movie_id)!;
     const at = w.viewed_at! - 60_000;
-    const p = picking(dataAt(profileId, at, [], m.id), at);
+    const p = picking(dataAt(profileId, at, [], m.id), at, { taste: true });
     const watch: Watch = {
       key: `${m.id}|${w.viewed_at}`,
       at,
@@ -335,7 +335,7 @@ function scoreTable(watches: Watch[]) {
 
 /** The same answers every evening, the first pick shown (as the pick screen logs it) and not played. */
 function staleness(profileId: number) {
-  const start = picking(dataAt(profileId, nextEvening), nextEvening);
+  const start = picking(dataAt(profileId, nextEvening), nextEvening, { taste: true });
   const facet = { image: noImage, sagaStarters: start.ctx.sagas?.starters };
   const genres = wizardOptions(start.eligible, 'genre', {}, facet).options.slice(0, 5);
   const answers: [string, Criteria][] = [['Surprise me', {}], ...genres.map((g): [string, Criteria] => [g.label, { genre: g.id }])];
@@ -345,7 +345,7 @@ function staleness(profileId: number) {
     const firsts: number[] = [];
     for (let d = 0; d < EVENINGS; d++) {
       const at = nextEvening + d * DAY;
-      const p = picking(dataAt(profileId, at, shown), at);
+      const p = picking(dataAt(profileId, at, shown), at, { taste: true });
       const top = rank(p, c)[0];
       if (!top) break;
       firsts.push(top.movie.id);
@@ -367,7 +367,7 @@ function staleness(profileId: number) {
 // ---------------------------------------------------------------------------
 
 function tonight(profileId: number) {
-  const p = picking(dataAt(profileId, nextEvening), nextEvening);
+  const p = picking(dataAt(profileId, nextEvening), nextEvening, { taste: true });
   const paths = wizardPaths(p);
   let weight = 0;
   let bestRated = 0;
