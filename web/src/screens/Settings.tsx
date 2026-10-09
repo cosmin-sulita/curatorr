@@ -186,8 +186,15 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
     qc.removeQueries({ queryKey: ['recommendations'] });
   };
 
+  // Switches move as soon as they're tapped; the refresh after saving settles the real state.
+  const optimistic = async (change: (d: SettingsResponse) => SettingsResponse) => {
+    await qc.cancelQueries({ queryKey: ['settings'] });
+    qc.setQueryData<SettingsResponse>(['settings'], (d) => d && change(d));
+  };
+
   const updateApp = (patch: Partial<SettingsResponse['app']>) =>
     run(async () => {
+      await optimistic((d) => ({ ...d, app: { ...d.app, ...patch } }));
       await api('/api/settings/app', { method: 'PUT', json: patch });
       clearPicks();
     });
@@ -408,6 +415,10 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                 onChange={(show) =>
                   run(async () => {
                     if (p.isAdmin && !show) throw new Error("The owner's profile can't be hidden");
+                    await optimistic((d) => ({
+                      ...d,
+                      profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
+                    }));
                     await api(`/api/profiles/${p.id}`, { method: 'PATCH', json: { hidden: !show } });
                     qc.invalidateQueries({ queryKey: ['profiles'] });
                   })
