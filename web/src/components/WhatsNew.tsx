@@ -72,7 +72,8 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.96, y: 8 }}
       >
-        <span className="grid size-11 place-items-center rounded-2xl bg-accent-gradient text-white">
+        {/* shrink-0 here and on the button: long notes scroll, they don't squash the rest. */}
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-gradient text-white">
           <Sparkles className="size-5" />
         </span>
         <h2 id="whats-new-title" className="mt-4 font-display text-4xl">
@@ -80,7 +81,13 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
         </h2>
         <p className="mt-1 text-sm text-muted">Curatorr {appVersion}</p>
 
-        <div className="-mx-6 mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-6">
+        {/* Focusable, so the notes scroll from the keyboard too. */}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Release notes"
+          className="-mx-6 mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 focus-visible:outline-offset-[-2px]"
+        >
           {releases.map((r) => (
             <section key={r.version}>
               {several && (
@@ -111,7 +118,7 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
           ))}
         </div>
 
-        <Button variant="primary" className="mt-6 w-full" onClick={onClose} autoFocus>
+        <Button variant="primary" className="mt-6 w-full shrink-0" onClick={onClose} autoFocus>
           Got it
         </Button>
       </motion.div>
