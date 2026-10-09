@@ -131,7 +131,38 @@ describe('rankMovies', () => {
     const a = movie({ ratings: { rt: 90 } });
     const fresh = rank([a])[0]!.score;
     const shownYesterday = rank([a], {}, [{ movieId: a.id, kind: 'shown', createdAt: NOW - 86_400_000 }])[0]!.score;
-    expect(shownYesterday).toBeCloseTo(fresh - 5, 5);
+    expect(shownYesterday).toBeCloseTo(fresh - 4, 5);
+  });
+
+  it('demotes a pick more for each evening it was shown, up to a limit, for a month', () => {
+    // Evenings turn over at 4 am local time; in UTC, every show here is at 8 pm or 7 pm.
+    vi.stubEnv('TZ', 'UTC');
+    try {
+      const a = movie({ ratings: { rt: 90 } });
+      const fresh = rank([a])[0]!.score;
+      const shownOn = (...daysAgo: number[]) =>
+        rank([a], {}, daysAgo.map((d) => ({ movieId: a.id, kind: 'shown' as const, createdAt: NOW - d * DAY })))[0]!.score;
+      expect(shownOn(1, 2, 3)).toBeCloseTo(fresh - 12, 5);
+      // Twice on one evening is one evening.
+      expect(shownOn(1, 1 + 1 / 24)).toBeCloseTo(fresh - 4, 5);
+      expect(shownOn(1, 2, 3, 4, 5, 6, 7)).toBeCloseTo(fresh - 16, 5);
+      expect(shownOn(31, 40)).toBeCloseTo(fresh, 5);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('keeps a movie down longer each time it is skipped', () => {
+    const a = movie({ ratings: { rt: 90 } });
+    const fresh = rank([a])[0]!.score;
+    const skippedOn = (...daysAgo: number[]) =>
+      rank([a], {}, daysAgo.map((d) => ({ movieId: a.id, kind: 'skipped' as const, createdAt: NOW - d * DAY })))[0]!.score;
+    expect(skippedOn(20)).toBeCloseTo(fresh, 5);
+    // Skipped twice: four weeks from the last time.
+    expect(skippedOn(20, 50)).toBeCloseTo(fresh - 15, 5);
+    expect(skippedOn(30, 50)).toBeCloseTo(fresh, 5);
+    // Skips older than three months are forgotten.
+    expect(skippedOn(20, 100)).toBeCloseTo(fresh, 5);
   });
 
   it('filters by genre and runtime', () => {

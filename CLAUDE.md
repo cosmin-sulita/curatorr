@@ -71,8 +71,8 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts Plex only if Curatorr changed it.
 - **Ranking:**
   - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
-  - **Skips:** `skipped` costs −15 for 14 days.
-  - **Shown picks:** `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+  - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.
+  - **Shown picks:** `shown` costs −4 per earlier evening shown in the last 30 days, up to −16. It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
   - **New arrivals:** a movie Radarr added lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. Movies only another profile requested don't get it.
 
 ### Releases and What's new

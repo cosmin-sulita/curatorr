@@ -115,10 +115,14 @@ export function matchesCriteria(m: Movie, c: Criteria) {
 // ---------------------------------------------------------------------------
 
 const DAY = 24 * 60 * 60 * 1000;
+/** "Not tonight" keeps a movie down for two weeks, and two more for each other skip in the last 90 days. */
 const SKIP_PENALTY = 15;
 const SKIP_WINDOW = 14 * DAY;
-const SHOWN_PENALTY = 5;
-const SHOWN_WINDOW = 3 * DAY;
+const SKIP_MEMORY = 90 * DAY;
+/** Each earlier evening a pick was shown and not played costs this, up to the maximum, for a month. */
+const SHOWN_PENALTY = 4;
+const SHOWN_PENALTY_MAX = 16;
+const SHOWN_WINDOW = 30 * DAY;
 /** A pick shown this evening isn't demoted yet, so answering the same way again gives the same pick. */
 const SHOWN_GRACE = 3 * 60 * 60 * 1000;
 const MAX_THEME_BONUS = 5;
@@ -226,8 +230,10 @@ function sagaTotals(parts: Movie[]) {
 
 /** What the profile did lately, looked up once per ranking. */
 export interface ProfileSignals {
-  skipped: Map<number, number>;
-  shown: Map<number, number>;
+  /** When each movie was last skipped, and how many times in the last 90 days. */
+  skips: Map<number, { last: number; count: number }>;
+  /** On how many earlier evenings of the last month each movie was shown. */
+  shownEvenings: Map<number, number>;
   wanted: Set<number>;
   requested: Set<number>;
   othersRequested: Set<number>;
@@ -245,9 +251,23 @@ export function pickingDay(now: number) {
 }
 
 export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): ProfileSignals {
+  const skips = new Map<number, { last: number; count: number }>();
+  const shownDays = new Map<number, Set<string>>();
+  for (const e of feedback) {
+    const age = opts.now - e.createdAt;
+    if (e.kind === 'skipped' && age < SKIP_MEMORY) {
+      const s = skips.get(e.movieId);
+      skips.set(e.movieId, { last: Math.max(s?.last ?? 0, e.createdAt), count: (s?.count ?? 0) + 1 });
+    } else if (e.kind === 'shown' && age > SHOWN_GRACE && age < SHOWN_WINDOW) {
+      // Shown twice in one evening is still one evening.
+      const days = shownDays.get(e.movieId) ?? new Set<string>();
+      days.add(pickingDay(e.createdAt));
+      shownDays.set(e.movieId, days);
+    }
+  }
   return {
-    skipped: latestByKind(feedback, 'skipped'),
-    shown: latestByKind(feedback, 'shown'),
+    skips,
+    shownEvenings: new Map([...shownDays].map(([id, days]) => [id, days.size])),
     wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
     requested: opts.requested ?? new Set(),
     othersRequested: opts.othersRequested ?? new Set(),
@@ -264,10 +284,9 @@ function daysInLibrary(m: Movie, now: number): number | null {
 /** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */
 export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
   let delta = 0;
-  const skippedAt = s.skipped.get(m.id);
-  if (skippedAt && opts.now - skippedAt < SKIP_WINDOW) delta -= SKIP_PENALTY;
-  const shownAt = s.shown.get(m.id);
-  if (shownAt && opts.now - shownAt > SHOWN_GRACE && opts.now - shownAt < SHOWN_WINDOW) delta -= SHOWN_PENALTY;
+  const skip = s.skips.get(m.id);
+  if (skip && opts.now - skip.last < SKIP_WINDOW * skip.count) delta -= SKIP_PENALTY;
+  delta -= Math.min(SHOWN_PENALTY_MAX, SHOWN_PENALTY * (s.shownEvenings.get(m.id) ?? 0));
   const onWatchlist = s.wanted.has(m.id);
   const requested = s.requested.has(m.id);
   // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.
