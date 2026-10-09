@@ -194,19 +194,21 @@ describe('API (demo data)', () => {
 
   it('favours Seerr requests for whoever made them, and labels them', async () => {
     const dune = (res: RecommendationsResponse) => res.picks.find((p) => p.movie.title === 'Dune: Part Two')!;
+    // Few enough space movies that Dune is always among the picks, whatever the daily shuffle.
+    const space = 'genre=Science%20Fiction&theme=space';
     const alex = await cookieFor('Alex');
     const sam = await cookieFor('Sam');
-    expect(dune(await picksFor(alex, 'genre=Science%20Fiction')).reasons[0]).toEqual({
+    expect(dune(await picksFor(alex, space)).reasons[0]).toEqual({
       kind: 'requested',
       label: 'You requested this',
     });
-    expect(dune(await picksFor(sam, 'genre=Science%20Fiction')).reasons.some((r) => r.kind === 'requested')).toBe(false);
+    expect(dune(await picksFor(sam, space)).reasons.some((r) => r.kind === 'requested')).toBe(false);
 
     const setBoost = (boostRequests: boolean) =>
       app.inject({ method: 'PUT', url: '/api/settings/app', headers: { cookie: alex }, payload: { boostRequests } });
     await setBoost(false);
     try {
-      const off = dune(await picksFor(alex, 'genre=Science%20Fiction'));
+      const off = dune(await picksFor(alex, space));
       expect(off.reasons.some((r) => r.kind === 'requested')).toBe(false);
     } finally {
       await setBoost(true);

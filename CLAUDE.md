@@ -17,6 +17,7 @@ npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one 
 npm run typecheck    # tsc on shared, server and web in turn
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
 npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
+npm run eval         # ranking report on config/curatorr.db; -- --save <file> then -- --compare <file> measures a change
 ```
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
@@ -46,7 +47,11 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
   - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id. `retag()` also runs at startup, so a vocabulary change applies without a sync.
   - `scripts/tags.ts` (`npm run tags`): a read-only report on a copy of a real database. Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against it: coverage, untagged movies, unmatched keywords, and terms found inside longer keywords (idiom candidates), compared with the stored tags.
-  - `services/recommend.ts` builds the per-profile context and calls the shared ranking.
+  - `scripts/eval.ts` (`npm run eval`): replays the watch history in a copy of a real database through the working copy's ranking.
+    - For each watch it rebuilds that evening's library and history and asks the questions the wizard offered then. It reports MRR and hit@k, splitting movies that had just arrived from the backlog.
+    - It also simulates evenings of ignored picks (staleness) and saves or compares runs with paired 95% intervals.
+    - It's read-only and never reads `settings`. Measure ranking changes with it rather than by feel.
+  - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
   - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional and set up in Settings only; a failed read keeps the last requests.
   - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.

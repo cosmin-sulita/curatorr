@@ -8,7 +8,8 @@
     "dev:demo": "tsx watch --clear-screen=false src/index.ts --demo",
     "build": "node build.mjs",
     "start": "node --disable-warning=ExperimentalWarning dist/index.js",
-    "tags": "tsx src/scripts/tags.ts"
+    "tags": "tsx src/scripts/tags.ts",
+    "eval": "tsx src/scripts/eval.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

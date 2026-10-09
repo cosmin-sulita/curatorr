@@ -8,9 +8,12 @@ import {
   sagaState,
   wizardOptions,
   type Criteria,
+  type FeedbackEvent,
   type LikeSeed,
+  type Movie,
   type MovieDTO,
   type ProfileContext,
+  type RankOptions,
   type RankedMovie,
   type RecommendationsResponse,
   type WizardOptionsResponse,
@@ -29,34 +32,76 @@ const lookupsPausedUntil = new WeakMap<Store, number>();
 const LIKE_RECENT = 60;
 const LIKE_SEARCH = 30;
 
-function allowedCerts(row: ProfileRow): Set<string> | null {
-  const restriction = row.restriction_profile as keyof typeof RESTRICTION_CERTS | null;
-  return restriction && RESTRICTION_CERTS[restriction] ? new Set(RESTRICTION_CERTS[restriction]) : null;
+function allowedCerts(restriction: string | null): Set<string> | null {
+  const certs = restriction ? RESTRICTION_CERTS[restriction as keyof typeof RESTRICTION_CERTS] : undefined;
+  return certs ? new Set(certs) : null;
 }
 
-export function profileContext(store: Store, row: ProfileRow): ProfileContext {
-  const movies = store.movies();
+/** Everything ranking needs to know about a profile. `npm run eval` builds it for earlier moments too. */
+export interface ProfileData {
+  profileId: number;
+  restriction: string | null;
+  movies: Movie[];
+  /** What the profile watched in Plex, and when. */
+  watched: { movieId: number; viewedAt: number | null }[];
+  feedback: FeedbackEvent[];
+  /** The profile's Plex Watchlist. */
+  watchlist: Set<number>;
+  /** Library movies this profile requested in Seerr. */
+  requested: Set<number>;
+  plexConfigured: boolean;
+  includeWatched: boolean;
+  boostRequests: boolean;
+}
+
+export function profileData(store: Store, row: ProfileRow): ProfileData {
+  const app = store.get('app');
+  return {
+    profileId: row.id,
+    restriction: row.restriction_profile,
+    movies: store.movies(),
+    watched: store.watchHistory(row.id),
+    feedback: store.feedback(row.id),
+    watchlist: store.watchlistIds(row.id),
+    requested: store.requestedIds(row.id),
+    plexConfigured: store.plexConfigured(),
+    includeWatched: app.includeWatched,
+    boostRequests: app.boostRequests,
+  };
+}
+
+/** A profile's context for ranking at `now`: what it may be offered, and the options to rank it with. */
+export interface Picking {
+  ctx: ProfileContext;
+  eligible: Movie[];
+  opts: RankOptions;
+}
+
+export function picking(d: ProfileData, now: number): Picking {
   // Only insist on a Plex match when matching is actually working.
-  const requirePlex = store.plexConfigured() && movies.some((m) => m.plexRatingKey);
-  const watched = store.watchedIds(row.id);
-  const feedback = store.feedback(row.id);
-  const certs = allowedCerts(row);
+  const requirePlex = d.plexConfigured && d.movies.some((m) => m.plexRatingKey);
+  const watched = new Set(d.watched.map((w) => w.movieId));
+  const certs = allowedCerts(d.restriction);
   // For sagas, "watched" also covers "Seen it", and only parts this profile can play and may see
   // count: a part held back by its restrictions mustn't hold back the sequels it may watch.
-  const seen = new Set([...watched, ...feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
-  const playable = movies.filter((m) => (!requirePlex || m.plexRatingKey) && certAllowed(m, certs));
-  const app = store.get('app');
+  const seen = new Set([...watched, ...d.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
+  const playable = d.movies.filter((m) => (!requirePlex || m.plexRatingKey) && certAllowed(m, certs));
   // Only requests still waiting to be watched get the boost and the label.
-  const requested = app.boostRequests ? [...store.requestedIds(row.id)].filter((id) => !seen.has(id)) : [];
-  return {
+  const requested = new Set(d.boostRequests ? [...d.requested].filter((id) => !seen.has(id)) : []);
+  const ctx: ProfileContext = {
     watched,
-    feedback,
+    feedback: d.feedback,
     sagas: sagaState(playable, seen),
     allowedCerts: certs,
     requirePlex,
-    includeWatched: app.includeWatched,
-    watchlist: store.watchlistIds(row.id),
-    requested: new Set(requested),
+    includeWatched: d.includeWatched,
+    watchlist: d.watchlist,
+    requested,
+  };
+  return {
+    ctx,
+    eligible: eligibleMovies(d.movies, ctx),
+    opts: { now, seed: String(d.profileId), watchlist: d.watchlist, requested, sagas: ctx.sagas },
   };
 }
 
@@ -111,8 +156,7 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
 }
 
 export function optionsFor(store: Store, row: ProfileRow, step: WizardStep, criteria: Criteria): WizardOptionsResponse {
-  const ctx = profileContext(store, row);
-  const eligible = eligibleMovies(store.movies(), ctx);
+  const { ctx, eligible } = picking(profileData(store, row), Date.now());
   return wizardOptions(eligible, step, criteria, {
     image: (m, kind) => (kind === 'fanart' ? (m.fanartUrl ?? m.posterUrl) : (m.posterUrl ?? m.fanartUrl)),
     sagaStarters: ctx.sagas?.starters,
@@ -133,31 +177,16 @@ async function toResponse(store: Store, ranked: RankedMovie[]): Promise<Recommen
 }
 
 export async function recommendFor(store: Store, row: ProfileRow, criteria: Criteria): Promise<RecommendationsResponse> {
-  const ctx = profileContext(store, row);
-  const eligible = eligibleMovies(store.movies(), ctx);
-  const ranked = rankMovies(eligible, criteria, ctx.feedback, {
-    now: Date.now(),
-    seed: String(row.id),
-    watchlist: ctx.watchlist,
-    requested: ctx.requested,
-    sagas: ctx.sagas,
-  });
-  return toResponse(store, ranked);
+  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now());
+  return toResponse(store, rankMovies(eligible, criteria, ctx.feedback, opts));
 }
 
 /** "Something like…": the eligible movies that share the most with one the profile loved. */
 export async function similarFor(store: Store, row: ProfileRow, likedId: number): Promise<RecommendationsResponse> {
-  const ctx = profileContext(store, row);
+  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now());
   const liked = store.movie(likedId);
   if (!liked || !certAllowed(liked, ctx.allowedCerts)) throw new HttpError(404, 'Movie not found');
-  const eligible = eligibleMovies(store.movies(), ctx);
-  const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, {
-    now: Date.now(),
-    seed: String(row.id),
-    watchlist: ctx.watchlist,
-    requested: ctx.requested,
-    sagas: ctx.sagas,
-  });
+  const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, opts);
   return { ...(await toResponse(store, ranked)), like: { id: liked.id, title: liked.title } };
 }
 
@@ -174,7 +203,7 @@ export function likeSeeds(store: Store, row: ProfileRow, q = ''): LikeSeed[] {
   for (const e of store.feedback(row.id)) {
     if (e.kind === 'seen') watchedAt.set(e.movieId, Math.max(watchedAt.get(e.movieId) ?? 0, e.createdAt));
   }
-  const certs = allowedCerts(row);
+  const certs = allowedCerts(row.restriction_profile);
   const movies = store.movies().filter((m) => certAllowed(m, certs));
   const toSeed = (m: StoredMovie): LikeSeed => ({
     id: m.id,

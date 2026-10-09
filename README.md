@@ -104,9 +104,12 @@ npm test           # tagger, ranking, Plex matching and API tests
 npm run typecheck
 npm run build      # web/dist + server/dist
 npm run tags       # how the theme/mood vocabulary fits a real library (see below)
+npm run eval       # how well the ranking predicts what a real library's profiles watched
 ```
 
 To tune the vocabulary against your own library, copy `curatorr.db` (with its `-wal` and `-shm` files) from Curatorr's config folder into `config/`, which git ignores. `npm run tags` then reports coverage, untagged movies, keywords nothing matches and terms found inside longer keywords, compared with the tags the server last stored. `-- --movie <title>` explains one movie's tags and `-- --tag <id>` lists what a theme or mood gains and loses. The database is only read.
+
+`npm run eval` replays the same copy's Plex watch history through the working copy's ranking. Each watch is ranked with the library and history as they were that evening, for the questions the wizard offered then, separately for movies that had just arrived and for the backlog. It also simulates evenings of ignored picks, to show how quickly the first pick rotates. Save a run with `-- --save run.json` and compare a change with it, watch by watch, using `-- --compare run.json`. Again, the database is only read, and never its settings.
 
 The repo is an npm workspace:
 
