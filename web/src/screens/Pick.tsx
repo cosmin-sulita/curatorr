@@ -305,7 +305,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 />
               )}
               {!swiped && !shuffling && (
-                <p className="mt-3 text-center text-xs text-faint md:hidden">Swipe left for the next pick</p>
+                <p className="mt-3 text-center text-xs text-muted md:hidden">Swipe left for the next pick</p>
               )}
             </motion.div>
           </AnimatePresence>
@@ -323,7 +323,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 </p>
               ) : (
                 <>
-                  <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-300')}>
+                  <p className={clsx('text-sm font-semibold', current.closeMatch ? 'text-amber-300' : 'text-indigo-200')}>
                     {data?.like
                       ? `${current.closeMatch ? 'A bit like' : 'Something like'} ${data.like.title}`
                       : current.closeMatch
@@ -511,8 +511,10 @@ function Backdrop({ src }: { src: string | null }) {
           />
         )}
       </AnimatePresence>
-      <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/85 to-ink md:from-ink/20 md:via-ink/70" />
-      <div className="absolute inset-0 hidden bg-gradient-to-r from-ink via-ink/60 to-transparent md:block" />
+      <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/85 to-ink md:from-ink/30 md:via-ink/75" />
+      <div className="absolute inset-0 hidden bg-gradient-to-r from-ink via-ink/75 to-transparent md:block" />
+      {/* Keeps the header readable when the fanart is bright. */}
+      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-ink/80 to-transparent md:h-40 md:from-ink/90" />
     </div>
   );
 }
