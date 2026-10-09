@@ -117,7 +117,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
             {STEP_ORDER.map((s, i) => (
               <li
                 key={s}
-                className={clsx('h-1.5 rounded-full transition-all', i === index ? 'w-6 bg-accent-gradient' : 'w-1.5', i < index ? 'bg-fg/60' : i > index && 'bg-raised')}
+                className={clsx('h-1.5 rounded-full transition-all', i === index ? 'w-6 bg-accent-gradient' : 'w-1.5', i < index ? 'bg-fg/60' : i > index && 'bg-faint/70')}
               />
             ))}
           </ol>
