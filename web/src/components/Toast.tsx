@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface ToastInput {
   message: string;
@@ -27,6 +27,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => setToast((cur) => (cur?.id === id ? null : cur)), t.duration ?? 5000);
   }, []);
 
+  // Undo is last in the tab order and gone in a few seconds, so Ctrl+Z / ⌘Z runs it from the keyboard
+  // (except while typing, where it's the field's own undo).
+  const undo = toast?.action?.label === 'Undo' ? toast.action : null;
+  useEffect(() => {
+    if (!undo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
+      e.preventDefault();
+      undo.run();
+      setToast(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo]);
+
   return (
     <ToastContext.Provider value={show}>
       {children}
@@ -49,6 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               {toast.action && (
                 <button
                   className="grid min-h-11 shrink-0 place-items-center rounded-lg px-3 font-semibold text-indigo-300 hover:bg-white/5"
+                  aria-keyshortcuts={toast.action === undo ? 'Control+Z Meta+Z' : undefined}
                   onClick={() => {
                     toast.action!.run();
                     setToast(null);
