@@ -143,7 +143,8 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       className={clsx(
         // The ::before box makes the tap area 64×44 without changing how the switch looks.
         "relative h-7 w-12 shrink-0 rounded-full transition before:absolute before:-inset-2 before:content-['']",
-        checked ? 'bg-accent-gradient' : 'bg-raised ring-1 ring-line',
+        // Off, the track keeps a visible edge (3:1), or the knob alone doesn't show which side it's on.
+        checked ? 'bg-accent-gradient' : 'bg-raised ring-1 ring-white/35',
       )}
     >
       <span
