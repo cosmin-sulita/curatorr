@@ -409,21 +409,23 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                   {p.plexUser && !p.linked && ', waiting for PIN'}
                 </span>
               </span>
-              <Toggle
-                label={`Show ${p.name}`}
-                checked={!p.hidden}
-                onChange={(show) =>
-                  run(async () => {
-                    if (p.isAdmin && !show) throw new Error("The owner's profile can't be hidden");
-                    await optimistic((d) => ({
-                      ...d,
-                      profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
-                    }));
-                    await api(`/api/profiles/${p.id}`, { method: 'PATCH', json: { hidden: !show } });
-                    qc.invalidateQueries({ queryKey: ['profiles'] });
-                  })
-                }
-              />
+              {/* The owner always shows; the server won't hide them. */}
+              {!p.isAdmin && (
+                <Toggle
+                  label={`Show ${p.name}`}
+                  checked={!p.hidden}
+                  onChange={(show) =>
+                    run(async () => {
+                      await optimistic((d) => ({
+                        ...d,
+                        profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
+                      }));
+                      await api(`/api/profiles/${p.id}`, { method: 'PATCH', json: { hidden: !show } });
+                      qc.invalidateQueries({ queryKey: ['profiles'] });
+                    })
+                  }
+                />
+              )}
             </li>
           ))}
         </ul>
