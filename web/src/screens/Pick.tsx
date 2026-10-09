@@ -449,7 +449,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                     </span>
                     <span className="flex gap-2 text-xs text-muted">
                       {p.movie.ratings.rt != null ? (
-                        <span className="font-semibold text-fg/80">{Math.round(p.movie.ratings.rt)}%</span>
+                        <span className="font-semibold text-fg/80">
+                          <span className="sr-only">Rotten Tomatoes </span>
+                          {Math.round(p.movie.ratings.rt)}%
+                        </span>
                       ) : (
                         p.movie.ratings.imdb != null && <span>IMDb {p.movie.ratings.imdb.toFixed(1)}</span>
                       )}

@@ -35,6 +35,7 @@ export function RatingBadges({ ratings, size = 'md' }: { ratings: RatingsData; s
       {ratings.rt != null && (
         <span className="inline-flex items-center gap-1.5" title="Rotten Tomatoes tomatometer">
           <TomatoMark fresh={ratings.rt >= 60} className={big ? 'size-7' : 'size-4'} />
+          <span className="sr-only">Rotten Tomatoes</span>
           <span className={clsx('font-bold tabular-nums', big ? 'text-2xl font-narrow' : 'text-sm')}>
             {Math.round(ratings.rt)}%
           </span>
