@@ -2,6 +2,30 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.9.0 (2026-10-09)
+
+- chore(git): ignore brag-output folders ([523691a](https://github.com/cosmin-sulita/curatorr/commit/523691a))
+- fix(settings): stop offering a switch to hide the owner's profile ([c0d8755](https://github.com/cosmin-sulita/curatorr/commit/c0d8755))
+- fix(app): make a few small controls easier to tap ([0d3cfbc](https://github.com/cosmin-sulita/curatorr/commit/0d3cfbc))
+- fix(app): show the outline of a switch that's off ([b9836e6](https://github.com/cosmin-sulita/curatorr/commit/b9836e6))
+- fix(picks): name Rotten Tomatoes for screen readers ([7439462](https://github.com/cosmin-sulita/curatorr/commit/7439462))
+- fix(wizard): make the dots for questions still to come visible ([eedb495](https://github.com/cosmin-sulita/curatorr/commit/eedb495))
+- fix(picks): show the ratings above the action bar on small phones ([8ecd97c](https://github.com/cosmin-sulita/curatorr/commit/8ecd97c))
+- fix(picks): keep the header and small text readable over bright backdrops ([490b290](https://github.com/cosmin-sulita/curatorr/commit/490b290))
+- fix(app): undo a mark or skip with Ctrl+Z or ⌘Z ([c67c77d](https://github.com/cosmin-sulita/curatorr/commit/c67c77d))
+- fix(picks): keep keyboard focus on the button you pressed between picks ([0e08a1a](https://github.com/cosmin-sulita/curatorr/commit/0e08a1a))
+- fix(settings): move switches as soon as you tap them ([7f6d14c](https://github.com/cosmin-sulita/curatorr/commit/7f6d14c))
+- fix(app): keep the screen when Curatorr can't be reached for a moment ([d866af4](https://github.com/cosmin-sulita/curatorr/commit/d866af4))
+- fix(picks): keep a pick's buttons in view on laptop-sized windows ([bf8ca81](https://github.com/cosmin-sulita/curatorr/commit/bf8ca81))
+- fix(settings): confirm Restore and Remove, and offer Undo ([4be0c3c](https://github.com/cosmin-sulita/curatorr/commit/4be0c3c))
+- fix(setup): stop connecting Plex from ending at an error with no way forward ([2880507](https://github.com/cosmin-sulita/curatorr/commit/2880507))
+- fix(app): keep the What's new button full size when there are many notes ([2e3f65e](https://github.com/cosmin-sulita/curatorr/commit/2e3f65e))
+- fix(picks): show the next pick from the top after scrolling down ([e28ef31](https://github.com/cosmin-sulita/curatorr/commit/e28ef31))
+- feat(picks): lean toward what each person watched lately ([c455393](https://github.com/cosmin-sulita/curatorr/commit/c455393))
+- feat(picks): rotate picks you keep passing over ([0011ab2](https://github.com/cosmin-sulita/curatorr/commit/0011ab2))
+- feat(picks): favour movies that just arrived in the library ([c5620ea](https://github.com/cosmin-sulita/curatorr/commit/c5620ea))
+- chore(scripts): measure picks against a real library's watch history ([1702a4b](https://github.com/cosmin-sulita/curatorr/commit/1702a4b))
+
 ## 0.8.0 (2026-10-08)
 
 - feat(profiles): give blobatars friendlier shapes in one tone ([5b58ccc](https://github.com/cosmin-sulita/curatorr/commit/5b58ccc))
