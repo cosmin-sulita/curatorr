@@ -9,6 +9,7 @@ import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   api,
   errorMessage,
+  sendFeedback,
   undoFeedback,
   useHidden,
   useSettings,
@@ -78,17 +79,34 @@ function ProfileLists({ name }: { name: string }) {
   const marked = useHidden();
   const qc = useQueryClient();
   const toast = useToast();
-  const unmark = async (id: number) => {
-    try {
-      const res = await undoFeedback(id);
-      if (res.plex === 'failed') toast({ message: "Removed here, but Plex couldn't be updated" });
-    } catch (err) {
-      toast({ message: errorMessage(err) });
-    }
+  const refresh = () => {
     qc.invalidateQueries({ queryKey: ['hidden'] });
     qc.invalidateQueries({ queryKey: ['wizard'] });
     qc.invalidateQueries({ queryKey: ['like'] });
     qc.removeQueries({ queryKey: ['recommendations'] });
+  };
+  // Like the marks on a pick: say what happened, and Undo by marking the movie again.
+  const unmark = async (h: HiddenMovie) => {
+    try {
+      const res = await undoFeedback(h.id);
+      const done = h.kind === 'later' ? `Removed ${h.movie.title} from your watchlist` : `Restored ${h.movie.title}`;
+      toast({
+        message: res.plex === 'failed' ? `${done}, but couldn't update Plex` : done,
+        action: {
+          label: 'Undo',
+          run: () =>
+            sendFeedback(h.movie.id, h.kind)
+              .then((r) => {
+                if (r.plex === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+              })
+              .catch((err) => toast({ message: errorMessage(err) }))
+              .finally(refresh),
+        },
+      });
+    } catch (err) {
+      toast({ message: errorMessage(err) });
+    }
+    refresh();
   };
 
   const later = marked.data?.filter((m) => m.kind === 'later') ?? [];
@@ -105,7 +123,7 @@ function ProfileLists({ name }: { name: string }) {
               {h.kind === 'later' ? 'On your watchlist' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
             </span>
           </span>
-          <Button variant="ghost" onClick={() => unmark(h.id)}>
+          <Button variant="ghost" onClick={() => unmark(h)} aria-label={`${action} ${h.movie.title}`}>
             {action}
           </Button>
         </li>
