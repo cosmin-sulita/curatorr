@@ -279,7 +279,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       {/* No backdrop while shuffling: the pick's fanart would give it away. */}
       <Backdrop src={shuffling ? null : (m.fanartUrl ?? m.posterUrl)} />
       <Shell wide>
-        <div className="grid gap-5 pt-[2vh] md:grid-cols-[minmax(0,320px)_1fr] md:items-end md:gap-12 md:pt-[24vh]">
+        {/* Desktop leaves room for the backdrop above, but little enough to keep the actions on a laptop screen. */}
+        <div className="grid gap-5 pt-[2vh] md:grid-cols-[minmax(0,320px)_1fr] md:items-end md:gap-12 md:pt-[16vh]">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={m.id}
