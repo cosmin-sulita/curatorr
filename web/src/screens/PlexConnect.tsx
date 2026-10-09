@@ -67,7 +67,7 @@ export function PlexConnect({
   }
 
   if (stage === 'libraries') {
-    return <LibraryPicker libraries={libraries} onSaved={() => setStage('users')} />;
+    return <LibraryPicker libraries={libraries} onSaved={() => setStage('users')} onBack={() => setStage('server')} />;
   }
 
   return <UserImport onDone={onDone} />;
@@ -119,7 +119,12 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrar
     );
   }
   if (!servers.data?.length) {
-    return <Notice>This Plex account doesn't own any servers.</Notice>;
+    return (
+      <div className="space-y-3">
+        <Notice>This Plex account doesn't own any servers.</Notice>
+        <Button onClick={onSignInAgain}>Sign in again</Button>
+      </div>
+    );
   }
 
   return (
@@ -172,7 +177,15 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrar
   );
 }
 
-function LibraryPicker({ libraries, onSaved }: { libraries: PlexLibrary[]; onSaved: () => void }) {
+function LibraryPicker({
+  libraries,
+  onSaved,
+  onBack,
+}: {
+  libraries: PlexLibrary[];
+  onSaved: () => void;
+  onBack: () => void;
+}) {
   const [selected, setSelected] = useState(() => new Set(libraries.map((l) => l.key)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +203,14 @@ function LibraryPicker({ libraries, onSaved }: { libraries: PlexLibrary[]; onSav
     }
   };
 
-  if (!libraries.length) return <Notice>No movie libraries were found on this server.</Notice>;
+  if (!libraries.length) {
+    return (
+      <div className="space-y-3">
+        <Notice>No movie libraries were found on this server.</Notice>
+        <Button onClick={onBack}>Choose another server</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -236,7 +256,16 @@ function UserImport({ onDone }: { onDone: () => void }) {
       </div>
     );
   }
-  if (users.error) return <Notice>{errorMessage(users.error)}</Notice>;
+  if (users.error) {
+    return (
+      <div className="space-y-3">
+        <Notice>{errorMessage(users.error)}</Notice>
+        <Button onClick={() => users.refetch()} loading={users.isFetching}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
