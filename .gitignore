@@ -12,3 +12,4 @@ config/
 .DS_Store
 Thumbs.db
 coverage/
+*brag-output/
