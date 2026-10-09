@@ -91,6 +91,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     }
   }, [current?.movie.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Each new pick starts at the top. Passing on one or choosing from "Other good picks" often
+  // happens scrolled down, which would leave the next poster and title out of view.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [current?.movie.id]);
+
   // Undo puts a pick back in front, which slides a card into the start of the rail. Scroll
   // snapping keeps the previous first card in place and hides the new one, so start over.
   const rail = useRef<HTMLUListElement>(null);
