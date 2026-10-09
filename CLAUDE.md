@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets the best-rated matching movie, with alternatives queued. README.md covers the features, install, env vars and how scoring works.
+Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets a matching movie ranked by rating and new arrivals, with alternatives queued. README.md covers the features, install, env vars and how scoring works.
 
 ## Commands
 
@@ -21,7 +21,7 @@ npm run eval         # ranking report on config/curatorr.db; -- --save <file> th
 ```
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
-- **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). In demo mode everyone counts as admin and no profile has a PIN.
+- **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few movies count as added days before each start. In demo mode everyone counts as admin and no profile has a PIN.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
 - **CI** (`.github/workflows/docker.yml`) runs typecheck and tests on every push. It builds the multi-arch GHCR image on `main` and `v*` tags.
 
@@ -36,8 +36,11 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
     - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals); some themes need two signals (`threshold: 3`).
     - `tagger.fixtures.ts` holds real movies with clear-cut expected tags. Keep it passing and add a case when you fix a mis-tag.
-  - `scoring.ts`: `eligibleMovies`, `rankMovies` (quality score plus theme/mood bonus, skip/shown penalties, watchlist and next-saga bonuses, and a jitter seeded per profile per day) and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice).
-  - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres), reusing the skip/shown/watchlist adjustments from `scoring.ts`.
+  - `scoring.ts`: `eligibleMovies`, `rankMovies` and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice). `rankMovies` starts from the quality score and adds:
+    - the theme/mood bonus and the newly added bonus (from `addedAt`);
+    - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
+    - a jitter seeded per profile per day.
+  - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`.
   - `sagas.ts`: collection ordering.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
@@ -66,7 +69,11 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts Plex only if Curatorr changed it.
-- **Ranking:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off. `skipped` costs −15 for 14 days. `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+- **Ranking:**
+  - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
+  - **Skips:** `skipped` costs −15 for 14 days.
+  - **Shown picks:** `shown` costs −5 for 3 days, but only after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+  - **New arrivals:** a movie Radarr added lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. Movies only another profile requested don't get it.
 
 ### Releases and What's new
 

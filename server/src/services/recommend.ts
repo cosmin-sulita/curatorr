@@ -49,6 +49,8 @@ export interface ProfileData {
   watchlist: Set<number>;
   /** Library movies this profile requested in Seerr. */
   requested: Set<number>;
+  /** Library movies other profiles requested in Seerr. */
+  requestedByOthers: Set<number>;
   plexConfigured: boolean;
   includeWatched: boolean;
   boostRequests: boolean;
@@ -64,6 +66,7 @@ export function profileData(store: Store, row: ProfileRow): ProfileData {
     feedback: store.feedback(row.id),
     watchlist: store.watchlistIds(row.id),
     requested: store.requestedIds(row.id),
+    requestedByOthers: store.requestedByOthers(row.id),
     plexConfigured: store.plexConfigured(),
     includeWatched: app.includeWatched,
     boostRequests: app.boostRequests,
@@ -88,6 +91,8 @@ export function picking(d: ProfileData, now: number): Picking {
   const playable = d.movies.filter((m) => (!requirePlex || m.plexRatingKey) && certAllowed(m, certs));
   // Only requests still waiting to be watched get the boost and the label.
   const requested = new Set(d.boostRequests ? [...d.requested].filter((id) => !seen.has(id)) : []);
+  // A movie someone else asked for isn't news to this profile when it arrives.
+  const othersRequested = new Set([...d.requestedByOthers].filter((id) => !d.requested.has(id)));
   const ctx: ProfileContext = {
     watched,
     feedback: d.feedback,
@@ -101,7 +106,7 @@ export function picking(d: ProfileData, now: number): Picking {
   return {
     ctx,
     eligible: eligibleMovies(d.movies, ctx),
-    opts: { now, seed: String(d.profileId), watchlist: d.watchlist, requested, sagas: ctx.sagas },
+    opts: { now, seed: String(d.profileId), watchlist: d.watchlist, requested, othersRequested, sagas: ctx.sagas },
   };
 }
 

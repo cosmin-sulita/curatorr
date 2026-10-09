@@ -134,6 +134,16 @@ const SAGAS: Record<string, [number, string, number, number]> = {
 
 const demoId = (title: string) => FIXTURES.findIndex((f) => f[0] === title) + 1;
 
+const DAY = 24 * 60 * 60 * 1000;
+
+/** Movies that arrived lately, in days before the server started, so picks show "Added … ago". */
+const ADDED_DAYS_AGO: Record<string, number> = {
+  'Dune: Part Two': 2,
+  'Everything Everywhere All at Once': 6,
+  'Top Gun: Maverick': 9,
+  'The Martian': 12,
+};
+
 /** Demo Seerr requests: [profile, movie]. */
 const DEMO_REQUESTS: [profile: string, title: string][] = [
   ['Alex', 'Dune: Part Two'],
@@ -141,10 +151,11 @@ const DEMO_REQUESTS: [profile: string, title: string][] = [
   ['Sam', 'Knives Out'],
 ];
 
-export function demoMovies(): StoredMovie[] {
+export function demoMovies(now = Date.now()): StoredMovie[] {
   return FIXTURES.map(([title, year, genres, runtime, cert, rt, imdb, keywords, overview], i) => {
     const id = i + 1;
     const saga = SAGAS[title];
+    const addedDaysAgo = ADDED_DAYS_AGO[title];
     return {
       id,
       tmdbId: 100000 + id,
@@ -167,14 +178,14 @@ export function demoMovies(): StoredMovie[] {
       plexSlug: null,
       plexGuid: null,
       saga: saga ? { id: saga[0], title: saga[1], part: saga[2], parts: saga[3] } : null,
-      addedAt: null,
+      addedAt: addedDaysAgo != null ? new Date(now - addedDaysAgo * DAY).toISOString() : null,
     };
   });
 }
 
 export function seedDemo(store: Store) {
   const now = Date.now();
-  store.replaceMovies(demoMovies(), now);
+  store.replaceMovies(demoMovies(now), now);
   if (store.profileRows(true).length === 0) {
     const alex = store.createLocalProfile('Alex', true);
     const sam = store.createLocalProfile('Sam', false);

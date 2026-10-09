@@ -102,7 +102,7 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'requested' | 'saga';
+  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'requested' | 'saga' | 'added';
   label: string;
 }
 

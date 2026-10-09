@@ -1,6 +1,7 @@
 import { emptySagaState } from './sagas.js';
 import {
   NEXT_PART_BONUS,
+  addedReasons,
   personalAdjustment,
   profileSignals,
   qualityScore,
@@ -165,6 +166,7 @@ export function rankSimilar(
       reasons: [
         ...wantedReasons(adj),
         ...sagaReasons,
+        ...addedReasons(adj),
         ...tagReasons(shared),
       ],
     };

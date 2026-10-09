@@ -129,6 +129,14 @@ const JITTER = 1.5;
 const WATCHLIST_BONUS = 6;
 /** Movies the profile asked for in Seerr and hasn't watched yet. */
 const REQUEST_BONUS = 8;
+/**
+ * Movies that just arrived: half of what a household watches is under a month old in the library.
+ * The bonus fades with the days since Radarr added the movie.
+ */
+const ADDED_BONUS = 12;
+const ADDED_FADE_DAYS = 21;
+/** The "Added … ago" chip shows while the bonus is at least this (about two weeks). */
+const ADDED_CHIP_BONUS = 6;
 /** The next part of a saga the profile has started. */
 export const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
@@ -205,6 +213,8 @@ export interface RankOptions {
   watchlist?: Set<number>;
   /** Unwatched movies the profile requested in Seerr. */
   requested?: Set<number>;
+  /** Movies only other profiles requested: their arrival isn't news to this one. */
+  othersRequested?: Set<number>;
   sagas?: SagaState;
 }
 
@@ -220,6 +230,7 @@ export interface ProfileSignals {
   shown: Map<number, number>;
   wanted: Set<number>;
   requested: Set<number>;
+  othersRequested: Set<number>;
   day: string;
 }
 
@@ -239,11 +250,18 @@ export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): Pr
     shown: latestByKind(feedback, 'shown'),
     wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
     requested: opts.requested ?? new Set(),
+    othersRequested: opts.othersRequested ?? new Set(),
     day: pickingDay(opts.now),
   };
 }
 
-/** Skip and shown penalties, the request or watchlist bonus and the daily jitter. */
+/** Days since Radarr added the movie, or null when unknown. */
+function daysInLibrary(m: Movie, now: number): number | null {
+  const added = m.addedAt ? Date.parse(m.addedAt) : NaN;
+  return Number.isFinite(added) ? Math.max(0, (now - added) / DAY) : null;
+}
+
+/** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */
 export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
   let delta = 0;
   const skippedAt = s.skipped.get(m.id);
@@ -254,8 +272,11 @@ export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOption
   const requested = s.requested.has(m.id);
   // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.
   delta += requested ? REQUEST_BONUS : onWatchlist ? WATCHLIST_BONUS : 0;
+  const days = s.othersRequested.has(m.id) ? null : daysInLibrary(m, opts.now);
+  const added = days == null ? 0 : ADDED_BONUS * Math.exp(-days / ADDED_FADE_DAYS);
+  delta += added;
   delta += (seededUnit(`${opts.seed}|${s.day}|${m.id}`) * 2 - 1) * JITTER;
-  return { delta, onWatchlist, requested };
+  return { delta, onWatchlist, requested, addedDaysAgo: added >= ADDED_CHIP_BONUS ? days : null };
 }
 
 /** Chips for movies the profile wants to watch: requested in Seerr first, then the watchlist. */
@@ -264,6 +285,14 @@ export function wantedReasons(adj: { onWatchlist: boolean; requested: boolean })
     ...(adj.requested ? [{ kind: 'requested' as const, label: 'You requested this' }] : []),
     ...(adj.onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
   ];
+}
+
+/** The chip for a movie that just arrived in the library. */
+export function addedReasons(adj: { addedDaysAgo: number | null }): Reason[] {
+  if (adj.addedDaysAgo == null) return [];
+  const days = Math.floor(adj.addedDaysAgo);
+  const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+  return [{ kind: 'added', label: `Added ${when}` }];
 }
 
 /** Best first. Exact matches always lead; close ones only pad a short list. */
@@ -362,6 +391,7 @@ export function rankMovies(
       reasons: [
         ...wantedReasons(adj),
         ...sagaReasons,
+        ...addedReasons(adj),
         ...reasonsFor(m, c, quality),
       ],
     };

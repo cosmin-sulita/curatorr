@@ -52,6 +52,7 @@ const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
 });
 
 const NOW = Date.parse('2026-10-08T20:00:00Z');
+const DAY = 86_400_000;
 const rank = (movies: Movie[], c = {}, feedback: FeedbackEvent[] = []) =>
   rankMovies(movies, c, feedback, { now: NOW, seed: 'test' });
 
@@ -198,6 +199,35 @@ describe('rankMovies', () => {
     expect(requested.score - plain.score).toBeCloseTo(8, 0);
     expect(both.score).toBe(requested.score);
     expect(both.reasons.slice(0, 2).map((r) => r.kind)).toEqual(['requested', 'watchlist']);
+  });
+
+  it('favours movies that just arrived, and says when', () => {
+    // Two days in, the bonus is about +11: enough to beat a 6-point rating gap even with the shuffle.
+    const fresh = movie({ ratings: { rt: 82 }, addedAt: new Date(NOW - 2 * DAY).toISOString() });
+    const old = movie({ ratings: { rt: 88 }, addedAt: '2020-01-01T00:00:00Z' });
+    const ranked = rank([old, fresh]);
+    expect(ranked.map((r) => r.movie.id)).toEqual([fresh.id, old.id]);
+    expect(ranked[0]!.reasons).toContainEqual({ kind: 'added', label: 'Added 2 days ago' });
+    expect(ranked[1]!.reasons.some((r) => r.kind === 'added')).toBe(false);
+  });
+
+  it("doesn't favour a new arrival only someone else asked for", () => {
+    const fresh = movie({ ratings: { rt: 82 }, addedAt: new Date(NOW - 2 * DAY).toISOString() });
+    const old = movie({ ratings: { rt: 88 } });
+    const ranked = rankMovies([old, fresh], {}, [], { now: NOW, seed: 'test', othersRequested: new Set([fresh.id]) });
+    expect(ranked.map((r) => r.movie.id)).toEqual([old.id, fresh.id]);
+    expect(ranked[1]!.reasons.some((r) => r.kind === 'added')).toBe(false);
+  });
+
+  it('lets the arrival bonus fade over a few weeks', () => {
+    const m = movie({ ratings: { rt: 80 } });
+    const bonus = (days: number) =>
+      rank([{ ...m, addedAt: new Date(NOW - days * DAY).toISOString() }])[0]!.score - rank([m])[0]!.score;
+    expect(bonus(0)).toBeCloseTo(12, 0);
+    expect(bonus(21)).toBeCloseTo(12 / Math.E, 0);
+    expect(bonus(60)).toBeLessThan(1);
+    // The chip only shows while the bonus is worth mentioning.
+    expect(rank([{ ...m, addedAt: new Date(NOW - 20 * DAY).toISOString() }])[0]!.reasons.some((r) => r.kind === 'added')).toBe(false);
   });
 
   it('explains the pick', () => {

@@ -386,6 +386,14 @@ export class Store {
     return new Set(rows.map((r) => r.movie_id));
   }
 
+  /** Movies the other profiles requested. */
+  requestedByOthers(profileId: number): Set<number> {
+    const rows = this.db.prepare('SELECT DISTINCT movie_id FROM requests WHERE profile_id <> ?').all(profileId) as {
+      movie_id: number;
+    }[];
+    return new Set(rows.map((r) => r.movie_id));
+  }
+
   replaceRequests(entries: { profileId: number; movieId: number; requestedAt: number | null }[]) {
     const insert = this.db.prepare(
       'INSERT OR IGNORE INTO requests (profile_id, movie_id, requested_at) VALUES (?, ?, ?)',
