@@ -292,7 +292,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
               exit={{ x: -420, opacity: 0, rotate: -12, transition: { duration: 0.28 } }}
               transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-              className="mx-auto w-36 cursor-grab touch-pan-y active:cursor-grabbing sm:w-56 md:mx-0 md:w-full"
+              // Short phones (an iPhone SE) get a smaller poster, so the ratings still clear the action bar.
+              className="mx-auto w-36 cursor-grab touch-pan-y active:cursor-grabbing max-md:[@media(max-height:700px)]:w-28 sm:w-56 md:mx-0 md:w-full"
             >
               {shuffling ? (
                 <PosterShuffle posters={shufflePosters} final={m.posterUrl} onDone={() => setShuffle('done')} />
@@ -305,7 +306,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 />
               )}
               {!swiped && !shuffling && (
-                <p className="mt-3 text-center text-xs text-muted md:hidden">Swipe left for the next pick</p>
+                <p className="-mx-6 mt-3 text-center text-xs text-muted md:hidden">Swipe left for the next pick</p>
               )}
             </motion.div>
           </AnimatePresence>
