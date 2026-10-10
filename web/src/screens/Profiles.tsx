@@ -191,8 +191,9 @@ function PinPad({
             <span key={i} className={clsx('size-3.5 rounded-full transition', i < pin.length ? 'bg-fg' : 'bg-raised ring-1 ring-line')} />
           ))}
         </div>
-        <p className="mt-3 h-5 text-sm text-red-300" role="alert">
-          {error}
+        {/* One fixed-height line for checking and errors, so neither moves the pad. */}
+        <p className="mt-3 flex h-5 items-center text-sm text-red-300" role="alert">
+          {busy ? <Spinner className="size-5" /> : error}
         </p>
         <div className="mt-4 grid grid-cols-3 gap-3">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
@@ -212,7 +213,6 @@ function PinPad({
             <Delete className="size-6" />
           </button>
         </div>
-        {busy && <Spinner className="mt-4 size-5" />}
       </div>
     </motion.div>
   );
