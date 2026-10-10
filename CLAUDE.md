@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets a matching movie ranked by rating, new arrivals and the profile's taste, with alternatives queued. README.md covers the features, install, env vars and how scoring works.
+Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets a matching movie ranked by rating, new arrivals and the profile's taste, with alternatives queued. README.md covers the features, install, env vars and how scoring works; CONTRIBUTING.md is the same workflow as below, written for people.
 
 ## Commands
 
@@ -18,12 +18,13 @@ npm run typecheck    # tsc on shared, server and web in turn
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
 npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
 npm run eval         # ranking report on config/curatorr.db; -- --save <file> then -- --compare <file> measures a change
+npm run icons        # regenerates the committed PWA icons from web/public/logo.svg and app-icon.svg
 ```
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
-- **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few movies' files arrive days before each start (Alex's two requests were added to Radarr a month earlier), and the seeded watches are a week apart in the past. In demo mode everyone counts as admin and no profile has a PIN.
+- **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few files arrive days before each start (Alex's two requests reached Radarr a month earlier), and seeded watches are a week apart. In demo mode everyone counts as admin and no profile has a PIN.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
-- **CI** (`.github/workflows/docker.yml`) runs typecheck and tests on every push. It builds the multi-arch GHCR image on `main` and `v*` tags.
+- **CI** (`.github/workflows/ci.yml`) runs typecheck and tests on pushes to `main` and `develop` and on pull requests. On `main` it also publishes releases (see below).
 
 ## Architecture
 
@@ -51,14 +52,12 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
   - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id. `retag()` also runs at startup, so a vocabulary change applies without a sync.
-  - `scripts/tags.ts` (`npm run tags`): a read-only report on a copy of a real database. Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against it: coverage, untagged movies, unmatched keywords, and terms found inside longer keywords (idiom candidates), compared with the stored tags.
-  - `scripts/eval.ts` (`npm run eval`): replays the watch history in a copy of a real database through the working copy's ranking.
-    - For each watch it rebuilds that evening's library and history and asks the questions the wizard offered then. It reports MRR and hit@k, splitting movies that had just arrived from the backlog.
-    - It also simulates evenings of ignored picks (staleness) and saves or compares runs with paired 95% intervals.
-    - It's read-only and never reads `settings`. Measure ranking changes with it rather than by feel.
+  - `scripts/tags.ts` (`npm run tags`) and `scripts/eval.ts` (`npm run eval`) are read-only reports on a copy of a real database in `config/`. It holds Plex tokens: never commit or upload it.
+    - Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against `npm run tags` (coverage, unmatched keywords, idiom candidates), not the demo.
+    - `npm run eval` replays each watch with that evening's library, history and wizard questions, and reports MRR and hit@k for new arrivals and the backlog, plus a staleness simulation. It never reads `settings`. Measure ranking changes with `--save` and `--compare` rather than by feel.
   - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
-  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional: setup offers it after Plex (and passes it over without Plex), and Settings connects or changes it. Connecting during setup only checks the key, since the library is still empty; the first library sync reads the requests. A failed read keeps the last requests.
+  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional: setup offers it after Plex (not without Plex) and Settings changes it. Setup only checks the key, since the library is still empty; the first sync reads the requests. A failed read keeps the last ones.
   - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
@@ -78,11 +77,14 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - **New arrivals:** a movie whose file arrived lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. Movies only another profile requested don't get it.
     - The date is Radarr's import date of the first file Curatorr saw (`arrived_at`), so an upgrade doesn't make a movie new again. Radarr's added date is when a request was made, often before release, and is only the fallback.
   - **Retention:** `shown` and `skipped` are pruned after 90 days; `accepted` is kept for taste.
+- **README:** "How picks work" quotes these numbers and the other constants in `scoring.ts`. Update it in the same commit when they change.
 
-### Releases and What's new
+### Branches, commits and releases
 
-- **Version:** the top `## x.y.z (date)` heading of CHANGELOG.md is the app version (`server/build.mjs` injects it; the web bundles the file). The owner writes releases; don't edit CHANGELOG.md or bump versions unless asked.
-- **Commit subjects:** each bullet is a Conventional Commit subject, and `feat`/`fix`/`perf` subjects are shown to users as What's new notes. So write them as plain user-facing sentences: `type(component): summary`, e.g. `fix(picks): keep the desktop buttons together`. Add a short body.
+- **Branches:** work on `develop`. `main` only moves at a release, by fast-forwarding to `develop`, and pull requests target `develop`. Never force-push or rewrite pushed history.
+- **Commit subjects:** Conventional Commits, and `feat`/`fix`/`perf` subjects are shown to users as What's new notes. So write them as plain user-facing sentences: `type(component): summary`, e.g. `fix(picks): keep the desktop buttons together`. Add a short body. Don't add `Co-Authored-By` trailers or any other AI attribution to commits or pull requests.
+- **Version:** the top `## x.y.z (date)` heading of CHANGELOG.md is the app version (`server/build.mjs` injects it; the web bundles the file). Its bullets are commit subjects, each linking to its commit. The maintainer writes releases as a `Release x.y.z` commit; don't edit CHANGELOG.md or bump versions unless asked.
+- **Publishing:** when a new top version reaches `main`, CI tags `vX.Y.Z`, publishes the section as a GitHub Release and pushes the image as `X.Y.Z`, `X.Y` and `latest`. A push to `main` without a new version publishes nothing. Don't create tags or releases by hand.
 - **Popup:** it opens after an update only when an unseen release has a `feat` or a hand-written intro (`hasHeadlineNews`). Fix-only releases are listed under Settings → What's new.
 
 ## UI conventions and deliberate decisions
@@ -90,7 +92,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Design language:** a dark, Seerr-inspired theme. Tokens are in `web/src/styles.css`. The indigo→violet `bg-accent-gradient` is reserved for primary actions. The only font is Archivo, with the `font-display` utility (condensed 68%, weight 800) for titles and questions. The "Tonight's pick" reveal is the one bold moment.
 - **Contrast:** `--color-faint` and `--color-accent-2` are tuned to keep text at WCAG AA. Re-check contrast if you change them.
 - **Stacking:** Shell's `<main>` is a stacking context below the header. Fixed overlays (dialogs, the PIN pad, `BottomBar`) must render outside `<Shell>`, as `Settings.tsx`, `Profiles.tsx`, `Pick.tsx` and `Wizard.tsx` do.
-- **Decided with the owner; keep these unless asked:**
+- **Decided with the maintainer; keep these unless asked:**
   - The header uses `pt-safe` (safe area + 1rem) to clear the iOS status-bar blur.
   - On phones, actions sit in a sticky `BottomBar`: Watch on Plex plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
@@ -107,3 +109,4 @@ Build, run the demo server, and drive it with Playwright at 390×844 (`isMobile`
 - **Safe areas:** headless browsers report zero safe-area insets. To see real iPhone spacing, override `.pt-safe` and `.pb-safe` with about 59px top and 34px bottom.
 - **Stubbing requests:** once the service worker controls the page, `page.route` no longer sees `/api` requests. Use `context.route`, or create the context with `serviceWorkers: 'block'`.
 - **Installed app:** headless browsers run as a browser tab. An init script that defines `navigator.standalone` as true makes the page act as the installed app (no install tip). Dispatch a synthetic `beforeinstallprompt` to see the Android tip.
+- **README screenshots:** `docs/screenshots/*.webp` show the demo as the installed app (Alex) at 390×844, device scale 2, converted with `sharp`. Retake them when those screens change.
