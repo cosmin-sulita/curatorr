@@ -2,19 +2,13 @@
 
 <h1 align="center">Curatorr</h1>
 
-<p align="center"><b>What should we watch tonight?</b><br>A few quick questions, then the best movie you already own.</p>
-
 <p align="center">
   <a href="https://github.com/cosmin-sulita/curatorr/actions/workflows/ci.yml"><img src="https://github.com/cosmin-sulita/curatorr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/cosmin-sulita/curatorr/releases/latest"><img src="https://img.shields.io/github/v/release/cosmin-sulita/curatorr" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/cosmin-sulita/curatorr" alt="License"></a>
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/wizard.webp" width="260" alt="The first question, What kind of movie tonight?, with genre cards, Something like… and Surprise me">
-  <img src="docs/screenshots/pick.webp" width="260" alt="Tonight's pick: Avengers: Endgame, with its ratings, its Time Travel theme and a Watch on Plex button">
-  <img src="docs/screenshots/like.webp" width="260" alt="Something like Inception: Everything Everywhere All at Once, labelled You requested this and Added 6 days ago">
-</p>
+<p align="center"><b>What should we watch tonight?</b><br>A few quick questions, then the best movie you already own.</p>
 
 Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
 
@@ -32,6 +26,14 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Stays in sync with Plex or Jellyfin.** "Seen it" marks the movie watched for that person, and "Watchlist" adds it to their Plex Watchlist or their Jellyfin favourites. Undo puts things back. Movies on someone's Plex Watchlist or in their Jellyfin favourites, even ones added in another app, rank higher for them. The server owner can turn this off in Settings.
 - **Remembers what you asked for.** Connect Seerr during setup or in Settings, and the movies each person requested rank higher for them once downloaded and while still unwatched, labelled "You requested this". Requests are matched to profiles by Plex account or Jellyfin user. The server owner can turn this off in Settings.
 - **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. **Watch on Jellyfin** opens the movie in Jellyfin's web app, on phones too, since the Jellyfin apps don't open links.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/wizard.webp" width="260" alt="The first question, What kind of movie tonight?, with genre cards, Something like… and Surprise me">
+  <img src="docs/screenshots/pick.webp" width="260" alt="Tonight's pick: Avengers: Endgame, with its ratings, its Time Travel theme and a Watch on Plex button">
+  <img src="docs/screenshots/like.webp" width="260" alt="Something like Inception: Everything Everywhere All at Once, labelled You requested this and Added 6 days ago">
+</p>
 
 ## Requirements
 
