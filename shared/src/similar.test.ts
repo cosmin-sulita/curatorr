@@ -4,7 +4,7 @@ import type { RankOptions } from './scoring.js';
 import { rankSimilar } from './similar.js';
 import type { FeedbackEvent, Movie, Ratings } from './types.js';
 
-const noRatings: Ratings = { rt: null, rtVotes: null, imdb: null, tmdb: null, metacritic: null };
+const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
 function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {

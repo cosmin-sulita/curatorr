@@ -4,7 +4,6 @@ export type TagScores = Record<string, number>;
 export interface Ratings {
   /** Rotten Tomatoes tomatometer, 0-100. */
   rt: number | null;
-  rtVotes: number | null;
   /** IMDb user rating, 0-10. */
   imdb: number | null;
   /** TMDB user rating, 0-10. */

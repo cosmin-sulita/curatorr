@@ -4,7 +4,6 @@ import type { StoredMovie } from '../store.js';
 
 interface RadarrRating {
   value?: number;
-  votes?: number;
 }
 
 interface RadarrImage {
@@ -126,7 +125,6 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     ...tagMovie({ genres, keywords, overview, runtime }),
     ratings: {
       rt: rating(r.ratings?.rottenTomatoes),
-      rtVotes: r.ratings?.rottenTomatoes?.votes || null,
       imdb: rating(r.ratings?.imdb),
       tmdb: rating(r.ratings?.tmdb),
       metacritic: rating(r.ratings?.metacritic),

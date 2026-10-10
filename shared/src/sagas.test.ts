@@ -18,7 +18,7 @@ function part(sagaId: number, part: number, parts: number): Movie {
     keywords: [],
     themes: {},
     moods: {},
-    ratings: { rt: 80, rtVotes: null, imdb: null, tmdb: null, metacritic: null },
+    ratings: { rt: 80, imdb: null, tmdb: null, metacritic: null },
     posterUrl: null,
     fanartUrl: null,
     trailerId: null,

@@ -168,7 +168,7 @@ export function demoMovies(now = Date.now()): StoredMovie[] {
       genres,
       keywords,
       ...tagMovie({ genres, keywords, overview, runtime }),
-      ratings: { rt, rtVotes: null, imdb, tmdb: Math.round((imdb - 0.3) * 10) / 10, metacritic: null },
+      ratings: { rt, imdb, tmdb: Math.round((imdb - 0.3) * 10) / 10, metacritic: null },
       posterUrl: `/api/demo/art/${id}/poster.svg`,
       fanartUrl: `/api/demo/art/${id}/fanart.svg`,
       posterPath: null,

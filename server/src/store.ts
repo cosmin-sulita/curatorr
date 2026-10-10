@@ -100,7 +100,6 @@ interface MovieRow {
   themes: string;
   moods: string;
   rt: number | null;
-  rt_votes: number | null;
   imdb: number | null;
   tmdb: number | null;
   metacritic: number | null;
@@ -201,14 +200,14 @@ export class Store {
   replaceMovies(movies: StoredMovie[], syncedAt: number) {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
-        themes, moods, rt, rt_votes, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
+        themes, moods, rt, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
         trailer_id, plex_rating_key, plex_slug, plex_guid, saga_id, saga_title, saga_part, saga_parts, added_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
         genres = excluded.genres, keywords = excluded.keywords, themes = excluded.themes, moods = excluded.moods,
-        rt = excluded.rt, rt_votes = excluded.rt_votes, imdb = excluded.imdb, tmdb = excluded.tmdb,
+        rt = excluded.rt, imdb = excluded.imdb, tmdb = excluded.tmdb,
         metacritic = excluded.metacritic, poster_url = excluded.poster_url, fanart_url = excluded.fanart_url,
         poster_path = excluded.poster_path, fanart_path = excluded.fanart_path, trailer_id = excluded.trailer_id,
         plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at,
@@ -223,7 +222,7 @@ export class Store {
         upsert.run(
           m.id, m.tmdbId, m.imdbId, m.title, m.year, m.overview, m.runtime, m.certification,
           JSON.stringify(m.genres), JSON.stringify(m.keywords), JSON.stringify(m.themes), JSON.stringify(m.moods),
-          m.ratings.rt, m.ratings.rtVotes, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
+          m.ratings.rt, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
           m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
           m.plexGuid, m.saga?.id ?? null, m.saga?.title ?? null, m.saga?.part ?? null, m.saga?.parts ?? null,
           m.addedAt, syncedAt,
@@ -496,7 +495,7 @@ function rowToMovie(r: MovieRow): StoredMovie {
     keywords: JSON.parse(r.keywords),
     themes: JSON.parse(r.themes),
     moods: JSON.parse(r.moods),
-    ratings: { rt: r.rt, rtVotes: r.rt_votes, imdb: r.imdb, tmdb: r.tmdb, metacritic: r.metacritic },
+    ratings: { rt: r.rt, imdb: r.imdb, tmdb: r.tmdb, metacritic: r.metacritic },
     posterUrl: r.poster_url,
     fanartUrl: r.fanart_url,
     posterPath: r.poster_path,

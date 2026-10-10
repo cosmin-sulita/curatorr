@@ -27,19 +27,8 @@ import type {
 
 export type QualitySource = 'rt' | 'imdb' | 'tmdb' | 'none';
 
-/** RT scores built on few reviews are pulled toward this value. */
-const RT_PRIOR = 60;
-const RT_PRIOR_WEIGHT = 10;
-const RT_MIN_RELIABLE_VOTES = 20;
-
 export function qualityScore(r: Ratings): { value: number; source: QualitySource } {
-  if (r.rt != null && r.rt > 0) {
-    if (r.rtVotes != null && r.rtVotes > 0 && r.rtVotes < RT_MIN_RELIABLE_VOTES) {
-      const shrunk = (r.rt * r.rtVotes + RT_PRIOR * RT_PRIOR_WEIGHT) / (r.rtVotes + RT_PRIOR_WEIGHT);
-      return { value: shrunk, source: 'rt' };
-    }
-    return { value: r.rt, source: 'rt' };
-  }
+  if (r.rt != null && r.rt > 0) return { value: r.rt, source: 'rt' };
   if (r.imdb != null && r.imdb > 0) return { value: r.imdb * 10 - 5, source: 'imdb' };
   if (r.tmdb != null && r.tmdb > 0) return { value: r.tmdb * 10 - 8, source: 'tmdb' };
   return { value: 50, source: 'none' };

@@ -24,7 +24,7 @@ function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
     keywords: [],
     themes: {},
     moods: {},
-    ratings: { rt: 70, rtVotes: null, imdb: null, tmdb: null, metacritic: null },
+    ratings: { rt: 70, imdb: null, tmdb: null, metacritic: null },
     posterUrl: null,
     fanartUrl: null,
     posterPath: null,

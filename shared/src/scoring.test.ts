@@ -10,7 +10,7 @@ import {
 import { sagaState } from './sagas.js';
 import type { FeedbackEvent, Movie, Ratings } from './types.js';
 
-const noRatings: Ratings = { rt: null, rtVotes: null, imdb: null, tmdb: null, metacritic: null };
+const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
 function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {
@@ -65,10 +65,6 @@ describe('qualityScore', () => {
     expect(qualityScore({ ...noRatings, imdb: 8 })).toEqual({ value: 75, source: 'imdb' });
     expect(qualityScore({ ...noRatings, tmdb: 8 })).toEqual({ value: 72, source: 'tmdb' });
     expect(qualityScore(noRatings)).toEqual({ value: 50, source: 'none' });
-  });
-
-  it('shrinks RT scores with very few reviews', () => {
-    expect(qualityScore({ ...noRatings, rt: 100, rtVotes: 5 }).value).toBeLessThan(80);
   });
 });
 

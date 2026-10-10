@@ -3,7 +3,7 @@ import { rankMovies } from './scoring.js';
 import { tasteEvents, tasteProfile } from './taste.js';
 import type { Movie, Ratings } from './types.js';
 
-const noRatings: Ratings = { rt: null, rtVotes: null, imdb: null, tmdb: null, metacritic: null };
+const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
 function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {

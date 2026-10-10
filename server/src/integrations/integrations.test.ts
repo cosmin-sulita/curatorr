@@ -181,7 +181,7 @@ describe('fromRadarr', () => {
       ],
       ratings: { rottenTomatoes: { value: 90, votes: 0 }, imdb: { value: 7.6, votes: 600000 }, tmdb: { value: 0 } },
     });
-    expect(movie.ratings).toEqual({ rt: 90, rtVotes: null, imdb: 7.6, tmdb: null, metacritic: null });
+    expect(movie.ratings).toEqual({ rt: 90, imdb: 7.6, tmdb: null, metacritic: null });
     expect(movie.posterUrl).toBe('https://image.tmdb.org/t/p/w500/p.jpg');
     expect(movie.fanartUrl).toBe('/api/image/7/fanart');
     expect(movie.keywords).toEqual(['zombie', 'road trip', 'survival']);
