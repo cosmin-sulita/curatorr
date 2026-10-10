@@ -1,10 +1,26 @@
 <p align="center"><img src="web/public/logo.svg" width="72" alt=""></p>
 
-# Curatorr
+<h1 align="center">Curatorr</h1>
 
-**What should we watch tonight?** Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
+<p align="center"><b>What should we watch tonight?</b><br>A few quick questions, then the best movie you already own.</p>
+
+<p align="center">
+  <a href="https://github.com/cosmin-sulita/curatorr/actions/workflows/ci.yml"><img src="https://github.com/cosmin-sulita/curatorr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/cosmin-sulita/curatorr/releases/latest"><img src="https://img.shields.io/github/v/release/cosmin-sulita/curatorr" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/cosmin-sulita/curatorr" alt="License"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/wizard.webp" width="260" alt="The first question, What kind of movie tonight?, with genre cards, Something like… and Surprise me">
+  <img src="docs/screenshots/pick.webp" width="260" alt="Tonight's pick: Avengers: Endgame, with its ratings, its Time Travel theme and a Watch on Plex button">
+  <img src="docs/screenshots/like.webp" width="260" alt="Something like Inception: Everything Everywhere All at Once, labelled You requested this and Added 6 days ago">
+</p>
+
+Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
 
 It's a self-hosted, installable PWA built for the *arr stack, with a look borrowed from Seerr.
+
+## Features
 
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
 - **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
@@ -14,12 +30,26 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
 - **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Watchlist" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
-- **Remembers what you asked for.** Connect Seerr during setup or in Settings and the movies each person requested, once downloaded and while still unwatched, rank higher for them and are labelled "You requested this". Requests are matched to profiles by Plex account. The server owner can turn this off in Settings.
-- **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
+- **Remembers what you asked for.** Connect Seerr during setup or in Settings, and the movies each person requested rank higher for them once downloaded and while still unwatched, labelled "You requested this". Requests are matched to profiles by Plex account. The server owner can turn this off in Settings.
+- **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web.
+
+## Requirements
+
+- A Docker host (`linux/amd64` or `linux/arm64`).
+- [Radarr](https://radarr.video) v3 or newer. Curatorr only reads from it.
+- [Plex Media Server](https://www.plex.tv), optional but recommended. It brings the profiles, watched status, parental restrictions, Watchlist sync and Watch on Plex.
+- [Seerr](https://github.com/seerr-team/seerr), optional, and only together with Plex.
+- HTTPS, through your reverse proxy, to install the app on phones.
+
+## Try the demo
+
+```sh
+docker run --rm -p 7979:7979 -e CURATORR_DEMO=1 ghcr.io/cosmin-sulita/curatorr:latest
+```
+
+Then open http://localhost:7979. The demo library has about 95 movies and three profiles, needs no Radarr or Plex, and is gone when you stop the container.
 
 ## Install with Docker
-
-Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Docker host.
 
 1. Create a folder of its own for Curatorr, e.g. `/srv/curatorr`, and run the commands below from inside it. Curatorr keeps its data in that folder.
 2. Save [`docker-compose.yml`](docker-compose.yml) there and start it with `docker compose up -d`:
@@ -27,7 +57,7 @@ Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Doc
    ```yaml
    services:
      curatorr:
-       image: ghcr.io/YOUR_GITHUB_USER/curatorr:latest
+       image: ghcr.io/cosmin-sulita/curatorr:latest
        container_name: curatorr
        restart: unless-stopped
        ports:
@@ -46,17 +76,21 @@ Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Doc
    docker run -d --name curatorr --restart unless-stopped -p 7979:7979 \
      -e TZ=Etc/UTC -e PUID=1000 -e PGID=1000 \
      -v ./:/config \
-     ghcr.io/YOUR_GITHUB_USER/curatorr:latest
+     ghcr.io/cosmin-sulita/curatorr:latest
    ```
 
    Set `PUID`/`PGID` to the user that owns the data folder (run `id` on the host).
 3. Open `http://<host-ip>:7979` and follow the setup:
    1. **Radarr**: its address (e.g. `http://192.168.1.10:7878`) and API key (Radarr → Settings → General → Security).
-   2. **Plex**: sign in with the account that owns the server, pick the server and its movie libraries. Plex Home users are imported as profiles.
+   2. **Plex**: sign in with the account that owns the server, then pick the server and its movie libraries. Plex Home users are imported as profiles. You can skip this step if you don't use Plex.
    3. **Seerr** (optional, and only with Plex, since requests are matched to profiles by Plex account): its address (e.g. `http://192.168.1.10:5055`) and API key (Seerr → Settings → General → API Key).
    4. **Finish**: the library syncs right away, then every 6 hours (configurable).
 
-To update, run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`. Phones and browsers that already have the app open switch to the new version the next time it comes back to the foreground, or straight away from the **Update** button in the header.
+### Updating
+
+Run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`. Phones and browsers that already have the app open switch to the new version the next time it comes back to the foreground, or straight away from the **Update** button in the header.
+
+`latest` is always the newest release. To update on your own schedule, pin a version instead: `ghcr.io/cosmin-sulita/curatorr:0.10` gets only the fixes for 0.10, and `:0.10.0` never changes. The [releases](https://github.com/cosmin-sulita/curatorr/releases) list what changed, and so does the app, under Settings → What's new.
 
 ### HTTPS and installing the app
 
@@ -70,12 +104,13 @@ curatorr.example.com {
 
 Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome). Until you dismiss it, the first question shows a tip with these steps (an **Install** button on Android).
 
+> [!WARNING]
 > **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device. Settings are protected once you sign in with Plex during setup: from then on only the Plex server owner can change them. Without Plex there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
 
 ## How picks work
 
 1. **Eligible movies**: downloaded in Radarr, found in Plex, not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's Plex restrictions.
-2. **Tags**: each movie gets *themes* (Superheroes, Heists & Cons, Time Travel, Prison & Escape, Family Ties… 43 in all) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic, Moving). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse or match nothing. Generic keywords (*army*, *computer*) and TMDB's tone words (*amused*, *hopeful*) only back up a stronger signal, and idioms don't count, in keywords or in the plot (*cat and mouse* isn't about cats, and *haunted by his past* isn't a ghost story). Tags are refreshed on every sync and whenever Curatorr starts. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts); `npm run tags` shows how it fits your library (see Development).
+2. **Tags**: each movie gets *themes* (Superheroes, Heists & Cons, Time Travel, Prison & Escape, Family Ties… 43 in all) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic, Moving). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse or match nothing. Generic keywords (*army*, *computer*) and TMDB's tone words (*amused*, *hopeful*) only back up a stronger signal, and idioms don't count, in keywords or in the plot (*cat and mouse* isn't about cats, and *haunted by his past* isn't a ghost story). Tags are refreshed on every sync and whenever Curatorr starts. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts).
 3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing), then:
    - up to + 8 for how strongly the theme/mood matches;
    - up to ± 12 for taste (see below);
@@ -96,43 +131,33 @@ Everything is set in the web UI. A few environment variables exist for special c
 | Variable | Default | |
 | --- | --- | --- |
 | `PORT` | `7979` | Port the server listens on |
+| `HOST` | `0.0.0.0` | Address the server listens on |
 | `CONFIG_DIR` | `/config` | Where the SQLite database lives |
 | `PUID` / `PGID` | `1000` | User the app runs as |
 | `TZ` | `UTC` | Time zone |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `CURATORR_DEMO` | unset | `1` runs a demo library with no Radarr or Plex |
 
-## Development
+## Troubleshooting
 
-Requires Node 22.13+ (uses the built-in `node:sqlite`).
+- **A movie never comes up.** It has to be downloaded in Radarr and, with Plex, found in one of the libraries you picked. It's left out for anyone who watched it in Plex (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their Plex restrictions. New downloads show up after the next sync, or straight away with Settings → Sync now.
+- **Watch on Plex opens the Plex app, but not the movie.** Links on phones need the movie's library to use the **Plex Movie** agent. Libraries on an older agent get a link that the redesigned Plex apps ignore.
+- **Settings ask you to sign in.** Only the Plex account that owns the server can change settings, so sign in with that one.
+- **Starting over.** Stop the container and delete `curatorr.db` (with its `-wal` and `-shm` files) from the data folder. Setup runs again on the next start.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup, the conventions and how to tune tags and ranking against your own library. To try it from source (Node 22.13+):
 
 ```sh
 npm install
-npm run dev:demo   # API on :7979 with a demo library, UI on http://localhost:5173
-npm run dev        # same, against your real Radarr/Plex (setup runs on first start)
-npm test           # tagger, ranking, Plex matching and API tests
-npm run typecheck
-npm run build      # web/dist + server/dist
-npm run tags       # how the theme/mood vocabulary fits a real library (see below)
-npm run eval       # how well the ranking predicts what a real library's profiles watched
+npm run dev:demo   # API on :7979 with the demo library, UI on http://localhost:5173
 ```
 
-To tune the vocabulary against your own library, copy `curatorr.db` (with its `-wal` and `-shm` files) from Curatorr's config folder into `config/`, which git ignores. `npm run tags` then reports coverage, untagged movies, keywords nothing matches and terms found inside longer keywords, compared with the tags the server last stored. `-- --movie <title>` explains one movie's tags and `-- --tag <id>` lists what a theme or mood gains and loses. The database is only read.
+To build the image yourself: `docker build -t curatorr .`
 
-`npm run eval` replays the same copy's Plex watch history through the working copy's ranking. Each watch is ranked with the library and history as they were that evening, for the questions the wizard offered then, separately for movies that had just arrived and for the backlog. It also simulates evenings of ignored picks, to show how quickly the first pick rotates. Save a run with `-- --save run.json` and compare a change with it, watch by watch, using `-- --compare run.json`. Again, the database is only read, and never its settings.
+## License
 
-The repo is an npm workspace:
+[MIT](LICENSE)
 
-- `shared/`: types, the theme/mood taxonomy, tagging and ranking (pure functions, unit tested)
-- `server/`: Fastify API, Radarr and Plex clients, SQLite storage, library sync
-- `web/`: React + Vite + Tailwind PWA
-
-## Publishing the image
-
-The GitHub Actions workflow in [`.github/workflows/docker.yml`](.github/workflows/docker.yml) tests every push. On `main` and `v*` tags it also builds a `linux/amd64` + `linux/arm64` image and pushes it to `ghcr.io/<owner>/curatorr`. After the first run, either open the package on GitHub and set its visibility to **Public**, or keep it private and run `docker login ghcr.io` on the Docker host with a personal access token (classic) that has the `read:packages` scope.
-
-To build locally instead: `docker build -t curatorr .`
-
----
-
-Curatorr isn't affiliated with Radarr, Plex, Seerr or Rotten Tomatoes. Ratings are the ones Radarr provides.
+Curatorr isn't affiliated with Radarr, Plex, Seerr, Rotten Tomatoes, IMDb or TMDB. Ratings and artwork come from Radarr.

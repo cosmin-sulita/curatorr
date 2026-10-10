@@ -1,8 +1,7 @@
 # Start with `docker compose up -d`.
-# Replace YOUR_GITHUB_USER with the GitHub account that hosts the image.
 services:
   curatorr:
-    image: ghcr.io/YOUR_GITHUB_USER/curatorr:latest
+    image: ghcr.io/cosmin-sulita/curatorr:latest
     # To build from source instead, comment out `image` and use:
     # build: .
     container_name: curatorr
