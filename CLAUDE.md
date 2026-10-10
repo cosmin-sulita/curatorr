@@ -58,7 +58,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - It's read-only and never reads `settings`. Measure ranking changes with it rather than by feel.
   - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
   - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
-  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional and set up in Settings only; a failed read keeps the last requests.
+  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional: setup offers it after Plex (and passes it over without Plex), and Settings connects or changes it. Connecting during setup only checks the key, since the library is still empty; the first library sync reads the requests. A failed read keeps the last requests.
   - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.

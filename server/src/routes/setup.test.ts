@@ -136,6 +136,22 @@ describe('setup', () => {
     ]);
   });
 
+  it('checks the Seerr key during setup and leaves reading requests to the first library sync', async () => {
+    const { app, store } = await freshInstall();
+    const connect = () =>
+      app.inject({ method: 'PUT', url: '/api/settings/seerr', payload: { url: `${base}/seerr`, apiKey: 'SEERR-KEY' } });
+
+    expect((await connect()).statusCode).toBe(200);
+    expect(store.get('seerr')).toEqual({ url: `${base}/seerr`, apiKey: 'SEERR-KEY' });
+    expect(keysSeen).toEqual([{ path: '/seerr/api/v1/auth/me', key: 'SEERR-KEY' }]);
+    expect(store.get('seerrSync')).toEqual({ at: null, requests: 0, profiles: 0, error: null });
+
+    // Once set up, connecting reads the requests straight away, which this fake Seerr can't answer.
+    store.set('setupComplete', true);
+    expect((await connect()).statusCode).toBe(200);
+    expect(store.get('seerrSync').error).toMatch(/^Seerr: /);
+  });
+
   it('explains a malformed address instead of failing', async () => {
     const { app } = await freshInstall();
     const typo = 'http://192.168.1 .10:7878';

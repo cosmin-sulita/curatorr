@@ -14,7 +14,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
 - **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Watchlist" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
-- **Remembers what you asked for.** Connect Seerr in Settings and the movies each person requested, once downloaded and while still unwatched, rank higher for them and are labelled "You requested this". Requests are matched to profiles by Plex account. The server owner can turn this off in Settings.
+- **Remembers what you asked for.** Connect Seerr during setup or in Settings and the movies each person requested, once downloaded and while still unwatched, rank higher for them and are labelled "You requested this". Requests are matched to profiles by Plex account. The server owner can turn this off in Settings.
 - **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. The app link needs libraries that use the **Plex Movie** agent; older agents fall back to opening the Plex app.
 
 ## Install with Docker
@@ -53,7 +53,8 @@ Curatorr runs as a single container (`linux/amd64` and `linux/arm64`) on any Doc
 3. Open `http://<host-ip>:7979` and follow the setup:
    1. **Radarr**: its address (e.g. `http://192.168.1.10:7878`) and API key (Radarr → Settings → General → Security).
    2. **Plex**: sign in with the account that owns the server, pick the server and its movie libraries. Plex Home users are imported as profiles.
-   3. **Finish**: the library syncs right away, then every 6 hours (configurable).
+   3. **Seerr** (optional, and only with Plex, since requests are matched to profiles by Plex account): its address (e.g. `http://192.168.1.10:5055`) and API key (Seerr → Settings → General → API Key).
+   4. **Finish**: the library syncs right away, then every 6 hours (configurable).
 
 To update, run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`. Phones and browsers that already have the app open switch to the new version the next time it comes back to the foreground, or straight away from the **Update** button in the header.
 

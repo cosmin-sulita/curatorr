@@ -4,22 +4,30 @@ import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
-import { api, ApiError, errorMessage, useSettings } from '../lib/api';
+import { api, ApiError, errorMessage, useSettings, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 
-type Step = 'radarr' | 'plex' | 'finish';
+type Step = 'radarr' | 'plex' | 'seerr' | 'finish';
 const STEPS: { id: Step; label: string }[] = [
   { id: 'radarr', label: 'Radarr' },
   { id: 'plex', label: 'Plex' },
+  { id: 'seerr', label: 'Seerr' },
   { id: 'finish', label: 'Finish' },
 ];
+
+/** After a reload, setup carries on at the first step still to do. Plex is done once Plex Home users are profiles. */
+function resumeAt(s: SettingsResponse | undefined): Step {
+  if (!s?.radarr) return 'radarr';
+  if (!s.profiles.some((p) => p.plexUser)) return 'plex';
+  return s.seerr ? 'finish' : 'seerr';
+}
 
 export function SetupScreen() {
   const settings = useSettings(true);
   const [step, setStep] = useState<Step | null>(null);
-  const current: Step = step ?? (settings.data?.radarr ? 'plex' : 'radarr');
+  const current: Step = step ?? resumeAt(settings.data);
   // Once someone has signed in with Plex, only that account can carry on, so another device asks for it.
   const ownerOnly = settings.error instanceof ApiError && Boolean(settings.error.data.needAdmin);
   // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
@@ -64,13 +72,23 @@ export function SetupScreen() {
             <Panel title="Connect Plex">
               <PlexConnect
                 signedIn={Boolean(settings.data?.plex.signedIn)}
-                onDone={() => setStep('finish')}
+                onDone={() => setStep('seerr')}
                 onSkip={async () => {
                   await api('/api/setup/plex/skip', { json: {} });
+                  // No Seerr step: its requests are matched to profiles by Plex account.
                   setStep('finish');
                 }}
               />
             </Panel>
+          ) : current === 'seerr' ? (
+            <ServiceForm
+              service="Seerr"
+              initialUrl={settings.data?.seerr?.url ?? ''}
+              hasKey={false}
+              intro="Optional. Picks favour movies each person requested in Seerr, once they're downloaded."
+              onSaved={() => setStep('finish')}
+              onSkip={() => setStep('finish')}
+            />
           ) : (
             <Finish />
           )}
@@ -111,12 +129,17 @@ export function ServiceForm({
   service,
   initialUrl,
   hasKey,
+  intro,
   onSaved,
+  onSkip,
 }: {
   service: keyof typeof SERVICES;
   initialUrl: string;
   hasKey: boolean;
+  intro?: ReactNode;
   onSaved: () => void;
+  /** Offers to go on without this service. */
+  onSkip?: () => void;
 }) {
   const config = SERVICES[service];
   const [url, setUrl] = useState(initialUrl);
@@ -145,6 +168,7 @@ export function ServiceForm({
 
   return (
     <Panel title={`Connect ${service}`}>
+      {intro && <p className="mb-4 text-muted">{intro}</p>}
       <form onSubmit={submit} className="space-y-4">
         <Field label={`${service} address`} hint="Include the port, and the URL base if you set one.">
           <input
@@ -169,10 +193,16 @@ export function ServiceForm({
           />
         </Field>
         {error && <Notice>{error}</Notice>}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" size="lg" type="submit" loading={saving}>
             Connect {service}
           </Button>
+          {/* Not a submit button, or the empty required fields would stop it. */}
+          {onSkip && (
+            <Button variant="ghost" size="lg" type="button" onClick={onSkip} disabled={saving}>
+              Skip, I don't use {service}
+            </Button>
+          )}
           {saved && (
             <span className="inline-flex items-center gap-1 text-sm text-emerald-300">
               <Check className="size-4" /> Connected

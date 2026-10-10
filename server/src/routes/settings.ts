@@ -48,7 +48,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     return store.get('app');
   });
 
-  /** Connects Seerr, or changes the connection, then reads the requests straight away. */
+  /** Connects Seerr, or changes the connection, then reads the requests straight away once set up. */
   app.put('/api/settings/seerr', async (req) => {
     requireAdmin(req, store);
     const body = parse(z.object({ url: serviceUrl, apiKey: z.string().optional() }), req.body);
@@ -57,7 +57,8 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     if (!apiKey) throw new HttpError(400, 'Enter the API key for this address');
     await new SeerrClient(body.url, apiKey).me();
     store.set('seerr', { url: normalizeBaseUrl(body.url), apiKey });
-    await syncRequests(store, req.log);
+    // During setup the library is still empty; the first library sync reads the requests.
+    if (store.get('setupComplete')) await syncRequests(store, req.log);
     return store.get('seerrSync');
   });
 
