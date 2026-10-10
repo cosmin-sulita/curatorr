@@ -10,8 +10,9 @@
  *   npm run eval -- --compare run.json  compares with a saved run, watch by watch, with 95% intervals
  *   npm run eval -- --evenings 30       how many evenings the staleness check simulates
  *
- * Each watch is replayed on the evening it happened: the library as it was (by Radarr's added date),
- * the earlier watches, requests and feedback, and the questions the wizard would have offered. Where
+ * Each watch is replayed on the evening it happened: the library as it was (by when each file arrived,
+ * or Radarr's added date in copies from before that was stored), the earlier watches, requests and
+ * feedback, and the questions the wizard would have offered. Where
  * the watched movie ranks says how likely the profile was to accept the pick. Watches predate
  * Curatorr, so this rewards existing habits; read it together with the staleness check.
  *
@@ -23,6 +24,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import {
+  arrivalTime,
   qualityScore,
   rankMovies,
   tagMovie,
@@ -89,11 +91,11 @@ const watchlist = all<{ profile_id: number; movie_id: number }>('SELECT profile_
 db.close();
 
 const movieById = new Map(movies.map((m) => [m.id, m]));
-const addedAt = (m: Movie) => (m.addedAt ? Date.parse(m.addedAt) : 0);
-const libraryStart = Math.min(...movies.map(addedAt).filter((t) => t > 0));
+const arrived = (m: Movie) => arrivalTime(m) ?? 0;
+const libraryStart = Math.min(...movies.map(arrived).filter((t) => t > 0));
 /** When the copy was taken, roughly: its latest activity. */
 const copiedAt = Math.max(
-  ...movies.map(addedAt),
+  ...movies.map(arrived),
   ...watched.map((w) => w.viewed_at ?? 0),
   ...feedback.map((f) => f.created_at),
   ...requests.map((r) => r.requested_at ?? 0),
@@ -111,7 +113,7 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
   return {
     profileId,
     restriction: profile.restriction_profile,
-    movies: movies.filter((m) => m.id === keep || addedAt(m) <= at),
+    movies: movies.filter((m) => m.id === keep || arrived(m) <= at),
     watched: watched
       .filter((w) => w.profile_id === profileId && (w.viewed_at ?? 0) < at)
       .map((w) => ({ movieId: w.movie_id, viewedAt: w.viewed_at })),
@@ -265,7 +267,7 @@ function replay(profileId: number): Watch[] {
     const watch: Watch = {
       key: `${m.id}|${w.viewed_at}`,
       at,
-      fresh: Boolean(m.addedAt) && w.viewed_at! - addedAt(m) <= FRESH,
+      fresh: arrivalTime(m) != null && w.viewed_at! - arrived(m) <= FRESH,
       offered: p.eligible.some((x) => x.id === m.id),
       results: {},
     };

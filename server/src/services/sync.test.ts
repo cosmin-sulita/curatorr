@@ -39,6 +39,9 @@ const radarrMovies: RadarrMovie[] = [
     genres: ['Crime', 'Drama', 'Action'],
     keywords: ['heist', 'bank robbery'],
     ratings: { rottenTomatoes: { value: 88 } },
+    // Requested in Seerr (so added to Radarr) weeks before its file arrived.
+    added: '2026-03-01T10:00:05Z',
+    movieFile: { dateAdded: '2026-04-20T08:00:00Z' },
   },
   { id: 3, title: 'Wanted, not downloaded', tmdbId: 1, hasFile: false, genres: ['Action'] },
   // Only matchable by IMDb id (legacy Plex agent).
@@ -175,6 +178,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(movies.map((m) => m.plexSlug)).toEqual([null, null, 'the-matrix']);
     expect(store.movie(1)!.saga).toEqual({ id: 2344, title: 'The Matrix', part: 1, parts: 3 });
     expect(store.movie(2)!.saga).toBeNull();
+    expect(store.movie(2)!.arrivedAt).toBe('2026-04-20T08:00:00.000Z');
+    expect(store.movie(1)!.arrivedAt).toBeNull();
   });
 
   it('looks up missing watch.plex.tv slugs once, and links phones to them', async () => {
@@ -193,6 +198,20 @@ describe('library sync against fake Radarr and Plex servers', () => {
     await new LibrarySync(store, silent).run();
     expect(store.movie(2)!.plexSlug).toBe('heat');
     expect(store.movie(1)!.plexSlug).toBe('the-matrix');
+  });
+
+  it('keeps the first arrival when an upgrade replaces the file', async () => {
+    const [matrix, heat] = radarrMovies;
+    heat!.movieFile = { dateAdded: '2026-06-01T08:00:00Z' }; // a better copy
+    matrix!.movieFile = { dateAdded: '2026-05-05T00:00:00Z' }; // a date Radarr didn't send before
+    try {
+      await new LibrarySync(store, silent).run();
+      expect(store.movie(2)!.arrivedAt).toBe('2026-04-20T08:00:00.000Z');
+      expect(store.movie(1)!.arrivedAt).toBe('2026-05-05T00:00:00.000Z');
+    } finally {
+      heat!.movieFile = { dateAdded: '2026-04-20T08:00:00Z' };
+      delete matrix!.movieFile;
+    }
   });
 
   it('reads each profile’s own watch history', async () => {
@@ -281,6 +300,25 @@ describe('re-tagging the stored library', () => {
     expect(library.retag()).toBe(1);
     expect(store.movie(2)!.themes).toEqual({ heist: 4 });
     expect(library.retag()).toBe(0);
+
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('a database from an older version', () => {
+  it('gains arrival dates and reads the library again on the next start', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-migrate-'));
+    // As version 5 left it: no arrival dates, and a recent sync that wouldn't be repeated for hours.
+    const old = openDb(dir);
+    old.exec('ALTER TABLE movies DROP COLUMN arrived_at; PRAGMA user_version = 5');
+    new Store(old).set('sync', { at: Date.now(), movies: 1, matchedInPlex: 0, error: null });
+    old.close();
+
+    const store = new Store(openDb(dir));
+    expect(store.get('sync').at).toBeNull();
+    store.replaceMovies([fromRadarr({ ...radarrMovies[1]!, movieFile: { dateAdded: '2026-04-20T08:00:00Z' } })], Date.now());
+    expect(store.movie(2)!.arrivedAt).toBe('2026-04-20T08:00:00.000Z');
 
     store.db.close();
     rmSync(dir, { recursive: true, force: true });

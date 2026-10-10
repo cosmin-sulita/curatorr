@@ -30,6 +30,7 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     plexGuid: null,
     saga: null,
     addedAt: null,
+    arrivedAt: null,
     ...partial,
     ratings: { ...noRatings, ...partial.ratings },
   };

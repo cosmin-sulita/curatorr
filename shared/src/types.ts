@@ -37,7 +37,10 @@ export interface Movie {
   plexGuid: string | null;
   /** The Radarr/TMDB collection the movie belongs to, if any. */
   saga: Saga | null;
+  /** When Radarr added the movie: for a request, often long before its release. */
   addedAt: string | null;
+  /** When the movie's file arrived (Radarr imported it). The first one seen: an upgrade brings a new file. */
+  arrivedAt: string | null;
 }
 
 /** A movie's place in its collection. Parts count every movie in it, owned or not, by release. */

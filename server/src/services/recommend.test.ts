@@ -35,6 +35,7 @@ function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
     plexGuid: null,
     saga: null,
     addedAt: null,
+    arrivedAt: null,
     ...extra,
   };
 }

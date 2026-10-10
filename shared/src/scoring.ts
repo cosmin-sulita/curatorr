@@ -124,7 +124,8 @@ const WATCHLIST_BONUS = 6;
 const REQUEST_BONUS = 8;
 /**
  * Movies that just arrived: half of what a household watches is under a month old in the library.
- * The bonus fades with the days since Radarr added the movie.
+ * The bonus fades with the days since the movie's file arrived, not since Radarr added it: a movie
+ * requested before its release would look old by the time it lands.
  */
 const ADDED_BONUS = 12;
 const ADDED_FADE_DAYS = 21;
@@ -308,10 +309,16 @@ export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): Pr
   };
 }
 
-/** Days since Radarr added the movie, or null when unknown. */
+/** When the movie arrived in the library: its file's import, or Radarr's added date when that isn't known. */
+export function arrivalTime(m: Movie): number | null {
+  const t = Date.parse(m.arrivedAt ?? m.addedAt ?? '');
+  return Number.isFinite(t) ? t : null;
+}
+
+/** Days since the movie arrived, or null when unknown. */
 function daysInLibrary(m: Movie, now: number): number | null {
-  const added = m.addedAt ? Date.parse(m.addedAt) : NaN;
-  return Number.isFinite(added) ? Math.max(0, (now - added) / DAY) : null;
+  const at = arrivalTime(m);
+  return at == null ? null : Math.max(0, (now - at) / DAY);
 }
 
 /** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */

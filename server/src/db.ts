@@ -106,6 +106,14 @@ const migrations: string[] = [
     PRIMARY KEY (profile_id, movie_id)
   );
   `,
+  // v6: when each movie's file arrived, for the new-arrival bonus. Radarr's added date is when the
+  // movie was requested, often months before its release. (rt_votes is no longer read: Radarr never
+  // fills it. It stays so an older version still runs against this database.)
+  `
+  ALTER TABLE movies ADD COLUMN arrived_at TEXT;    -- import date of the first file seen; upgrades keep it
+  -- Forget the last sync so the library is re-read (with file dates) on the next start.
+  UPDATE settings SET value = json_set(value, '$.at', NULL) WHERE key = 'sync';
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

@@ -136,8 +136,8 @@ const demoId = (title: string) => FIXTURES.findIndex((f) => f[0] === title) + 1;
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Movies that arrived lately, in days before the server started, so picks show "Added … ago". */
-const ADDED_DAYS_AGO: Record<string, number> = {
+/** Movies whose file arrived lately, in days before the server started, so picks show "Added … ago". */
+const ARRIVED_DAYS_AGO: Record<string, number> = {
   'Dune: Part Two': 2,
   'Everything Everywhere All at Once': 6,
   'Top Gun: Maverick': 9,
@@ -150,12 +150,17 @@ const DEMO_REQUESTS: [profile: string, title: string][] = [
   ['Alex', 'Everything Everywhere All at Once'],
   ['Sam', 'Knives Out'],
 ];
+/** The requests were made this many days before the server started, which is when Radarr added them. */
+const REQUESTED_DAYS_AGO = 30;
 
 export function demoMovies(now = Date.now()): StoredMovie[] {
+  const daysAgo = (days: number | undefined) => (days != null ? new Date(now - days * DAY).toISOString() : null);
   return FIXTURES.map(([title, year, genres, runtime, cert, rt, imdb, keywords, overview], i) => {
     const id = i + 1;
     const saga = SAGAS[title];
-    const addedDaysAgo = ADDED_DAYS_AGO[title];
+    const arrivedDaysAgo = ARRIVED_DAYS_AGO[title];
+    // A movie requested before its release was in Radarr weeks before its file arrived.
+    const requested = arrivedDaysAgo != null && DEMO_REQUESTS.some(([, t]) => t === title);
     return {
       id,
       tmdbId: 100000 + id,
@@ -178,7 +183,8 @@ export function demoMovies(now = Date.now()): StoredMovie[] {
       plexSlug: null,
       plexGuid: null,
       saga: saga ? { id: saga[0], title: saga[1], part: saga[2], parts: saga[3] } : null,
-      addedAt: addedDaysAgo != null ? new Date(now - addedDaysAgo * DAY).toISOString() : null,
+      addedAt: daysAgo(requested ? REQUESTED_DAYS_AGO : arrivedDaysAgo),
+      arrivedAt: daysAgo(arrivedDaysAgo),
     };
   });
 }
@@ -201,7 +207,7 @@ export function seedDemo(store: Store) {
   store.replaceRequests(
     DEMO_REQUESTS.flatMap(([name, title]) => {
       const profileId = profileIds.get(name);
-      return profileId ? [{ profileId, movieId: demoId(title), requestedAt: now - 30 * 24 * 60 * 60 * 1000 }] : [];
+      return profileId ? [{ profileId, movieId: demoId(title), requestedAt: now - REQUESTED_DAYS_AGO * DAY }] : [];
     }),
   );
   store.set('setupComplete', true);

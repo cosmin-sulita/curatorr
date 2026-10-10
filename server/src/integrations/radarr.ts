@@ -26,6 +26,8 @@ export interface RadarrMovie {
   imdbId?: string;
   hasFile?: boolean;
   added?: string;
+  /** Set when the movie has a file; `dateAdded` is when Radarr imported it. */
+  movieFile?: { dateAdded?: string };
   youTubeTrailerId?: string;
   images?: RadarrImage[];
   ratings?: {
@@ -99,6 +101,12 @@ function rating(r: RadarrRating | undefined): number | null {
   return r?.value && r.value > 0 ? r.value : null;
 }
 
+/** A Radarr date in one ISO format, so stored dates compare as text; null when missing or invalid. */
+function isoDate(value: string | undefined): string | null {
+  const t = value ? Date.parse(value) : NaN;
+  return t > 0 ? new Date(t).toISOString() : null;
+}
+
 /** Maps a Radarr movie to Curatorr's shape, including derived theme/mood tags. */
 export function fromRadarr(r: RadarrMovie): StoredMovie {
   const poster = r.images?.find((i) => i.coverType === 'poster');
@@ -142,6 +150,7 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
       ? { id: r.collection.tmdbId, title: sagaTitle(r.collection.title ?? r.title), part: 0, parts: 0 }
       : null,
     addedAt: r.added ?? null,
+    arrivedAt: isoDate(r.movieFile?.dateAdded),
   };
 }
 

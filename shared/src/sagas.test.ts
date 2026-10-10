@@ -27,6 +27,7 @@ function part(sagaId: number, part: number, parts: number): Movie {
     plexGuid: null,
     saga: { id: sagaId, title: `Saga ${sagaId}`, part, parts },
     addedAt: null,
+    arrivedAt: null,
   };
 }
 

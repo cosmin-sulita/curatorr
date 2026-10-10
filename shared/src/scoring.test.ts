@@ -36,6 +36,7 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     plexGuid: null,
     saga: null,
     addedAt: null,
+    arrivedAt: null,
     ...partial,
     ratings: { ...noRatings, ...partial.ratings },
   };
@@ -255,6 +256,18 @@ describe('rankMovies', () => {
     expect(bonus(60)).toBeLessThan(1);
     // The chip only shows while the bonus is worth mentioning.
     expect(rank([{ ...m, addedAt: new Date(NOW - 20 * DAY).toISOString() }])[0]!.reasons.some((r) => r.kind === 'added')).toBe(false);
+  });
+
+  it('counts from when the file arrived, not from when Radarr added the movie', () => {
+    // Requested before its release: in Radarr for three months, in the library for two days.
+    const m = movie({
+      ratings: { rt: 80 },
+      addedAt: new Date(NOW - 90 * DAY).toISOString(),
+      arrivedAt: new Date(NOW - 2 * DAY).toISOString(),
+    });
+    const [ranked] = rank([m]);
+    expect(ranked!.reasons).toContainEqual({ kind: 'added', label: 'Added 2 days ago' });
+    expect(ranked!.score - rank([{ ...m, addedAt: null, arrivedAt: null }])[0]!.score).toBeCloseTo(12 * Math.exp(-2 / 21), 0);
   });
 
   it('explains the pick', () => {

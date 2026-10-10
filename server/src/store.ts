@@ -116,6 +116,7 @@ interface MovieRow {
   saga_part: number | null;
   saga_parts: number | null;
   added_at: string | null;
+  arrived_at: string | null;
 }
 
 export interface ProfileRow {
@@ -201,8 +202,9 @@ export class Store {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
         themes, moods, rt, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
-        trailer_id, plex_rating_key, plex_slug, plex_guid, saga_id, saga_title, saga_part, saga_parts, added_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        trailer_id, plex_rating_key, plex_slug, plex_guid, saga_id, saga_title, saga_part, saga_parts, added_at,
+        arrived_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
@@ -215,7 +217,10 @@ export class Store {
         saga_parts = excluded.saga_parts,
         -- Keep ids looked up earlier when the library listing doesn't include them.
         plex_slug = COALESCE(excluded.plex_slug, movies.plex_slug),
-        plex_guid = COALESCE(excluded.plex_guid, movies.plex_guid)
+        plex_guid = COALESCE(excluded.plex_guid, movies.plex_guid),
+        -- An upgrade brings a new file, but the movie arrived with the first. (One whose file is
+        -- deleted leaves the table, so a new download later counts as a new arrival.)
+        arrived_at = COALESCE(MIN(movies.arrived_at, excluded.arrived_at), movies.arrived_at, excluded.arrived_at)
     `);
     transaction(this.db, () => {
       for (const m of movies) {
@@ -225,7 +230,7 @@ export class Store {
           m.ratings.rt, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
           m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
           m.plexGuid, m.saga?.id ?? null, m.saga?.title ?? null, m.saga?.part ?? null, m.saga?.parts ?? null,
-          m.addedAt, syncedAt,
+          m.addedAt, m.arrivedAt, syncedAt,
         );
       }
       this.db.prepare('DELETE FROM movies WHERE synced_at <> ?').run(syncedAt);
@@ -509,6 +514,8 @@ function rowToMovie(r: MovieRow): StoredMovie {
         ? { id: r.saga_id, title: r.saga_title ?? '', part: r.saga_part, parts: r.saga_parts ?? r.saga_part }
         : null,
     addedAt: r.added_at,
+    // Copies of databases from before v6, read by the reports, don't have the column.
+    arrivedAt: r.arrived_at ?? null,
   };
 }
 

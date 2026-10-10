@@ -190,6 +190,15 @@ describe('fromRadarr', () => {
     expect(movie.moods).not.toHaveProperty('light'); // horror is never "light"
   });
 
+  it('dates the arrival from the file Radarr imported, not from when it added the movie', () => {
+    const requested = { id: 8, title: 'Heat', hasFile: true, added: '2025-11-01T00:00:00Z' };
+    const movie = fromRadarr({ ...requested, movieFile: { dateAdded: '2026-03-02T08:00:00Z' } });
+    expect(movie.addedAt).toBe('2025-11-01T00:00:00Z');
+    expect(movie.arrivedAt).toBe('2026-03-02T08:00:00.000Z');
+    expect(fromRadarr(requested).arrivedAt).toBeNull();
+    expect(fromRadarr({ ...requested, movieFile: { dateAdded: '0001-01-01T00:00:00Z' } }).arrivedAt).toBeNull();
+  });
+
   it('resizes TMDB urls only', () => {
     expect(tmdbSized('https://image.tmdb.org/t/p/original/x.jpg', 'w342')).toBe('https://image.tmdb.org/t/p/w342/x.jpg');
     expect(tmdbSized(undefined, 'w342')).toBeNull();
