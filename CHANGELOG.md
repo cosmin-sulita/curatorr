@@ -2,6 +2,18 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 0.10.0 (2026-10-10)
+
+- feat(setup): connect Seerr while setting up, or skip it ([0dfaabf](https://github.com/cosmin-sulita/curatorr/commit/0dfaabf))
+- feat(app): suggest adding Curatorr to the home screen on phones ([a1888eb](https://github.com/cosmin-sulita/curatorr/commit/a1888eb))
+- feat(picks): let Surprise me draw from the ten best picks, new each evening ([cb4b35c](https://github.com/cosmin-sulita/curatorr/commit/cb4b35c))
+- fix(picks): count a new arrival from when its file arrived, not when it was requested ([c5c53a8](https://github.com/cosmin-sulita/curatorr/commit/c5c53a8))
+- fix(app): open What's new once the screen behind has loaded ([86b9229](https://github.com/cosmin-sulita/curatorr/commit/86b9229))
+- refactor(picks): drop the unused Rotten Tomatoes review-count adjustment ([d801824](https://github.com/cosmin-sulita/curatorr/commit/d801824))
+- fix(wizard): keep 20th-century biopics out of Historical Epics ([1037821](https://github.com/cosmin-sulita/curatorr/commit/1037821))
+- fix(wizard): don't read "haunted by his past" as a ghost story ([c2c0c1b](https://github.com/cosmin-sulita/curatorr/commit/c2c0c1b))
+- fix(wizard): stop calling every missing-person story a whodunit ([df03797](https://github.com/cosmin-sulita/curatorr/commit/df03797))
+
 ## 0.9.0 (2026-10-09)
 
 - chore(git): ignore brag-output folders ([523691a](https://github.com/cosmin-sulita/curatorr/commit/523691a))
