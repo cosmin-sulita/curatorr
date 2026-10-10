@@ -15,9 +15,9 @@ import {
   undoFeedback,
   useRecommendations,
   useStatus,
-  type PlexSyncResult,
+  type ServerSyncResult,
 } from '../lib/api';
-import { fallBackIfStillHere, plexLink, plural, runtime, vibrate, type PlexLink } from '../lib/format';
+import { fallBackIfStillHere, plural, runtime, vibrate, watchLink, type WatchLink } from '../lib/format';
 import { navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
@@ -28,7 +28,7 @@ type Decline = 'skipped' | 'later' | 'seen' | 'never';
 const requested = (p: Pick) => p.reasons.some((r) => r.kind === 'requested');
 
 /** Toast after a mark, depending on what happened in Plex. */
-function markMessage(kind: Decline, title: string, plex: PlexSyncResult | undefined) {
+function markMessage(kind: Decline, title: string, plex: ServerSyncResult | undefined) {
   if (kind === 'skipped') return `Skipped ${title}`;
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
@@ -139,10 +139,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       qc.invalidateQueries({ queryKey: ['like'] });
     };
     sendFeedback(pick.movie.id, kind)
-      .then(({ id, plex }) => {
+      .then(({ id, server }) => {
         refreshQuestions();
         toast({
-          message: markMessage(kind, pick.movie.title, plex),
+          message: markMessage(kind, pick.movie.title, server),
           duration: kind === 'skipped' ? 3000 : undefined,
           action: {
             label: 'Undo',
@@ -151,7 +151,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               undoFeedback(id)
                 .then((res) => {
                   refreshQuestions();
-                  if (res.plex === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+                  if (res.server === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
                 })
                 .catch((err) => toast({ message: errorMessage(err) }));
             },
@@ -169,7 +169,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     setQueue((q) => (q && q[0] ? [pick, ...q.slice(1).filter((p) => p !== pick), q[0]] : q));
 
   // The tap on the link itself does the navigation; this only records it (and handles demo mode).
-  const onWatch = (e: MouseEvent<HTMLAnchorElement>, link: PlexLink) => {
+  const onWatch = (e: MouseEvent<HTMLAnchorElement>, link: WatchLink) => {
     if (!current) return;
     if (status?.demo) {
       e.preventDefault();
@@ -246,7 +246,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       }
     }
   };
-  const link = status?.demo ? { href: '#', newTab: false, fallback: null } : plexLink(m.plexAppUrl, m.plexUrl);
+  const link = status?.demo ? { href: '#', newTab: false, fallback: null } : watchLink(m.watchAppUrl, m.watchUrl);
   // Genre and rating are already shown above; chips explain the theme/mood/time match.
   const reasons = current.reasons.filter((r) => r.kind !== 'genre' && r.kind !== 'rating');
 

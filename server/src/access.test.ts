@@ -22,7 +22,7 @@ const ADMIN_ROUTES: [Method, string][] = [
   ['GET', '/api/setup/plex/libraries'],
   ['POST', '/api/setup/plex/libraries'],
   ['POST', '/api/setup/plex/users'],
-  ['POST', '/api/setup/plex/skip'],
+  ['POST', '/api/setup/server/skip'],
   ['POST', '/api/setup/complete'],
 ];
 

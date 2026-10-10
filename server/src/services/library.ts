@@ -5,14 +5,20 @@ import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
 import { syncRequests } from './requests.js';
 
-export interface PlexIndex {
-  byTmdb: Map<number, PlexItem>;
-  byImdb: Map<string, PlexItem>;
+interface Ids {
+  tmdbId: number | null;
+  imdbId: string | null;
 }
 
-export function indexPlexItems(items: PlexItem[]): PlexIndex {
-  const byTmdb = new Map<number, PlexItem>();
-  const byImdb = new Map<string, PlexItem>();
+/** A media server's items by TMDB and IMDb id, to find the one for each Radarr movie. */
+export interface IdIndex<T> {
+  byTmdb: Map<number, T>;
+  byImdb: Map<string, T>;
+}
+
+export function indexByIds<T extends Ids>(items: T[]): IdIndex<T> {
+  const byTmdb = new Map<number, T>();
+  const byImdb = new Map<string, T>();
   for (const item of items) {
     if (item.tmdbId != null) byTmdb.set(item.tmdbId, item);
     if (item.imdbId) byImdb.set(item.imdbId, item);
@@ -20,7 +26,7 @@ export function indexPlexItems(items: PlexItem[]): PlexIndex {
   return { byTmdb, byImdb };
 }
 
-export function findPlexItem(index: PlexIndex, m: { tmdbId: number | null; imdbId: string | null }) {
+export function findByIds<T>(index: IdIndex<T>, m: Ids): T | undefined {
   return (m.tmdbId != null ? index.byTmdb.get(m.tmdbId) : undefined) ?? (m.imdbId ? index.byImdb.get(m.imdbId) : undefined);
 }
 
@@ -70,9 +76,9 @@ export class LibrarySync {
       const plex = this.store.get('plex');
       if (this.store.plexConfigured()) {
         const items = await fetchPlexItems(this.store, plex.adminToken!);
-        const index = indexPlexItems(items);
+        const index = indexByIds(items);
         for (const m of movies) {
-          const item = findPlexItem(index, m);
+          const item = findByIds(index, m);
           if (item) {
             m.plexRatingKey = item.ratingKey;
             m.plexSlug = item.slug;
@@ -84,8 +90,8 @@ export class LibrarySync {
       }
 
       this.store.replaceMovies(movies, startedAt);
-      this.store.set('sync', { at: startedAt, movies: movies.length, matchedInPlex: matched, error: null });
-      this.log.info({ movies: movies.length, matchedInPlex: matched, ms: Date.now() - startedAt }, 'library synced');
+      this.store.set('sync', { at: startedAt, movies: movies.length, matched, error: null });
+      this.log.info({ movies: movies.length, matched, ms: Date.now() - startedAt }, 'library synced');
       // Requested movies only show up once they're in the library, so read requests after it.
       await syncRequests(this.store, this.log);
     } catch (err) {

@@ -2,7 +2,7 @@ import { STEP_ORDER, type Criteria } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
-import { applyToPlex, isPlexMark, revertInPlex } from '../services/plexSync.js';
+import { applyMark, isServerMark, revertMark } from '../services/mediaServer.js';
 import { likeSeeds, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
 import { requireProfile } from '../session.js';
 
@@ -58,14 +58,14 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (!movie) throw new HttpError(404, 'Movie not found');
     const id = store.addFeedback(profile.id, movie.id, body.kind);
 
-    // "Seen it" → watched in Plex, "Later" → Plex Watchlist, for this profile.
-    if (!isPlexMark(body.kind)) return { id };
-    const plex = await applyToPlex(store, profile, movie, body.kind, req.log);
-    if (plex === 'synced') store.setFeedbackSynced(id);
-    return { id, plex };
+    // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for this profile.
+    if (!isServerMark(body.kind)) return { id };
+    const server = await applyMark(store, profile, movie, body.kind, req.log);
+    if (server === 'synced') store.setFeedbackSynced(id);
+    return { id, server };
   });
 
-  /** Undo / restore. Plex is only changed back when Curatorr changed it in the first place. */
+  /** Undo / restore. The media server is only changed back when Curatorr changed it in the first place. */
   app.delete('/api/feedback/:id', async (req) => {
     const profile = requireProfile(req, store);
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
@@ -76,13 +76,13 @@ export const pickRoutes: RouteModule = (app, { store }) => {
       store.deleteFeedback(profile.id, id);
       return { ok: true };
     }
-    const { plexSynced } = store.deleteMarks(profile.id, entry.movieId, entry.kind);
+    const { serverSynced } = store.deleteMarks(profile.id, entry.movieId, entry.kind);
     const movie = store.movie(entry.movieId);
-    const plex =
-      plexSynced && movie && isPlexMark(entry.kind)
-        ? await revertInPlex(store, profile, movie, entry.kind, req.log)
+    const server =
+      serverSynced && movie && isServerMark(entry.kind)
+        ? await revertMark(store, profile, movie, entry.kind, req.log)
         : 'skipped';
-    return { ok: true, plex };
+    return { ok: true, server };
   });
 
   /** Movies this profile marked "seen", "never" or saved for "later", so they can be restored. */

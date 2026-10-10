@@ -119,18 +119,18 @@ describe('two-way Plex sync over the API', () => {
 
   beforeEach(() => {
     calls.length = 0;
-    store.update('app', { syncToPlex: true });
+    store.update('app', { syncToServer: true });
   });
 
   const profileId = (name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
   const mark = async (who: string, movieId: number, kind: string) =>
     (await app.inject({ method: 'POST', url: '/api/feedback', headers: { cookie: cookies[who]! }, payload: { movieId, kind } })).json() as {
       id: number;
-      plex?: string;
+      server?: string;
     };
   const undo = async (who: string, id: number) =>
     (await app.inject({ method: 'DELETE', url: `/api/feedback/${id}`, headers: { cookie: cookies[who]! } })).json() as {
-      plex?: string;
+      server?: string;
     };
   const picks = async (who: string) =>
     (await app.inject({ method: 'GET', url: '/api/recommendations', headers: { cookie: cookies[who]! } })).json() as RecommendationsResponse;
@@ -147,39 +147,39 @@ describe('two-way Plex sync over the API', () => {
   });
 
   it('"Seen it" marks the movie watched in Plex for that person, and Undo reverts it', async () => {
-    const { id, plex } = await mark('Member', 2, 'seen');
-    expect(plex).toBe('synced');
+    const { id, server } = await mark('Member', 2, 'seen');
+    expect(server).toBe('synced');
     expect(calls).toEqual([{ action: 'scrobble', key: '102', token: MEMBER }]);
     expect(store.watchedIds(profileId('Member')).has(2)).toBe(true);
 
-    expect((await undo('Member', id)).plex).toBe('synced');
+    expect((await undo('Member', id)).server).toBe('synced');
     expect(calls[1]).toEqual({ action: 'unscrobble', key: '102', token: MEMBER });
     expect(store.watchedIds(profileId('Member')).has(2)).toBe(false);
   });
 
   it('leaves Plex alone for a movie that was already watched', async () => {
-    const { id, plex } = await mark('Owner', 2, 'seen'); // the owner watched Heat in Plex
-    expect(plex).toBe('already');
-    expect((await undo('Owner', id)).plex).toBe('skipped');
+    const { id, server } = await mark('Owner', 2, 'seen'); // the owner watched Heat in Plex
+    expect(server).toBe('already');
+    expect((await undo('Owner', id)).server).toBe('skipped');
     expect(calls).toEqual([]);
     expect(store.watchedIds(profileId('Owner')).has(2)).toBe(true);
   });
 
   it('"Later" adds to the Plex Watchlist, boosts the movie, and Undo removes it', async () => {
-    const { id, plex } = await mark('Member', 2, 'later');
-    expect(plex).toBe('synced');
+    const { id, server } = await mark('Member', 2, 'later');
+    expect(server).toBe('synced');
     expect(calls).toEqual([{ action: 'addToWatchlist', key: 'bbb222', token: MEMBER }]);
     const heat = (await picks('Member')).picks.find((p) => p.movie.id === 2)!;
     expect(heat.reasons.map((r) => r.kind)).toContain('watchlist');
 
-    expect((await undo('Member', id)).plex).toBe('synced');
+    expect((await undo('Member', id)).server).toBe('synced');
     expect(calls[1]).toEqual({ action: 'removeFromWatchlist', key: 'bbb222', token: MEMBER });
     expect(watchlists.get(MEMBER)).toEqual([]);
   });
 
   it('keeps "Later" in Curatorr for movies Plex Discover does not know', async () => {
-    const { id, plex } = await mark('Member', 3, 'later'); // Alien: legacy agent, no Plex guid
-    expect(plex).toBe('skipped');
+    const { id, server } = await mark('Member', 3, 'later'); // Alien: legacy agent, no Plex guid
+    expect(server).toBe('skipped');
     expect(calls).toEqual([]);
     const alien = (await picks('Member')).picks.find((p) => p.movie.id === 3)!;
     expect(alien.reasons.map((r) => r.kind)).toContain('watchlist');
@@ -187,10 +187,10 @@ describe('two-way Plex sync over the API', () => {
   });
 
   it('sends nothing to Plex when the owner turned syncing off', async () => {
-    store.update('app', { syncToPlex: false });
+    store.update('app', { syncToServer: false });
     const seen = await mark('Member', 1, 'seen');
     const later = await mark('Member', 2, 'later');
-    expect([seen.plex, later.plex]).toEqual(['skipped', 'skipped']);
+    expect([seen.server, later.server]).toEqual(['skipped', 'skipped']);
     expect(calls).toEqual([]);
     await undo('Member', seen.id);
     await undo('Member', later.id);

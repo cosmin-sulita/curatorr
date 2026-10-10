@@ -91,13 +91,13 @@ function ProfileLists({ name }: { name: string }) {
       const res = await undoFeedback(h.id);
       const done = h.kind === 'later' ? `Removed ${h.movie.title} from your watchlist` : `Restored ${h.movie.title}`;
       toast({
-        message: res.plex === 'failed' ? `${done}, but couldn't update Plex` : done,
+        message: res.server === 'failed' ? `${done}, but couldn't update Plex` : done,
         action: {
           label: 'Undo',
           run: () =>
             sendFeedback(h.movie.id, h.kind)
               .then((r) => {
-                if (r.plex === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+                if (r.server === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
               })
               .catch((err) => toast({ message: errorMessage(err) }))
               .finally(refresh),
@@ -212,7 +212,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
           {data.plex.machineId && (
             <div>
               <dt className="text-muted">Found in Plex</dt>
-              <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matchedInPlex}</dd>
+              <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matched}</dd>
             </div>
           )}
           <div>
@@ -255,8 +255,8 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               </span>
               <Toggle
                 label="Update Plex when you mark movies"
-                checked={data.app.syncToPlex}
-                onChange={(v) => updateApp({ syncToPlex: v })}
+                checked={data.app.syncToServer}
+                onChange={(v) => updateApp({ syncToServer: v })}
               />
             </div>
           )}
@@ -406,7 +406,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                 <span className="block truncate font-medium">{p.name}</span>
                 <span className="block text-xs text-muted">
                   {p.isAdmin ? 'Owner' : p.restrictionProfile ? 'Restricted by Plex' : 'Member'}
-                  {p.plexUser && !p.linked && ', waiting for PIN'}
+                  {p.serverUser && !p.linked && ', waiting for PIN'}
                 </span>
               </span>
               {/* The owner always shows; the server won't hide them. */}

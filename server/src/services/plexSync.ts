@@ -1,32 +1,18 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { addToWatchlist, PlexServerClient, removeFromWatchlist } from '../integrations/plex.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
+import type { ServerMark, ServerSyncResult } from './mediaServer.js';
 import { ensurePlexIds } from './recommend.js';
 
-/**
- * What happened in Plex:
- * - `synced`: Curatorr changed Plex (Undo will change it back)
- * - `already`: Plex already had it (watched / on the Watchlist), nothing to undo
- * - `skipped`: nothing to do (sync off, no Plex, profile not linked, legacy agent)
- * - `failed`: Plex couldn't be reached; the mark is still saved in Curatorr
- */
-export type PlexSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
-
-/** Marks that are mirrored to Plex: "Seen it" → watched, "Later" → Watchlist. */
-export type PlexMark = 'seen' | 'later';
-
-export const isPlexMark = (kind: string): kind is PlexMark => kind === 'seen' || kind === 'later';
-
-const canSync = (store: Store) => store.plexConfigured() && store.get('app').syncToPlex;
-
+/** "Seen it" marks the movie watched in Plex, "Watchlist" adds it to the Plex Watchlist (legacy agents have none). */
 export async function applyToPlex(
   store: Store,
   profile: ProfileRow,
   movie: StoredMovie,
-  kind: PlexMark,
+  kind: ServerMark,
   log: FastifyBaseLogger,
-): Promise<PlexSyncResult> {
-  if (!canSync(store) || !movie.plexRatingKey) return 'skipped';
+): Promise<ServerSyncResult> {
+  if (!store.plexConfigured() || !movie.plexRatingKey) return 'skipped';
   const plex = store.get('plex');
   try {
     if (kind === 'seen') {
@@ -55,9 +41,9 @@ export async function revertInPlex(
   store: Store,
   profile: ProfileRow,
   movie: StoredMovie,
-  kind: PlexMark,
+  kind: ServerMark,
   log: FastifyBaseLogger,
-): Promise<PlexSyncResult> {
+): Promise<ServerSyncResult> {
   if (!store.plexConfigured() || !movie.plexRatingKey) return 'skipped';
   const plex = store.get('plex');
   try {

@@ -114,6 +114,13 @@ const migrations: string[] = [
   -- Forget the last sync so the library is re-read (with file dates) on the next start.
   UPDATE settings SET value = json_set(value, '$.at', NULL) WHERE key = 'sync';
   `,
+  // v7: settings named after Plex now cover any media server. (`->` keeps true and false as JSON booleans.)
+  `
+  UPDATE settings SET value = json_remove(json_set(value, '$.syncToServer', value -> '$.syncToPlex'), '$.syncToPlex')
+    WHERE key = 'app' AND json_type(value, '$.syncToPlex') IS NOT NULL;
+  UPDATE settings SET value = json_remove(json_set(value, '$.matched', value -> '$.matchedInPlex'), '$.matchedInPlex')
+    WHERE key = 'sync' AND json_type(value, '$.matchedInPlex') IS NOT NULL;
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

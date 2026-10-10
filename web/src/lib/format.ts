@@ -27,7 +27,7 @@ export function isIOS() {
 /** Phones and tablets. */
 export const isMobileDevice = () => /android/i.test(navigator.userAgent) || isIOS();
 
-export interface PlexLink {
+export interface WatchLink {
   href: string;
   newTab: boolean;
   /** For plex:// links: where to go if no app picks the link up. */
@@ -40,7 +40,7 @@ export interface PlexLink {
  * to the app most reliably on a direct tap. Movies without one use the plex:// scheme. On
  * desktop it's Plex Web.
  */
-export function plexLink(appUrl: string | null, webUrl: string | null): PlexLink | null {
+export function watchLink(appUrl: string | null, webUrl: string | null): WatchLink | null {
   if (appUrl && isMobileDevice()) {
     return { href: appUrl, newTab: false, fallback: appUrl.startsWith('plex:') ? webUrl : null };
   }

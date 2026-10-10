@@ -99,21 +99,21 @@ export function useLikeSeeds(q: string) {
 }
 
 /**
- * What happened in Plex for "Seen it" / "Watchlist": changed it, it already matched,
- * nothing to do (no Plex, sync off), or Plex couldn't be reached.
+ * What happened on the media server for "Seen it" / "Watchlist": changed it, it already matched,
+ * nothing to do (no media server, sync off), or the server couldn't be reached.
  */
-export type PlexSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
+export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
 
 /** `keepalive` lets the request finish while the page is being left (e.g. opening Plex). */
 export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean } = {}) {
-  return api<{ id: number; plex?: PlexSyncResult }>('/api/feedback', {
+  return api<{ id: number; server?: ServerSyncResult }>('/api/feedback', {
     json: { movieId, kind },
     keepalive: opts.keepalive,
   });
 }
 
 export function undoFeedback(id: number) {
-  return api<{ ok: true; plex?: PlexSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
+  return api<{ ok: true; server?: ServerSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
 }
 
 export interface HiddenMovie {
@@ -166,9 +166,10 @@ export interface SettingsResponse {
     machineId: string | null;
     sectionIds: string[];
   };
-  app: { includeWatched: boolean; syncIntervalHours: number; syncToPlex: boolean; boostRequests: boolean };
-  sync: { at: number | null; movies: number; matchedInPlex: number; error: string | null; syncing: boolean };
-  profiles: (Profile & { hidden: boolean; plexUser: boolean })[];
+  app: { includeWatched: boolean; syncIntervalHours: number; syncToServer: boolean; boostRequests: boolean };
+  sync: { at: number | null; movies: number; matched: number; error: string | null; syncing: boolean };
+  /** `serverUser`: the profile stands for a user on the media server. */
+  profiles: (Profile & { hidden: boolean; serverUser: boolean })[];
 }
 
 export function useSettings(enabled: boolean) {

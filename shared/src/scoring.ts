@@ -13,6 +13,7 @@ import { emptySagaState, type SagaState } from './sagas.js';
 import type {
   Criteria,
   FeedbackEvent,
+  MediaServer,
   Movie,
   Ratings,
   Reason,
@@ -43,8 +44,8 @@ export interface ProfileContext {
   feedback: FeedbackEvent[];
   /** Allowed certifications, or null for no restriction. */
   allowedCerts: Set<string> | null;
-  /** Only offer movies Plex knows about (so "Watch on Plex" works). */
-  requirePlex: boolean;
+  /** Only offer movies found on this media server (so its Watch button works); null while matching isn't working. */
+  requireServer: MediaServer | null;
   includeWatched: boolean;
   /** Movies on the profile's Plex Watchlist. */
   watchlist: Set<number>;
@@ -66,12 +67,17 @@ export function certAllowed(m: Movie, allowedCerts: Set<string> | null) {
   return !allowedCerts || (Boolean(m.certification) && allowedCerts.has(m.certification!.toUpperCase()));
 }
 
+/** Whether the library sync found the movie on the media server. */
+export function onServer(m: Movie, server: MediaServer): boolean {
+  return server === 'plex' ? Boolean(m.plexRatingKey) : false;
+}
+
 export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
   const excluded = excludedIds(ctx);
   return movies.filter((m) => {
     if (excluded.has(m.id)) return false;
     if (ctx.sagas?.blockedBy.has(m.id)) return false;
-    if (ctx.requirePlex && !m.plexRatingKey) return false;
+    if (ctx.requireServer && !onServer(m, ctx.requireServer)) return false;
     return certAllowed(m, ctx.allowedCerts);
   });
 }

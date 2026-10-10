@@ -30,6 +30,7 @@ describe('API (demo data)', () => {
     const { body } = await get<AppStatus>('/api/status');
     expect(body.setupComplete).toBe(true);
     expect(body.demo).toBe(true);
+    expect(body.server).toBeNull();
     expect(body.library.movies).toBeGreaterThan(50);
     expect(body.profile).toBeNull();
   });
@@ -116,7 +117,7 @@ describe('API (demo data)', () => {
       headers: { cookie },
       payload: { movieId: last.movie.id, kind: 'later' },
     });
-    expect(res.json()).toMatchObject({ plex: 'skipped' });
+    expect(res.json()).toMatchObject({ server: 'skipped' });
     const again = (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks;
     const saved = again.find((p) => p.movie.id === last.movie.id)!;
     expect(saved.reasons[0]?.kind).toBe('watchlist');

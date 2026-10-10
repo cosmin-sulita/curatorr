@@ -211,7 +211,7 @@ export function seedDemo(store: Store) {
     }),
   );
   store.set('setupComplete', true);
-  store.set('sync', { at: now, movies: FIXTURES.length, matchedInPlex: 0, error: null });
+  store.set('sync', { at: now, movies: FIXTURES.length, matched: 0, error: null });
 }
 
 // ---------------------------------------------------------------------------

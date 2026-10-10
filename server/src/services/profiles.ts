@@ -9,7 +9,7 @@ import {
   type PlexHomeUser,
 } from '../integrations/plex.js';
 import type { ProfileRow, Store } from '../store.js';
-import { fetchPlexItems, findPlexItem, indexPlexItems } from './library.js';
+import { fetchPlexItems, findByIds, indexByIds } from './library.js';
 
 const WATCHED_TTL_MS = 10 * 60 * 1000;
 
@@ -143,10 +143,10 @@ async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogg
 async function syncWatched(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
   try {
     const items = await fetchPlexItems(store, row.server_token!);
-    const index = indexPlexItems(items.filter((i) => i.viewCount > 0));
+    const index = indexByIds(items.filter((i) => i.viewCount > 0));
     const entries = [];
     for (const movie of store.movies()) {
-      const item = findPlexItem(index, movie);
+      const item = findByIds(index, movie);
       if (item) entries.push({ movieId: movie.id, viewedAt: item.lastViewedAt });
     }
     store.replaceWatched(row.id, entries, Date.now());

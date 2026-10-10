@@ -174,7 +174,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(movies.map((m) => m.plexRatingKey)).toEqual(['103', '102', '101']);
     expect(store.movie(2)!.themes).toHaveProperty('heist');
     expect(store.movie(1)!.ratings.rt).toBe(83);
-    expect(store.get('sync')).toMatchObject({ movies: 3, matchedInPlex: 3, error: null });
+    expect(store.get('sync')).toMatchObject({ movies: 3, matched: 3, error: null });
     expect(movies.map((m) => m.plexSlug)).toEqual([null, null, 'the-matrix']);
     expect(store.movie(1)!.saga).toEqual({ id: 2344, title: 'The Matrix', part: 1, parts: 3 });
     expect(store.movie(2)!.saga).toBeNull();
@@ -189,9 +189,9 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(store.movie(2)!.plexSlug).toBe('heat');
     expect(store.movie(4)!.plexSlug).toBe(''); // legacy agent: Plex has none
 
-    expect(toDTO(store, store.movie(2)!).plexAppUrl).toBe('https://watch.plex.tv/movie/heat');
-    expect(toDTO(store, store.movie(4)!).plexAppUrl).toMatch(/^plex:\/\/preplay\//);
-    expect(toDTO(store, store.movie(4)!).plexUrl).toContain('app.plex.tv/desktop/#!/server/machine/details');
+    expect(toDTO(store, store.movie(2)!).watchAppUrl).toBe('https://watch.plex.tv/movie/heat');
+    expect(toDTO(store, store.movie(4)!).watchAppUrl).toMatch(/^plex:\/\/preplay\//);
+    expect(toDTO(store, store.movie(4)!).watchUrl).toContain('app.plex.tv/desktop/#!/server/machine/details');
   });
 
   it('keeps looked-up slugs when the library syncs again', async () => {
@@ -242,9 +242,9 @@ describe('library sync against fake Radarr and Plex servers', () => {
   });
 
   it('fills settings added by newer versions into settings saved by older ones', () => {
-    // As saved by 0.2.x, before syncToPlex existed.
+    // As saved by 0.2.x, before syncToPlex (now syncToServer) existed.
     store.set('app', { includeWatched: true, syncIntervalHours: 3 } as never);
-    expect(store.get('app')).toEqual({ includeWatched: true, syncIntervalHours: 3, syncToPlex: true, boostRequests: true });
+    expect(store.get('app')).toEqual({ includeWatched: true, syncIntervalHours: 3, syncToServer: true, boostRequests: true });
   });
 
   const plexProfile = (plexUserId: number, name: string) =>
@@ -312,13 +312,31 @@ describe('a database from an older version', () => {
     // As version 5 left it: no arrival dates, and a recent sync that wouldn't be repeated for hours.
     const old = openDb(dir);
     old.exec('ALTER TABLE movies DROP COLUMN arrived_at; PRAGMA user_version = 5');
-    new Store(old).set('sync', { at: Date.now(), movies: 1, matchedInPlex: 0, error: null });
+    new Store(old).set('sync', { at: Date.now(), movies: 1, matched: 0, error: null });
     old.close();
 
     const store = new Store(openDb(dir));
     expect(store.get('sync').at).toBeNull();
     store.replaceMovies([fromRadarr({ ...radarrMovies[1]!, movieFile: { dateAdded: '2026-04-20T08:00:00Z' } })], Date.now());
     expect(store.movie(2)!.arrivedAt).toBe('2026-04-20T08:00:00.000Z');
+
+    store.db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the owner's settings that were named after Plex, under names that cover any media server", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-migrate-'));
+    // As version 6 saved them, with syncing to Plex turned off.
+    const old = openDb(dir);
+    old.exec('PRAGMA user_version = 6');
+    const save = old.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    save.run('app', JSON.stringify({ includeWatched: false, syncIntervalHours: 6, syncToPlex: false, boostRequests: true }));
+    save.run('sync', JSON.stringify({ at: 1, movies: 20, matchedInPlex: 12, error: null }));
+    old.close();
+
+    const store = new Store(openDb(dir));
+    expect(store.get('app')).toEqual({ includeWatched: false, syncIntervalHours: 6, syncToServer: false, boostRequests: true });
+    expect(store.get('sync')).toEqual({ at: 1, movies: 20, matched: 12, error: null });
 
     store.db.close();
     rmSync(dir, { recursive: true, force: true });

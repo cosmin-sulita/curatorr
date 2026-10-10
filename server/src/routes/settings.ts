@@ -28,7 +28,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
       profiles: store.profileRows(true).map((r) => ({
         ...toProfile(r),
         hidden: Boolean(r.hidden),
-        plexUser: r.plex_user_id != null,
+        serverUser: r.plex_user_id != null,
       })),
     };
   });
@@ -38,7 +38,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     const patch = parse(
       z.object({
         includeWatched: z.boolean().optional(),
-        syncToPlex: z.boolean().optional(),
+        syncToServer: z.boolean().optional(),
         boostRequests: z.boolean().optional(),
         syncIntervalHours: z.number().int().min(1).max(168).optional(),
       }),

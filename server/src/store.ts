@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { FeedbackEvent, FeedbackKind, Movie, Profile, RestrictionProfile } from '@curatorr/shared';
+import type { FeedbackEvent, FeedbackKind, MediaServer, Movie, Profile, RestrictionProfile } from '@curatorr/shared';
 import { transaction, type DB } from './db.js';
 
 // ---------------------------------------------------------------------------
@@ -30,8 +30,8 @@ export interface SeerrSettings {
 export interface AppSettings {
   includeWatched: boolean;
   syncIntervalHours: number;
-  /** "Seen it" marks the movie watched in Plex; "Later" adds it to the Plex Watchlist. */
-  syncToPlex: boolean;
+  /** "Seen it" marks the movie watched on the media server; "Watchlist" adds it to the server's watchlist. */
+  syncToServer: boolean;
   /** Unwatched Seerr requests rank higher for whoever made them. */
   boostRequests: boolean;
 }
@@ -39,7 +39,8 @@ export interface AppSettings {
 export interface SyncInfo {
   at: number | null;
   movies: number;
-  matchedInPlex: number;
+  /** Library movies found on the media server. */
+  matched: number;
   error: string | null;
 }
 
@@ -76,8 +77,8 @@ const defaults = (): SettingsShape => ({
     serverUrl: null,
     sectionIds: [],
   },
-  app: { includeWatched: false, syncIntervalHours: 6, syncToPlex: true, boostRequests: true },
-  sync: { at: null, movies: 0, matchedInPlex: 0, error: null },
+  app: { includeWatched: false, syncIntervalHours: 6, syncToServer: true, boostRequests: true },
+  sync: { at: null, movies: 0, matched: 0, error: null },
   seerr: null,
   seerrSync: { at: null, requests: 0, profiles: 0, error: null },
 });
@@ -184,6 +185,16 @@ export class Store {
   plexConfigured(): boolean {
     const plex = this.get('plex');
     return Boolean(plex.adminToken && plex.machineId && plex.serverUrl);
+  }
+
+  /** The media server Curatorr uses, or is being set up with. */
+  mediaServer(): MediaServer | null {
+    return this.get('plex').adminToken ? 'plex' : null;
+  }
+
+  /** Forgets the Plex sign-in, server and libraries; keeps the client id Plex knows Curatorr by. */
+  resetPlex() {
+    this.set('plex', { ...defaults().plex, clientId: this.get('plex').clientId });
   }
 
   // ---- movies -------------------------------------------------------------
@@ -428,19 +439,22 @@ export class Store {
     const row = this.db
       .prepare('SELECT id, movie_id, kind, plex_synced FROM feedback WHERE id = ? AND profile_id = ?')
       .get(id, profileId) as { id: number; movie_id: number; kind: FeedbackKind; plex_synced: number } | undefined;
-    return row && { id: row.id, movieId: row.movie_id, kind: row.kind, plexSynced: Boolean(row.plex_synced) };
+    return row && { id: row.id, movieId: row.movie_id, kind: row.kind, serverSynced: Boolean(row.plex_synced) };
   }
 
-  /** Marks that Curatorr changed Plex for this event, so Undo knows to change it back. */
+  /**
+   * Marks that Curatorr changed the media server for this event, so Undo knows to change it back.
+   * (The column is named from when Plex was the only one.)
+   */
   setFeedbackSynced(id: number) {
     this.db.prepare('UPDATE feedback SET plex_synced = 1 WHERE id = ?').run(id);
   }
 
   /**
    * Removes every "seen" / "never" / "later" mark of one kind for a movie (the same movie can
-   * be marked on several nights) and reports whether any of them had changed Plex.
+   * be marked on several nights) and reports whether any of them had changed the media server.
    */
-  deleteMarks(profileId: number, movieId: number, kind: FeedbackKind): { deleted: number; plexSynced: boolean } {
+  deleteMarks(profileId: number, movieId: number, kind: FeedbackKind): { deleted: number; serverSynced: boolean } {
     return transaction(this.db, () => {
       const { synced } = this.db
         .prepare('SELECT COALESCE(MAX(plex_synced), 0) AS synced FROM feedback WHERE profile_id = ? AND movie_id = ? AND kind = ?')
@@ -448,7 +462,7 @@ export class Store {
       const res = this.db
         .prepare('DELETE FROM feedback WHERE profile_id = ? AND movie_id = ? AND kind = ?')
         .run(profileId, movieId, kind);
-      return { deleted: Number(res.changes), plexSynced: Boolean(synced) };
+      return { deleted: Number(res.changes), serverSynced: Boolean(synced) };
     });
   }
 

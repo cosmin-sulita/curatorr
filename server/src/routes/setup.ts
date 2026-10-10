@@ -152,20 +152,10 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
     return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));
   });
 
-  /** Continue without Plex: one local profile, no watch history. */
-  app.post('/api/setup/plex/skip', async (req) => {
+  /** Continue without a media server: one local profile, no watch history. */
+  app.post('/api/setup/server/skip', async (req) => {
     guard(req);
-    const { clientId } = store.get('plex');
-    store.set('plex', {
-      clientId,
-      adminToken: null,
-      ownerId: null,
-      ownerName: null,
-      machineId: null,
-      serverName: null,
-      serverUrl: null,
-      sectionIds: [],
-    });
+    store.resetPlex();
     if (store.profileRows(true).length === 0) store.createLocalProfile('Me', true);
     return { ok: true };
   });

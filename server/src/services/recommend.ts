@@ -3,6 +3,7 @@ import {
   certAllowed,
   eligibleMovies,
   isSurprise,
+  onServer,
   qualityScore,
   rankMovies,
   rankSimilar,
@@ -14,6 +15,7 @@ import {
   type Criteria,
   type FeedbackEvent,
   type LikeSeed,
+  type MediaServer,
   type Movie,
   type MovieDTO,
   type ProfileContext,
@@ -55,7 +57,8 @@ export interface ProfileData {
   requested: Set<number>;
   /** Library movies other profiles requested in Seerr. */
   requestedByOthers: Set<number>;
-  plexConfigured: boolean;
+  /** The media server Curatorr uses. */
+  server: MediaServer | null;
   includeWatched: boolean;
   boostRequests: boolean;
 }
@@ -71,7 +74,7 @@ export function profileData(store: Store, row: ProfileRow): ProfileData {
     watchlist: store.watchlistIds(row.id),
     requested: store.requestedIds(row.id),
     requestedByOthers: store.requestedByOthers(row.id),
-    plexConfigured: store.plexConfigured(),
+    server: store.mediaServer(),
     includeWatched: app.includeWatched,
     boostRequests: app.boostRequests,
   };
@@ -86,14 +89,15 @@ export interface Picking {
 
 /** `taste` also works out the profile's taste, which only ranking the picks needs. */
 export function picking(d: ProfileData, now: number, { taste = false } = {}): Picking {
-  // Only insist on a Plex match when matching is actually working.
-  const requirePlex = d.plexConfigured && d.movies.some((m) => m.plexRatingKey);
+  // Only insist on a server match when matching is actually working.
+  const server = d.server;
+  const requireServer = server && d.movies.some((m) => onServer(m, server)) ? server : null;
   const watched = new Set(d.watched.map((w) => w.movieId));
   const certs = allowedCerts(d.restriction);
   // For sagas, "watched" also covers "Seen it", and only parts this profile can play and may see
   // count: a part held back by its restrictions mustn't hold back the sequels it may watch.
   const seen = new Set([...watched, ...d.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
-  const playable = d.movies.filter((m) => (!requirePlex || m.plexRatingKey) && certAllowed(m, certs));
+  const playable = d.movies.filter((m) => (!requireServer || onServer(m, requireServer)) && certAllowed(m, certs));
   // Only requests still waiting to be watched get the boost and the label.
   const requested = new Set(d.boostRequests ? [...d.requested].filter((id) => !seen.has(id)) : []);
   // A movie someone else asked for isn't news to this profile when it arrives.
@@ -103,7 +107,7 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
     feedback: d.feedback,
     sagas: sagaState(playable, seen),
     allowedCerts: certs,
-    requirePlex,
+    requireServer,
     includeWatched: d.includeWatched,
     watchlist: d.watchlist,
     requested,
@@ -123,9 +127,14 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
   };
 }
 
-export function toDTO(store: Store, m: StoredMovie): MovieDTO {
+/** Links that open a movie on the media server: `web` in a browser, `app` in its phone apps. */
+function watchLinks(store: Store, m: StoredMovie): { web: string; app: string | null } | null {
   const plex = store.get('plex');
-  const links = m.plexRatingKey && plex.machineId ? plexLinks(plex.machineId, m.plexRatingKey, m.plexSlug) : null;
+  return m.plexRatingKey && plex.machineId ? plexLinks(plex.machineId, m.plexRatingKey, m.plexSlug) : null;
+}
+
+export function toDTO(store: Store, m: StoredMovie): MovieDTO {
+  const links = watchLinks(store, m);
   return {
     id: m.id,
     title: m.title,
@@ -138,8 +147,8 @@ export function toDTO(store: Store, m: StoredMovie): MovieDTO {
     posterUrl: m.posterUrl,
     fanartUrl: m.fanartUrl,
     trailerId: m.trailerId,
-    plexUrl: links?.web ?? null,
-    plexAppUrl: links?.app ?? null,
+    watchUrl: links?.web ?? null,
+    watchAppUrl: links?.app ?? null,
     saga: m.saga ? { title: m.saga.title, part: m.saga.part, parts: m.saga.parts } : null,
     imdbId: m.imdbId,
     tmdbId: m.tmdbId,

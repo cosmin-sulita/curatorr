@@ -20,7 +20,7 @@ const STEPS: { id: Step; label: string }[] = [
 /** After a reload, setup carries on at the first step still to do. Plex is done once Plex Home users are profiles. */
 function resumeAt(s: SettingsResponse | undefined): Step {
   if (!s?.radarr) return 'radarr';
-  if (!s.profiles.some((p) => p.plexUser)) return 'plex';
+  if (!s.profiles.some((p) => p.serverUser)) return 'plex';
   return s.seerr ? 'finish' : 'seerr';
 }
 
@@ -74,7 +74,7 @@ export function SetupScreen() {
                 signedIn={Boolean(settings.data?.plex.signedIn)}
                 onDone={() => setStep('seerr')}
                 onSkip={async () => {
-                  await api('/api/setup/plex/skip', { json: {} });
+                  await api('/api/setup/server/skip', { json: {} });
                   // No Seerr step: its requests are matched to profiles by Plex account.
                   setStep('finish');
                 }}

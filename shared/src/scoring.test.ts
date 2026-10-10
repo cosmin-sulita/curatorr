@@ -47,7 +47,7 @@ const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
   watched: new Set(),
   feedback: [],
   allowedCerts: null,
-  requirePlex: true,
+  requireServer: 'plex',
   includeWatched: false,
   watchlist: new Set(),
   ...over,

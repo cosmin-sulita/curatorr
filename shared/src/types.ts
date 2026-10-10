@@ -61,6 +61,9 @@ export interface FeedbackEvent {
 
 export type RestrictionProfile = 'little_kid' | 'older_kid' | 'teen' | null;
 
+/** The media server Curatorr reads profiles and watch history from, and opens picks in. */
+export type MediaServer = 'plex' | 'jellyfin';
+
 export interface Profile {
   id: number;
   name: string;
@@ -144,8 +147,10 @@ export interface MovieDTO {
   posterUrl: string | null;
   fanartUrl: string | null;
   trailerId: string | null;
-  plexUrl: string | null;
-  plexAppUrl: string | null;
+  /** Opens the movie on the media server, in a browser. */
+  watchUrl: string | null;
+  /** Opens the movie in the media server's phone apps, where they take links (Plex). */
+  watchAppUrl: string | null;
   saga: Omit<Saga, 'id'> | null;
   imdbId: string | null;
   tmdbId: number | null;
@@ -155,7 +160,8 @@ export interface AppStatus {
   version: string;
   setupComplete: boolean;
   demo: boolean;
-  plexConfigured: boolean;
+  /** The media server Curatorr uses, or is being set up with. */
+  server: MediaServer | null;
   isAdmin: boolean;
   profile: Profile | null;
   library: { movies: number; lastSync: number | null; syncing: boolean; lastError: string | null };
