@@ -97,6 +97,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`plexLink` in `web/src/lib/format.ts`). Desktop opens Plex Web.
   - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
+  - In a phone's browser, a "Use Curatorr like an app" tip sits above "Something like…": the Share → Add to Home Screen steps on iOS, or an Install button when Android Chrome offers one (`beforeinstallprompt`). ✕ hides it for good, and the installed app never shows it (`web/src/lib/install.ts`).
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 
 ## Checking UI changes
@@ -105,3 +106,4 @@ Build, run the demo server, and drive it with Playwright at 390×844 (`isMobile`
 - **What's new:** set `localStorage['curatorr:lastSeenVersion']` to the current version to keep the popup out of the way.
 - **Safe areas:** headless browsers report zero safe-area insets. To see real iPhone spacing, override `.pt-safe` and `.pb-safe` with about 59px top and 34px bottom.
 - **Stubbing requests:** once the service worker controls the page, `page.route` no longer sees `/api` requests. Use `context.route`, or create the context with `serviceWorkers: 'block'`.
+- **Installed app:** headless browsers run as a browser tab. An init script that defines `navigator.standalone` as true makes the page act as the installed app (no install tip). Dispatch a synthetic `beforeinstallprompt` to see the Android tip.

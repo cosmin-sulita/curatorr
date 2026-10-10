@@ -67,7 +67,7 @@ curatorr.example.com {
 }
 ```
 
-Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome).
+Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome). Until you dismiss it, the first question shows a tip with these steps (an **Install** button on Android).
 
 > **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device. Settings are protected once you sign in with Plex during setup: from then on only the Plex server owner can change them. Without Plex there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
 

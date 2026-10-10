@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
+import { InstallHint } from '../components/InstallHint';
 import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus, useWizardOptions } from '../lib/api';
@@ -150,6 +151,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
           {data && ready && (
             <div className="mt-8">
+              {step === 'genre' && <InstallHint />}
               {step === 'genre' && <LikeCard />}
               {step === 'genre' && <GenreGrid options={data.options} onChoose={choose} />}
               {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}

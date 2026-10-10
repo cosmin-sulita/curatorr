@@ -18,11 +18,14 @@ export function relativeTime(epochMs: number | null) {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** Phones and tablets. iPadOS reports itself as a Mac, so also look for touch. */
-export function isMobileDevice() {
+/** iPhones and iPads. iPadOS reports itself as a Mac, so also look for touch. */
+export function isIOS() {
   const ua = navigator.userAgent;
-  return /android|iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  return /iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 }
+
+/** Phones and tablets. */
+export const isMobileDevice = () => /android/i.test(navigator.userAgent) || isIOS();
 
 export interface PlexLink {
   href: string;

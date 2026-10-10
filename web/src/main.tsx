@@ -6,9 +6,11 @@ import { App } from './App';
 import { ToastProvider } from './components/Toast';
 import { ApiError, isNetworkError } from './lib/api';
 import { startUpdateChecks } from './lib/appUpdate';
+import { listenForInstallPrompt } from './lib/install';
 import './styles.css';
 
 startUpdateChecks();
+listenForInstallPrompt();
 
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
