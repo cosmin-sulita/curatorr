@@ -34,7 +34,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods. `explainTags` keeps the evidence behind each tag.
     - Each keyword counts once per tag, through its best term, and each term counts once.
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
-    - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals); some themes need two signals (`threshold: 3`).
+    - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals), and `overviewExclude` does the same for the plot ("haunted by his past" isn't Supernatural); some themes need two signals (`threshold: 3`).
     - `tagger.fixtures.ts` holds real movies with clear-cut expected tags. Keep it passing and add a case when you fix a mis-tag.
   - `scoring.ts`: `eligibleMovies`, `rankMovies` and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice). `rankMovies` starts from the quality score and adds:
     - the theme/mood bonus, taste points (`tastePoints`) and the newly added bonus (from `addedAt`);

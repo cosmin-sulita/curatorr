@@ -51,6 +51,8 @@ export interface ThemeDef {
   genres?: string[];
   /** Fallback for movies with few keywords, or none that tag anything. */
   overview?: RegExp;
+  /** Plot idioms the fallback skips, like "haunted by his past". Needs the `g` flag. */
+  overviewExclude?: RegExp;
   /** Score needed; 2 (one strong term) by default. Higher where one keyword is often a side detail. */
   threshold?: number;
 }
@@ -68,7 +70,9 @@ export const THEMES: ThemeDef[] = [
     // "Spirit" alone is as often "team spirit" or "resistance spirit".
     weak: ['devil', 'satan', 'witch', 'spirit'],
     exclude: ['christmas spirit', 'team spirit', 'free spirit', 'ghost town', 'ghost writer', 'drug possession'],
-    overview: /\bghosts?\b|\bhaunt|\bdemon|\bpossess(ed|ion)\b|\bsupernatural\b|\bparanormal\b/,
+    overview: /\bghosts?\b|\bhaunt|\bdemon(s|ic|ically)?\b|\bpossess(ed|ion)\b|\bsupernatural\b|\bparanormal\b/,
+    // Plots say "haunted by the loss", "comes into possession of" and "face her demons" of anyone.
+    overviewExclude: /\bhaunted by\b|\bto haunt\b|\bhaunts (him|her|them|their)\b|\b(in|into|gain|gains|gained|take|takes|took|taking) possession\b|\b(his|her|their|own|personal|inner) demons\b|\bdemons of (his|her|their)\b/g,
   },
   {
     id: 'monsters', label: 'Monsters & Creatures', icon: 'Bug',

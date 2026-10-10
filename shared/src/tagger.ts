@@ -160,7 +160,9 @@ function explainThemes(movie: TaggableMovie): TagExplanations {
   if (sparse || !scored.some(({ theme, evidence }) => themeTagged(theme, evidence))) {
     const overview = movie.overview.toLowerCase();
     for (const { theme, evidence } of scored) {
-      const words = theme.overview?.exec(overview);
+      // Idioms come out first, so "haunted by his past" isn't read as a haunting.
+      const plot = theme.overviewExclude ? overview.replaceAll(theme.overviewExclude, ' ') : overview;
+      const words = theme.overview?.exec(plot);
       if (words) evidence.push({ source: 'overview', term: words[0], weight: OVERVIEW_HIT });
     }
   }

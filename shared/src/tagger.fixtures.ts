@@ -10,9 +10,10 @@ export interface TaggedMovie extends TaggableMovie {
 }
 
 /**
- * Genres, runtimes and keywords as TMDB (and so Radarr) reports them, October 2026. They keep
- * vocabulary changes honest against real keywords, which are far messier than the demo
- * library's. Only clear-cut calls are listed; `npm run tags` is the place for judgement calls.
+ * Genres, runtimes, keywords and (where the plot is read) overviews as TMDB, and so Radarr, reports
+ * them, October 2026. They keep vocabulary changes honest against real keywords, which are far
+ * messier than the demo library's. Only clear-cut calls are listed; `npm run tags` is the place for
+ * judgement calls.
  */
 export const TAGGED_MOVIES: TaggedMovie[] = [
   {
@@ -472,5 +473,29 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'interracial relationship', 'kidnapping', 'manipulation', 'missing person', 'neurosurgeon', 'parents-in-law',
       'psychological thriller', 'race-conscious', 'racism', 'racist', 'revenge', 'satire', 'stereotype'],
     themes: ['psychological'], notThemes: ['whodunit'], moods: ['edge'],
+  },
+  {
+    title: 'Oscar Shaw', genres: ['Action', 'Crime', 'Thriller', 'Western'], runtime: 93, keywords: [],
+    overview: 'After retiring from the police force, a relentless detective haunted by the tragic loss of his closest ' +
+      'friend sets out on a perilous quest for vengeance, seeking redemption and fighting to restore justice to the ' +
+      'streets he once swore to protect.',
+    themes: ['revenge'], notThemes: ['supernatural'], moods: ['edge'],
+  },
+  {
+    title: 'Americana', genres: ['Crime', 'Western', 'Comedy'], runtime: 107,
+    keywords: ['ambivalent', 'amused', 'artifact', 'biting', 'celebratory', 'dark comedy', 'indigenous community',
+      'south dakota'],
+    overview: 'After a rare Native American artifact falls onto the black market, a shy waitress with big dreams teams ' +
+      'up with a lovelorn military veteran to gain possession of it, putting them in the crosshairs of a ruthless ' +
+      'criminal working on behalf of a Western antiquities dealer.',
+    notThemes: ['supernatural'],
+  },
+  {
+    title: "The Marsh King's Daughter", genres: ['Thriller', 'Crime', 'Mystery'], runtime: 109,
+    keywords: ['angry', 'baffled', 'based on novel or book', 'bewildered', 'derogatory', 'disapproving'],
+    overview: "Helena, a woman living a seemingly ordinary life, hides a dark secret—her father is the infamous 'Marsh " +
+      "King', the man who kept her and her mother captive in the wilderness for years. After a lifetime of trying to " +
+      'escape her past, Helena is forced to face her demons when her father unexpectedly escapes from prison.',
+    notThemes: ['supernatural'],
   },
 ];

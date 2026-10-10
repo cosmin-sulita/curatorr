@@ -75,6 +75,27 @@ describe('tagThemes', () => {
     expect(tagThemes({ ...untagged, keywords: [...untagged.keywords, 'heist'] })).not.toHaveProperty('supernatural');
   });
 
+  it('reads the plot, not its idioms', () => {
+    const plot = (overview: string) => tagThemes({ ...base, overview });
+    for (const idiom of [
+      'A detective haunted by the loss of his partner sets out for vengeance.',
+      'A year later, their past comes back to haunt them.',
+      'A waitress sets out to gain possession of a stolen artifact.',
+      'After years on the run, she is forced to face her demons.',
+      'A scientist demonstrates his invention to the army.',
+    ]) {
+      expect(plot(idiom), idiom).not.toHaveProperty('supernatural');
+    }
+    for (const haunting of [
+      'A family moves into a haunted house.',
+      'The woman believes her daughter is possessed.',
+      "A priest investigates a young boy's terrifying possession.",
+      'A newly dead couple seeks help from a deranged demon exorcist.',
+    ]) {
+      expect(plot(haunting), haunting).toHaveProperty('supernatural');
+    }
+  });
+
   it('scores more matching terms higher', () => {
     const one = tagThemes({ ...base, keywords: ['heist'] }).heist!;
     const two = tagThemes({ ...base, keywords: ['heist', 'bank robbery', 'con artist'] }).heist!;
