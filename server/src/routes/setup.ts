@@ -18,7 +18,7 @@ import { toProfile } from '../store.js';
 const radarrBody = z.object({ url: serviceUrl, apiKey: z.string().min(1) });
 
 export const setupRoutes: RouteModule = (app, { store, library }) => {
-  // Everything here is open until someone signs in with Plex, then admin-only (see isAdmin).
+  // Everything here is open until someone signs in with Plex or connects Jellyfin, then admin-only (see isAdmin).
   const guard = (req: Parameters<typeof isAdmin>[0]) => requireAdmin(req, store);
 
   // ---- Radarr --------------------------------------------------------------
@@ -76,6 +76,11 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
       if (plex.ownerId && store.get('setupComplete')) {
         throw new HttpError(403, 'Sign in with the same Plex account that owns this Curatorr instance');
       }
+    }
+    if (store.get('jellyfin')) {
+      if (store.get('setupComplete')) throw new HttpError(409, 'Curatorr is set up with Jellyfin');
+      // Setting up with Plex after all: Curatorr uses one media server.
+      store.set('jellyfin', null);
     }
     store.update('plex', { adminToken: token, ownerId: account.id, ownerName: account.title });
     setAdminCookie(reply, account.id);
@@ -156,6 +161,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
   app.post('/api/setup/server/skip', async (req) => {
     guard(req);
     store.resetPlex();
+    store.set('jellyfin', null);
     if (store.profileRows(true).length === 0) store.createLocalProfile('Me', true);
     return { ok: true };
   });

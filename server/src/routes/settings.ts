@@ -11,8 +11,10 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     requireAdmin(req, store);
     const radarr = store.get('radarr');
     const plex = store.get('plex');
+    const jellyfin = store.get('jellyfin');
     const seerr = store.get('seerr');
     return {
+      server: store.mediaServer(),
       radarr: radarr ? { url: radarr.url, hasApiKey: Boolean(radarr.apiKey) } : null,
       seerr: seerr ? { url: seerr.url, hasApiKey: Boolean(seerr.apiKey), ...store.get('seerrSync') } : null,
       plex: {
@@ -23,12 +25,20 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
         machineId: plex.machineId,
         sectionIds: plex.sectionIds,
       },
+      // Never the token.
+      jellyfin: jellyfin && {
+        url: jellyfin.url,
+        publicUrl: jellyfin.publicUrl,
+        serverName: jellyfin.serverName,
+        ownerName: jellyfin.ownerName,
+        libraryIds: jellyfin.libraryIds,
+      },
       app: store.get('app'),
       sync: { ...store.get('sync'), syncing: library.syncing },
       profiles: store.profileRows(true).map((r) => ({
         ...toProfile(r),
         hidden: Boolean(r.hidden),
-        serverUser: r.plex_user_id != null,
+        serverUser: r.plex_user_id != null || r.jellyfin_user_id != null,
       })),
     };
   });

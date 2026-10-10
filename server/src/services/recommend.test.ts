@@ -34,6 +34,7 @@ function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
     plexRatingKey: null,
     plexSlug: null,
     plexGuid: null,
+    jellyfinId: null,
     saga: null,
     addedAt: null,
     arrivedAt: null,

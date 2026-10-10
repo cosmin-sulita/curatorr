@@ -182,6 +182,7 @@ export function demoMovies(now = Date.now()): StoredMovie[] {
       plexRatingKey: null,
       plexSlug: null,
       plexGuid: null,
+      jellyfinId: null,
       saga: saga ? { id: saga[0], title: saga[1], part: saga[2], parts: saga[3] } : null,
       addedAt: daysAgo(requested ? REQUESTED_DAYS_AGO : arrivedDaysAgo),
       arrivedAt: daysAgo(arrivedDaysAgo),

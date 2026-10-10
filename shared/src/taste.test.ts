@@ -27,6 +27,7 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     plexRatingKey: String(id),
     plexSlug: null,
     plexGuid: null,
+    jellyfinId: null,
     saga: null,
     addedAt: null,
     arrivedAt: null,

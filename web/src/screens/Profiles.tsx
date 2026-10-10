@@ -5,8 +5,9 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { CenteredState, Shell } from '../components/Shell';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
-import { ApiError, errorMessage, useProfiles, useSelectProfile } from '../lib/api';
+import { ApiError, errorMessage, useProfiles, useSelectProfile, useStatus } from '../lib/api';
 import { useDialogFocus } from '../lib/dialogFocus';
+import { serverName } from '../lib/format';
 import { navigate } from '../lib/router';
 import { useScrollLock } from '../lib/scrollLock';
 
@@ -18,6 +19,7 @@ const RESTRICTION_LABEL: Record<string, string> = {
 
 export function ProfilesScreen() {
   const { data: profiles, isLoading, error } = useProfiles();
+  const { data: status } = useStatus();
   const select = useSelectProfile();
   const [pinFor, setPinFor] = useState<Profile | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
@@ -46,7 +48,9 @@ export function ProfilesScreen() {
       <Shell bare>
         <div className="flex flex-col items-center pt-10 sm:pt-20">
           <h1 className="font-display text-5xl sm:text-6xl">Who's watching?</h1>
-          <p className="mt-3 max-w-sm text-center text-muted">Picks skip the movies this person has already watched in Plex.</p>
+          <p className="mt-3 max-w-sm text-center text-muted">
+            Picks skip the movies this person has already watched in {serverName(status?.server)}.
+          </p>
 
           {isLoading && <Spinner className="mt-16 size-8" />}
           {error && (
@@ -56,7 +60,11 @@ export function ProfilesScreen() {
           )}
           {profiles && profiles.length === 0 && (
             <CenteredState title="No profiles yet">
-              <p className="text-muted">The server owner can import Plex Home users in Settings.</p>
+              <p className="text-muted">
+                {status?.server === 'jellyfin'
+                  ? 'An administrator can import Jellyfin users in Settings.'
+                  : 'The server owner can import Plex Home users in Settings.'}
+              </p>
             </CenteredState>
           )}
 

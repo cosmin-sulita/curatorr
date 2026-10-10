@@ -4,6 +4,7 @@ import type {
   Criteria,
   FeedbackKind,
   LikeSeed,
+  MediaServer,
   MovieDTO,
   Profile,
   RecommendationsResponse,
@@ -104,7 +105,7 @@ export function useLikeSeeds(q: string) {
  */
 export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
 
-/** `keepalive` lets the request finish while the page is being left (e.g. opening Plex). */
+/** `keepalive` lets the request finish while the page is being left (e.g. opening the media server). */
 export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean } = {}) {
   return api<{ id: number; server?: ServerSyncResult }>('/api/feedback', {
     json: { movieId, kind },
@@ -148,6 +149,8 @@ export function useSelectProfile() {
 // ---------------------------------------------------------------------------
 
 export interface SettingsResponse {
+  /** The media server Curatorr uses, or is being set up with. */
+  server: MediaServer | null;
   radarr: { url: string; hasApiKey: boolean } | null;
   /** The last read of Seerr: requested movies in the library, for how many profiles. */
   seerr: {
@@ -166,6 +169,14 @@ export interface SettingsResponse {
     machineId: string | null;
     sectionIds: string[];
   };
+  jellyfin: {
+    url: string;
+    /** Where Watch on Jellyfin goes, when that's another address. */
+    publicUrl: string | null;
+    serverName: string;
+    ownerName: string;
+    libraryIds: string[];
+  } | null;
   app: { includeWatched: boolean; syncIntervalHours: number; syncToServer: boolean; boostRequests: boolean };
   sync: { at: number | null; movies: number; matched: number; error: string | null; syncing: boolean };
   /** `serverUser`: the profile stands for a user on the media server. */
@@ -187,7 +198,8 @@ export interface PlexServerOption {
   connections: { url: string; local: boolean; relay: boolean; ok: boolean; ms: number | null }[];
 }
 
-export interface PlexLibrary {
+/** A Plex or Jellyfin library that can hold movies. */
+export interface ServerLibrary {
   key: string;
   title: string;
 }

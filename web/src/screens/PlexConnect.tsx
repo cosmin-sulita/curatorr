@@ -1,26 +1,17 @@
-import type { Profile } from '@curatorr/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Check, Lock } from 'lucide-react';
 import { useState } from 'react';
-import { Avatar, Button, Field, inputClass, Notice, Spinner } from '../components/ui';
-import { api, errorMessage, type PlexLibrary, type PlexServerOption } from '../lib/api';
+import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
+import { api, errorMessage, type PlexServerOption, type ServerLibrary } from '../lib/api';
 import { usePlexSignIn } from '../lib/plexAuth';
+import { LibraryPicker, UserImport } from './MediaServer';
 
 type Stage = 'signin' | 'server' | 'libraries' | 'users';
 
 /** Sign in with Plex → pick server → pick libraries → import Plex Home users. */
-export function PlexConnect({
-  signedIn,
-  onDone,
-  onSkip,
-}: {
-  signedIn: boolean;
-  onDone: () => void;
-  onSkip?: () => void;
-}) {
+export function PlexConnect({ signedIn, onDone }: { signedIn: boolean; onDone: () => void }) {
   const [stage, setStage] = useState<Stage>(signedIn ? 'server' : 'signin');
-  const [libraries, setLibraries] = useState<PlexLibrary[]>([]);
+  const [libraries, setLibraries] = useState<ServerLibrary[]>([]);
   const signIn = usePlexSignIn('setup', () => setStage('server'));
 
   if (stage === 'signin') {
@@ -30,16 +21,9 @@ export function PlexConnect({
           Curatorr uses Plex to know who has watched what, and to open a pick straight in Plex. Sign in with the account that
           owns your Plex server.
         </p>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="primary" size="lg" onClick={signIn.start} loading={signIn.waiting}>
-            {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
-          </Button>
-          {onSkip && (
-            <Button variant="ghost" size="lg" onClick={onSkip}>
-              Skip, I don't use Plex
-            </Button>
-          )}
-        </div>
+        <Button variant="primary" size="lg" onClick={signIn.start} loading={signIn.waiting}>
+          {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
+        </Button>
         {signIn.manualUrl && (
           <Notice tone="info">
             Your browser blocked the sign-in window.{' '}
@@ -67,13 +51,21 @@ export function PlexConnect({
   }
 
   if (stage === 'libraries') {
-    return <LibraryPicker libraries={libraries} onSaved={() => setStage('users')} onBack={() => setStage('server')} />;
+    return (
+      <LibraryPicker
+        libraries={libraries}
+        onSave={(sectionIds) => api('/api/setup/plex/libraries', { json: { sectionIds } })}
+        onSaved={() => setStage('users')}
+        onBack={() => setStage('server')}
+        backLabel="Choose another server"
+      />
+    );
   }
 
-  return <UserImport onDone={onDone} />;
+  return <UserImport server="plex" onDone={onDone} />;
 }
 
-function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrary[]) => void; onSignInAgain: () => void }) {
+function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: ServerLibrary[]) => void; onSignInAgain: () => void }) {
   const servers = useQuery({
     queryKey: ['plex-servers'],
     queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers'),
@@ -94,7 +86,7 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrar
     setSaving(true);
     setError(null);
     try {
-      const res = await api<{ libraries: PlexLibrary[] }>('/api/setup/plex/server', { json: target });
+      const res = await api<{ libraries: ServerLibrary[] }>('/api/setup/plex/server', { json: target });
       onPicked(res.libraries);
     } catch (err) {
       setError(errorMessage(err));
@@ -172,123 +164,6 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: PlexLibrar
       {error && <Notice>{error}</Notice>}
       <Button variant="primary" size="lg" onClick={save} loading={saving} disabled={!selected}>
         Use this server
-      </Button>
-    </div>
-  );
-}
-
-function LibraryPicker({
-  libraries,
-  onSaved,
-  onBack,
-}: {
-  libraries: PlexLibrary[];
-  onSaved: () => void;
-  onBack: () => void;
-}) {
-  const [selected, setSelected] = useState(() => new Set(libraries.map((l) => l.key)));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await api('/api/setup/plex/libraries', { json: { sectionIds: [...selected] } });
-      onSaved();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!libraries.length) {
-    return (
-      <div className="space-y-3">
-        <Notice>No movie libraries were found on this server.</Notice>
-        <Button onClick={onBack}>Choose another server</Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-muted">Which movie libraries hold your Radarr movies?</p>
-      <div className="space-y-2">
-        {libraries.map((l) => (
-          <label key={l.key} className="flex cursor-pointer items-center gap-3 rounded-xl bg-ink/60 px-4 py-3 ring-1 ring-line">
-            <input
-              type="checkbox"
-              className="size-4 accent-indigo-500"
-              checked={selected.has(l.key)}
-              onChange={(e) => {
-                const next = new Set(selected);
-                if (e.target.checked) next.add(l.key);
-                else next.delete(l.key);
-                setSelected(next);
-              }}
-            />
-            {l.title}
-          </label>
-        ))}
-      </div>
-      {error && <Notice>{error}</Notice>}
-      <Button variant="primary" size="lg" onClick={save} loading={saving} disabled={selected.size === 0}>
-        Continue
-      </Button>
-    </div>
-  );
-}
-
-function UserImport({ onDone }: { onDone: () => void }) {
-  const users = useQuery({
-    queryKey: ['plex-import'],
-    queryFn: () => api<(Profile & { hidden: boolean })[]>('/api/setup/plex/users', { json: {} }),
-    staleTime: Infinity,
-    retry: false,
-  });
-
-  if (users.isLoading) {
-    return (
-      <div className="flex items-center gap-3 text-muted">
-        <Spinner className="size-5" /> Importing Plex Home users…
-      </div>
-    );
-  }
-  if (users.error) {
-    return (
-      <div className="space-y-3">
-        <Notice>{errorMessage(users.error)}</Notice>
-        <Button onClick={() => users.refetch()} loading={users.isFetching}>
-          Try again
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-muted">These Plex Home users became profiles. Each one gets picks based on their own watch history.</p>
-      <ul className="space-y-2">
-        {users.data?.map((u) => (
-          <li key={u.id} className="flex items-center gap-3 rounded-xl bg-ink/60 px-4 py-3 ring-1 ring-line">
-            <Avatar name={u.name} src={u.avatarUrl} className="size-9" />
-            <span className="flex-1 font-medium">{u.name}</span>
-            {u.linked ? (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
-                <Check className="size-3.5" /> Ready
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-muted">
-                <Lock className="size-3.5" /> Asks for PIN once
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-      <Button variant="primary" size="lg" onClick={onDone}>
-        Continue
       </Button>
     </div>
   );

@@ -9,7 +9,7 @@ You need Node 22.13 or newer, since Curatorr uses the built-in `node:sqlite`. Do
 ```sh
 npm install
 npm run dev:demo   # API on :7979 with a demo library, UI on http://localhost:5173
-npm run dev        # the same against your real Radarr and Plex; setup runs on first start
+npm run dev        # the same against your real Radarr and Plex or Jellyfin; setup runs on first start
 ```
 
 The demo library has about 95 movies and three profiles (Alex, Sam and Kids). In demo mode everyone counts as the admin and no profile has a PIN. `npm run dev` keeps its database in `config/`, which git ignores.
@@ -24,7 +24,7 @@ npm run icons      # regenerates the committed icons from web/public/logo.svg an
 The repo is an npm workspace:
 
 - `shared/`: types, the theme and mood vocabulary, tagging and ranking. Pure functions, unit tested, used by both sides.
-- `server/`: the Fastify API, the Radarr, Plex and Seerr clients, SQLite storage and the library sync.
+- `server/`: the Fastify API, the Radarr, Plex, Jellyfin and Seerr clients, SQLite storage and the library sync.
 - `web/`: the React + Vite + Tailwind PWA.
 
 [CLAUDE.md](CLAUDE.md) maps the code in more detail and records the reasons behind its less obvious decisions. It's written for AI coding agents, but it works for people too.
@@ -46,10 +46,10 @@ The repo is an npm workspace:
 
 ## Tuning tags and ranking against a real library
 
-The demo library's keywords are tidy, and real TMDB keywords aren't. To tune the vocabulary or the ranking against your own library, copy `curatorr.db` (with its `-wal` and `-shm` files) from Curatorr's config folder into `config/`. The database holds your Plex tokens, so never commit or share it. Both reports only read it.
+The demo library's keywords are tidy, and real TMDB keywords aren't. To tune the vocabulary or the ranking against your own library, copy `curatorr.db` (with its `-wal` and `-shm` files) from Curatorr's config folder into `config/`. The database holds your Plex or Jellyfin tokens, so never commit or share it. Both reports only read it.
 
 - `npm run tags` shows how the theme and mood vocabulary fits: coverage, untagged movies, keywords nothing matches, and terms found inside longer keywords (idiom candidates), compared with the tags the server last stored. `-- --movie <title>` explains one movie's tags, and `-- --tag <id>` lists what a theme or mood gains and loses.
-- `npm run eval` replays the library's Plex watch history through the working copy's ranking. Each watch is ranked with the library and history as they were that evening, for the questions the wizard offered then, separately for movies that had just arrived and for the backlog. It also simulates evenings of ignored picks, to show how quickly the first pick rotates. It never reads the settings table.
+- `npm run eval` replays the library's watch history through the working copy's ranking. Each watch is ranked with the library and history as they were that evening, for the questions the wizard offered then, separately for movies that had just arrived and for the backlog. It also simulates evenings of ignored picks, to show how quickly the first pick rotates. It never reads the settings table.
 
 Measure a ranking change rather than tuning it by feel: save a run with `npm run eval -- --save run.json` before the change, then compare with `npm run eval -- --compare run.json` after it.
 

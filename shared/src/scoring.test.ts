@@ -35,6 +35,7 @@ function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): M
     plexRatingKey: String(id),
     plexSlug: null,
     plexGuid: null,
+    jellyfinId: null,
     saga: null,
     addedAt: null,
     arrivedAt: null,
@@ -80,6 +81,18 @@ describe('eligibleMovies', () => {
     ];
     const out = eligibleMovies([a!, b!, c!, d!, e!], ctx({ watched: new Set([a!.id]), feedback }));
     expect(out.map((m) => m.id)).toEqual([e!.id]);
+  });
+
+  it('only offers movies found in Jellyfin when Curatorr uses it', () => {
+    const found = movie({ plexRatingKey: null, jellyfinId: 'item-1' });
+    const missing = movie({ plexRatingKey: null });
+    expect(eligibleMovies([found, missing], ctx({ requireServer: 'jellyfin' }))).toEqual([found]);
+  });
+
+  it("leaves out movies the profile can't open on the media server", () => {
+    const [open, closed] = [movie(), movie()];
+    expect(eligibleMovies([open, closed], ctx({ available: new Set([open.id]) }))).toEqual([open]);
+    expect(eligibleMovies([open, closed], ctx({ available: null }))).toEqual([open, closed]);
   });
 
   it('can include watched movies', () => {

@@ -4,7 +4,8 @@ import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
-import { errorMessage, useLikeSeeds } from '../lib/api';
+import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
+import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
 
 /** "Something like…": pick a movie you loved, then get unwatched ones that resemble it. */
@@ -13,6 +14,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
   const [text, setText] = useState(query);
   const input = useRef<HTMLInputElement>(null);
   const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useLikeSeeds(query);
+  const { data: status } = useStatus();
   const searching = query !== '';
 
   // The search lives in the URL, so Back from a pick returns to the same results.
@@ -80,7 +82,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
           <p className="mt-3 text-muted">
             {searching
               ? `Nothing in your library matches “${query}”.`
-              : 'Movies you watched in Plex or marked Seen it show up here. Search for one you loved.'}
+              : `Movies you watched in ${serverName(status?.server)} or marked Seen it show up here. Search for one you loved.`}
           </p>
         )}
 

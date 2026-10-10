@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
+import { applyToJellyfin, revertInJellyfin, syncJellyfinState } from './jellyfin.js';
 import { applyToPlex, revertInPlex } from './plexSync.js';
 import { syncPlexState } from './profiles.js';
 
@@ -19,7 +20,9 @@ export const isServerMark = (kind: string): kind is ServerMark => kind === 'seen
 
 /** Refreshes a profile's watch history and watchlist from the media server, if they are stale. */
 export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
-  if (store.mediaServer() === 'plex') await syncPlexState(store, row, log, force);
+  const server = store.mediaServer();
+  if (server === 'plex') await syncPlexState(store, row, log, force);
+  if (server === 'jellyfin') await syncJellyfinState(store, row, log, force);
 }
 
 /** Mirrors a mark to the media server, unless the owner turned that off. */
@@ -31,7 +34,9 @@ export async function applyMark(
   log: FastifyBaseLogger,
 ): Promise<ServerSyncResult> {
   if (!store.get('app').syncToServer) return 'skipped';
-  if (store.mediaServer() === 'plex') return applyToPlex(store, profile, movie, kind, log);
+  const server = store.mediaServer();
+  if (server === 'plex') return applyToPlex(store, profile, movie, kind, log);
+  if (server === 'jellyfin') return applyToJellyfin(store, profile, movie, kind, log);
   return 'skipped';
 }
 
@@ -43,6 +48,8 @@ export async function revertMark(
   kind: ServerMark,
   log: FastifyBaseLogger,
 ): Promise<ServerSyncResult> {
-  if (store.mediaServer() === 'plex') return revertInPlex(store, profile, movie, kind, log);
+  const server = store.mediaServer();
+  if (server === 'plex') return revertInPlex(store, profile, movie, kind, log);
+  if (server === 'jellyfin') return revertInJellyfin(store, profile, movie, kind, log);
   return 'skipped';
 }

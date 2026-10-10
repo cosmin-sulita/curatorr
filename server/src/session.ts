@@ -33,8 +33,9 @@ export function clearProfileCookie(reply: FastifyReply) {
   reply.clearCookie(PROFILE_COOKIE, { path: '/' });
 }
 
-export function setAdminCookie(reply: FastifyReply, ownerId: number) {
-  reply.setCookie(ADMIN_COOKIE, `${ownerId}.${Date.now()}`, cookieOptions(ADMIN_TTL_S));
+/** Signs in the Plex owner (by plex.tv account id) or a Jellyfin administrator (by user id). */
+export function setAdminCookie(reply: FastifyReply, accountId: number | string) {
+  reply.setCookie(ADMIN_COOKIE, `${accountId}.${Date.now()}`, cookieOptions(ADMIN_TTL_S));
 }
 
 export function clearAdminCookie(reply: FastifyReply) {
@@ -81,21 +82,26 @@ export function requireProfile(req: FastifyRequest, store: Store): ProfileRow {
 }
 
 /**
- * Admin rights are needed for setup and settings. Until someone signs in with Plex (a fresh
- * install, or one set up without Plex) there is no owner to verify against, so everyone is admin
- * (like the *arr apps without authentication). From the first Plex sign-in on, even before setup
- * is complete, the server owner must have signed in with Plex on this device.
+ * Admin rights are needed for setup and settings. Until someone signs in with Plex or connects
+ * Jellyfin (a fresh install, or one set up without either) there is no owner to verify against, so
+ * everyone is admin (like the *arr apps without authentication). From then on, even before setup is
+ * complete, the Plex server owner, or with Jellyfin one of its administrators, must have signed in on
+ * this device.
  */
 export function isAdmin(req: FastifyRequest, store: Store): boolean {
   if (store.demo) return true;
-  const { ownerId } = store.get('plex');
-  if (!ownerId) return true;
+  const owner = store.owner();
+  if (!owner) return true;
   const value = readSigned(req, ADMIN_COOKIE);
   if (!value) return false;
-  const [id, issued] = value.split('.').map(Number);
-  return id === ownerId && Date.now() - (issued ?? 0) < ADMIN_TTL_S * 1000;
+  const [id, issued] = value.split('.');
+  if (!id || Date.now() - Number(issued ?? 0) >= ADMIN_TTL_S * 1000) return false;
+  return id === owner.id || (owner.server === 'jellyfin' && store.isJellyfinAdmin(id));
 }
 
 export function requireAdmin(req: FastifyRequest, store: Store) {
-  if (!isAdmin(req, store)) throw new HttpError(403, 'Sign in with Plex as the server owner', { needAdmin: true });
+  if (isAdmin(req, store)) return;
+  const jellyfin = store.owner()?.server === 'jellyfin';
+  const message = jellyfin ? 'Sign in as a Jellyfin administrator' : 'Sign in with Plex as the server owner';
+  throw new HttpError(403, message, { needAdmin: true });
 }

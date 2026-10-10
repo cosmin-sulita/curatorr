@@ -22,6 +22,24 @@ export interface PlexSettings {
   sectionIds: string[];
 }
 
+export interface JellyfinSettings {
+  /** Where Curatorr reaches Jellyfin. */
+  url: string;
+  /** Where people open Jellyfin, for Watch on Jellyfin, when that's another address. */
+  publicUrl: string | null;
+  serverId: string;
+  serverName: string;
+  /** Curatorr's device in Jellyfin, which keeps one token per device and user. */
+  deviceId: string;
+  /** The token of the administrator who connected Curatorr; it reads and marks every user's movies. */
+  token: string;
+  /** That administrator, who owns Curatorr's settings as the Plex owner does. */
+  ownerId: string;
+  ownerName: string;
+  /** The libraries that hold the Radarr movies. */
+  libraryIds: string[];
+}
+
 export interface SeerrSettings {
   url: string;
   apiKey: string;
@@ -57,6 +75,7 @@ interface SettingsShape {
   cookieSecret: string;
   radarr: RadarrSettings | null;
   plex: PlexSettings;
+  jellyfin: JellyfinSettings | null;
   app: AppSettings;
   sync: SyncInfo;
   seerr: SeerrSettings | null;
@@ -77,6 +96,7 @@ const defaults = (): SettingsShape => ({
     serverUrl: null,
     sectionIds: [],
   },
+  jellyfin: null,
   app: { includeWatched: false, syncIntervalHours: 6, syncToServer: true, boostRequests: true },
   sync: { at: null, movies: 0, matched: 0, error: null },
   seerr: null,
@@ -112,6 +132,7 @@ interface MovieRow {
   plex_rating_key: string | null;
   plex_slug: string | null;
   plex_guid: string | null;
+  jellyfin_id: string | null;
   saga_id: number | null;
   saga_title: string | null;
   saga_part: number | null;
@@ -124,6 +145,8 @@ export interface ProfileRow {
   id: number;
   plex_user_id: number | null;
   plex_uuid: string | null;
+  /** The Jellyfin user the profile stands for. */
+  jellyfin_user_id: string | null;
   name: string;
   avatar_url: string | null;
   is_admin: number;
@@ -187,9 +210,18 @@ export class Store {
     return Boolean(plex.adminToken && plex.machineId && plex.serverUrl);
   }
 
-  /** The media server Curatorr uses, or is being set up with. */
+  /** The media server Curatorr uses, or is being set up with. Connecting one lets the other go. */
   mediaServer(): MediaServer | null {
-    return this.get('plex').adminToken ? 'plex' : null;
+    if (this.get('plex').adminToken) return 'plex';
+    return this.get('jellyfin') ? 'jellyfin' : null;
+  }
+
+  /** Who owns Curatorr's settings: the Plex owner, or the Jellyfin administrator who connected it. */
+  owner(): { server: MediaServer; id: string } | null {
+    const { ownerId } = this.get('plex');
+    if (ownerId) return { server: 'plex', id: String(ownerId) };
+    const jellyfin = this.get('jellyfin');
+    return jellyfin ? { server: 'jellyfin', id: jellyfin.ownerId } : null;
   }
 
   /** Forgets the Plex sign-in, server and libraries; keeps the client id Plex knows Curatorr by. */
@@ -213,9 +245,9 @@ export class Store {
     const upsert = this.db.prepare(`
       INSERT INTO movies (id, tmdb_id, imdb_id, title, year, overview, runtime, certification, genres, keywords,
         themes, moods, rt, imdb, tmdb, metacritic, poster_url, fanart_url, poster_path, fanart_path,
-        trailer_id, plex_rating_key, plex_slug, plex_guid, saga_id, saga_title, saga_part, saga_parts, added_at,
-        arrived_at, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        trailer_id, plex_rating_key, plex_slug, plex_guid, jellyfin_id, saga_id, saga_title, saga_part, saga_parts,
+        added_at, arrived_at, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET
         tmdb_id = excluded.tmdb_id, imdb_id = excluded.imdb_id, title = excluded.title, year = excluded.year,
         overview = excluded.overview, runtime = excluded.runtime, certification = excluded.certification,
@@ -223,7 +255,8 @@ export class Store {
         rt = excluded.rt, imdb = excluded.imdb, tmdb = excluded.tmdb,
         metacritic = excluded.metacritic, poster_url = excluded.poster_url, fanart_url = excluded.fanart_url,
         poster_path = excluded.poster_path, fanart_path = excluded.fanart_path, trailer_id = excluded.trailer_id,
-        plex_rating_key = excluded.plex_rating_key, added_at = excluded.added_at, synced_at = excluded.synced_at,
+        plex_rating_key = excluded.plex_rating_key, jellyfin_id = excluded.jellyfin_id, added_at = excluded.added_at,
+        synced_at = excluded.synced_at,
         saga_id = excluded.saga_id, saga_title = excluded.saga_title, saga_part = excluded.saga_part,
         saga_parts = excluded.saga_parts,
         -- Keep ids looked up earlier when the library listing doesn't include them.
@@ -240,7 +273,7 @@ export class Store {
           JSON.stringify(m.genres), JSON.stringify(m.keywords), JSON.stringify(m.themes), JSON.stringify(m.moods),
           m.ratings.rt, m.ratings.imdb, m.ratings.tmdb, m.ratings.metacritic,
           m.posterUrl, m.fanartUrl, m.posterPath, m.fanartPath, m.trailerId, m.plexRatingKey, m.plexSlug,
-          m.plexGuid, m.saga?.id ?? null, m.saga?.title ?? null, m.saga?.part ?? null, m.saga?.parts ?? null,
+          m.plexGuid, m.jellyfinId, m.saga?.id ?? null, m.saga?.title ?? null, m.saga?.part ?? null, m.saga?.parts ?? null,
           m.addedAt, m.arrivedAt, syncedAt,
         );
       }
@@ -304,6 +337,37 @@ export class Store {
     return row.id;
   }
 
+  /** Creates or refreshes a Jellyfin user's profile. Whether it's hidden stays Curatorr's choice. */
+  upsertJellyfinProfile(p: {
+    jellyfinUserId: string;
+    name: string;
+    avatarUrl: string | null;
+    isAdmin: boolean;
+    restrictionProfile: RestrictionProfile;
+  }): number {
+    const row = this.db
+      .prepare(`
+        INSERT INTO profiles (jellyfin_user_id, name, avatar_url, is_admin, restriction_profile)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (jellyfin_user_id) DO UPDATE SET
+          name = excluded.name, avatar_url = excluded.avatar_url, is_admin = excluded.is_admin,
+          restriction_profile = excluded.restriction_profile
+        RETURNING id
+      `)
+      .get(p.jellyfinUserId, p.name, p.avatarUrl, p.isAdmin ? 1 : 0, p.restrictionProfile) as { id: number };
+    return row.id;
+  }
+
+  jellyfinProfile(userId: string): ProfileRow | undefined {
+    const row = this.db.prepare('SELECT * FROM profiles WHERE jellyfin_user_id = ?').get(userId);
+    return row as unknown as ProfileRow | undefined;
+  }
+
+  /** Whether a Jellyfin user was an administrator when Curatorr last read their profile. */
+  isJellyfinAdmin(userId: string): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM profiles WHERE jellyfin_user_id = ? AND is_admin = 1').get(userId));
+  }
+
   createLocalProfile(name: string, isAdmin: boolean, restriction: RestrictionProfile = null): number {
     const row = this.db
       .prepare('INSERT INTO profiles (name, is_admin, restriction_profile) VALUES (?, ?, ?) RETURNING id')
@@ -328,7 +392,15 @@ export class Store {
       .run(...plexUserIds);
   }
 
-  /** Drops profiles that are not backed by Plex (used when Plex gets connected). */
+  /** Drops every profile that isn't one of these Jellyfin users: local, Plex, and users Jellyfin no longer has. */
+  keepOnlyJellyfinProfiles(userIds: string[]) {
+    const placeholders = userIds.map(() => '?').join(',') || 'NULL';
+    this.db
+      .prepare(`DELETE FROM profiles WHERE jellyfin_user_id IS NULL OR jellyfin_user_id NOT IN (${placeholders})`)
+      .run(...userIds);
+  }
+
+  /** Drops profiles that are not backed by Plex: local ones, and Jellyfin's (used when Plex gets connected). */
   removeLocalProfiles() {
     this.db.prepare('DELETE FROM profiles WHERE plex_user_id IS NULL').run();
   }
@@ -367,7 +439,38 @@ export class Store {
     this.db.prepare('DELETE FROM watched WHERE profile_id = ? AND movie_id = ?').run(profileId, movieId);
   }
 
-  // ---- Plex Watchlist (cached per profile) ---------------------------------
+  /**
+   * Saves what a Jellyfin profile watched, its favourites (its watchlist) and the movies it can open,
+   * all read at once.
+   */
+  replaceJellyfinState(
+    profileId: number,
+    state: { watched: { movieId: number; viewedAt: number | null }[]; watchlist: number[]; available: Ids[] },
+    syncedAt: number,
+  ) {
+    const watched = this.db.prepare('INSERT OR REPLACE INTO watched (profile_id, movie_id, viewed_at) VALUES (?, ?, ?)');
+    const watchlist = this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)');
+    const available = this.db.prepare('INSERT OR IGNORE INTO available (profile_id, key) VALUES (?, ?)');
+    transaction(this.db, () => {
+      for (const table of ['watched', 'watchlist', 'available']) {
+        this.db.prepare(`DELETE FROM ${table} WHERE profile_id = ?`).run(profileId);
+      }
+      for (const e of state.watched) watched.run(profileId, e.movieId, e.viewedAt);
+      for (const movieId of state.watchlist) watchlist.run(profileId, movieId);
+      for (const item of state.available) for (const key of idKeys(item)) available.run(profileId, key);
+      this.db.prepare('UPDATE profiles SET watched_synced_at = ? WHERE id = ?').run(syncedAt, profileId);
+    });
+  }
+
+  /** The movies a Jellyfin profile can open, as of its last sync; null for other profiles, or before one. */
+  availableMovies(row: ProfileRow): Set<number> | null {
+    if (row.jellyfin_user_id == null || row.watched_synced_at == null) return null;
+    const rows = this.db.prepare('SELECT key FROM available WHERE profile_id = ?').all(row.id) as { key: string }[];
+    const keys = new Set(rows.map((r) => r.key));
+    return new Set(this.movies().flatMap((m) => (idKeys(m).some((k) => keys.has(k)) ? [m.id] : [])));
+  }
+
+  // ---- watchlist: the Plex Watchlist or Jellyfin favourites (cached per profile)
 
   watchlistIds(profileId: number): Set<number> {
     const rows = this.db.prepare('SELECT movie_id FROM watchlist WHERE profile_id = ?').all(profileId) as {
@@ -494,6 +597,14 @@ export class Store {
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
 
+interface Ids {
+  tmdbId: number | null;
+  imdbId: string | null;
+}
+
+/** A movie's TMDB and IMDb ids as keys of the `available` table. */
+const idKeys = (m: Ids) => [...(m.tmdbId != null ? [`tmdb:${m.tmdbId}`] : []), ...(m.imdbId ? [`imdb:${m.imdbId}`] : [])];
+
 /** The whole library as stored, by title. Also used by the tagging report, which opens a copy read-only. */
 export function readMovies(db: DB): StoredMovie[] {
   const rows = db.prepare('SELECT * FROM movies ORDER BY title').all() as unknown as MovieRow[];
@@ -523,6 +634,8 @@ function rowToMovie(r: MovieRow): StoredMovie {
     plexRatingKey: r.plex_rating_key,
     plexSlug: r.plex_slug,
     plexGuid: r.plex_guid,
+    // Copies of databases from before v8, read by the reports, don't have the column.
+    jellyfinId: r.jellyfin_id ?? null,
     saga:
       r.saga_id != null && r.saga_part
         ? { id: r.saga_id, title: r.saga_title ?? '', part: r.saga_part, parts: r.saga_parts ?? r.saga_part }
@@ -541,6 +654,7 @@ export function toProfile(r: ProfileRow): Profile {
     isAdmin: Boolean(r.is_admin),
     restrictionProfile: (r.restriction_profile as RestrictionProfile) ?? null,
     pinProtected: Boolean(r.pin_protected),
-    linked: Boolean(r.server_token),
+    // Jellyfin users need no token of their own: Curatorr reads their history with the administrator's.
+    linked: Boolean(r.server_token) || r.jellyfin_user_id != null,
   };
 }

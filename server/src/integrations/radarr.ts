@@ -145,6 +145,7 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     plexRatingKey: null,
     plexSlug: null,
     plexGuid: null,
+    jellyfinId: null,
     // Part numbers are filled in by assignSagas once all collections are known.
     saga: r.collection?.tmdbId
       ? { id: r.collection.tmdbId, title: sagaTitle(r.collection.title ?? r.title), part: 0, parts: 0 }

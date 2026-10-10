@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets a matching movie ranked by rating, new arrivals and the profile's taste, with alternatives queued. README.md covers the features, install, env vars and how scoring works; CONTRIBUTING.md is the same workflow as below, written for people.
+Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from a Radarr library, with Plex Home or Jellyfin profiles. A household opens it from a phone home screen, picks a profile, answers up to four questions (genre → theme → mood → time) and gets a matching movie ranked by rating, new arrivals and the profile's taste, with alternatives queued. README.md covers the features, install, env vars and how scoring works; CONTRIBUTING.md is the same workflow as below, written for people.
 
 ## Commands
 
@@ -11,7 +11,7 @@ Requires Node 22.13+, for the built-in `node:sqlite`.
 ```sh
 npm install
 npm run dev:demo     # API on :7979 with a seeded demo library + Vite UI on :5173 (proxies /api)
-npm run dev          # same against real Radarr/Plex; first start runs setup
+npm run dev          # same against real Radarr and Plex or Jellyfin; first start runs setup
 npm test             # vitest: shared/src/**/*.test.ts and server/src/**/*.test.ts only
 npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
 npm run typecheck    # tsc on shared, server and web in turn
@@ -42,7 +42,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
     - For "Surprise me" (no answers, `isSurprise`), `surpriseOrder` then deals the ten best in an order drawn per profile per evening. `rankMovies` itself leaves `{}` in rank order; `recommendFor` and `npm run eval` apply the draw.
-  - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: Plex watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
+  - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
   - `sagas.ts`: collection ordering.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
@@ -51,14 +51,19 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - Routes in `routes/` are `RouteModule`s that receive an `AppContext { store, library }`. Validate input with zod through `parse()` from `context.ts`, and throw `HttpError` for 4xx responses, which can carry flags like `needPin`, `needProfile` or `needSetup` that the client acts on.
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
-  - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to Plex items by TMDB/IMDb id. `retag()` also runs at startup, so a vocabulary change applies without a sync.
-  - `scripts/tags.ts` (`npm run tags`) and `scripts/eval.ts` (`npm run eval`) are read-only reports on a copy of a real database in `config/`. It holds Plex tokens: never commit or upload it.
+  - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to the media server's items by TMDB/IMDb id (`indexByIds`). `retag()` also runs at startup, so a vocabulary change applies without a sync.
+  - `scripts/tags.ts` (`npm run tags`) and `scripts/eval.ts` (`npm run eval`) are read-only reports on a copy of a real database in `config/`. It holds Plex or Jellyfin tokens: never commit or upload it.
     - Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against `npm run tags` (coverage, unmatched keywords, idiom candidates), not the demo.
     - `npm run eval` replays each watch with that evening's library, history and wizard questions, and reports MRR and hit@k for new arrivals and the backlog, plus a staleness simulation. It never reads `settings`. Measure ranking changes with `--save` and `--compare` rather than by feel.
   - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
-  - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist.
-  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) and TMDB id. Seerr is optional: setup offers it after Plex (not without Plex) and Settings changes it. Setup only checks the key, since the library is still empty; the first sync reads the requests. A failed read keeps the last ones.
-  - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner signed in, or demo mode, or setup not yet complete.
+  - **Media server:** Plex or Jellyfin, one at a time (`store.mediaServer()`). Setup asks which; connecting one lets the other go, and once setup is complete the other is refused (409). Settings can't switch.
+    - `services/mediaServer.ts` dispatches the profile sync (`syncServerState`) and the marks (`applyMark`/`revertMark`, behind `app.syncToServer`) to the Plex or Jellyfin version. Picks' `watchUrl`/`watchAppUrl` come from `watchLinks()` in `recommend.ts`.
+    - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist. `services/profiles.ts` is the Plex Home side: import, PIN linking, history.
+    - `integrations/jellyfin.ts` + `services/jellyfin.ts` + `routes/jellyfin.ts`: Curatorr signs in once as a Jellyfin administrator (username and password) and keeps that token: it reads and marks every user's movies by passing their `userId`. Only the `Authorization: MediaBrowser …` header (Jellyfin 12 dropped `X-Emby-*` and `api_key`), and only 10.9+ routes (`/Items?userId=`, `/UserPlayedItems`, `/UserFavoriteItems`, `/UserImage`); the legacy `/Users/{id}/…` forms are obsolete.
+    - Jellyfin keeps one token per DeviceId and user, so Settings sign-ins (`/api/jellyfin/login`) use a one-off device and log out at once; the connecting administrator signing in on Curatorr's device would replace its token. Wrong passwords pause after five (`Guesses`), since Jellyfin can lock an account after three.
+    - With Jellyfin, the Watchlist is the person's favourites, every non-disabled user becomes a profile with no PIN, `MaxParentalRating` (an age) maps to the nearest restriction at or below it, and any administrator can manage Settings. One `/Items?userId=` read per profile gives watched, favourites and `available`: the movies that person can open (library access, parental controls), stored as `tmdb:`/`imdb:` keys and checked by `eligibleMovies` once matching works. Pictures go through `/api/avatar/:userId`, since phones may not reach Jellyfin's address; Watch on Jellyfin opens `<publicUrl>/web/#/details?id=…&serverId=…`.
+  - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) or Jellyfin user id (`jellyfinUserId` = `jellyfin_user_id`, compared without dashes) and TMDB id. Seerr is optional: setup offers it after the media server (not without one) and Settings changes it. Setup only checks the key, since the library is still empty; the first sync reads the requests. A failed read keeps the last ones.
+  - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner, or a Jellyfin administrator, signed in on this device, or demo mode, or nobody has connected Plex or Jellyfin yet.
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
@@ -69,7 +74,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
-- **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts Plex only if Curatorr changed it.
+- **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts the media server only if Curatorr changed it.
 - **Ranking:**
   - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
   - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.
@@ -94,9 +99,10 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Stacking:** Shell's `<main>` is a stacking context below the header. Fixed overlays (dialogs, the PIN pad, `BottomBar`) must render outside `<Shell>`, as `Settings.tsx`, `Profiles.tsx`, `Pick.tsx` and `Wizard.tsx` do.
 - **Decided with the maintainer; keep these unless asked:**
   - The header uses `pt-safe` (safe area + 1rem) to clear the iOS status-bar blur.
-  - On phones, actions sit in a sticky `BottomBar`: Watch on Plex plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
+  - On phones, actions sit in a sticky `BottomBar`: Watch on Plex (or Jellyfin) plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
-  - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`plexLink` in `web/src/lib/format.ts`). Desktop opens Plex Web.
+  - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`watchLink` in `web/src/lib/format.ts`). Desktop opens Plex Web. "Watch on Jellyfin" opens Jellyfin's web app everywhere: its apps take no links.
+  - Copy names the server through `serverName()`, which says "Plex" when there is none, so the demo and the README screenshots are unchanged.
   - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
   - In a phone's browser, a "Use Curatorr like an app" tip sits above "Something like…": the Share → Add to Home Screen steps on iOS, or an Install button when Android Chrome offers one (`beforeinstallprompt`). ✕ hides it for good, and the installed app never shows it (`web/src/lib/install.ts`).

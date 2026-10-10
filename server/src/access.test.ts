@@ -23,6 +23,9 @@ const ADMIN_ROUTES: [Method, string][] = [
   ['POST', '/api/setup/plex/libraries'],
   ['POST', '/api/setup/plex/users'],
   ['POST', '/api/setup/server/skip'],
+  ['POST', '/api/setup/jellyfin'],
+  ['POST', '/api/setup/jellyfin/libraries'],
+  ['POST', '/api/setup/jellyfin/users'],
   ['POST', '/api/setup/complete'],
 ];
 
@@ -44,6 +47,8 @@ const PUBLIC_ROUTES: [Method, string][] = [
   ['POST', '/api/profiles/logout'],
   ['POST', '/api/admin/logout'],
   ['GET', '/api/image/1/poster'],
+  ['GET', '/api/avatar/x'],
+  ['POST', '/api/jellyfin/login'],
 ];
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -113,6 +118,40 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
   it('lets the owner and a picked profile through', async () => {
     expect((await call(app, 'GET', '/api/settings', owner)).statusCode).toBe(200);
     expect((await call(app, 'GET', '/api/wizard/genre', profile)).statusCode).toBe(200);
+  });
+});
+
+describe('a Curatorr set up with Jellyfin', () => {
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0)) await cleanup();
+  });
+
+  it("lets in Jellyfin's administrators, and nobody else", async () => {
+    const { app, store } = await freshApp();
+    const [owner, otherAdmin, member] = ['a', 'b', 'c'].map((c) => c.repeat(32));
+    store.set('jellyfin', {
+      url: 'http://127.0.0.1:9',
+      publicUrl: null,
+      serverId: 'server',
+      serverName: 'Home',
+      deviceId: 'device',
+      token: 'jellyfin-token',
+      ownerId: owner!,
+      ownerName: 'Owner',
+      libraryIds: [],
+    });
+    store.set('setupComplete', true);
+    for (const [id, isAdmin] of [[otherAdmin!, true], [member!, false]] as const) {
+      store.upsertJellyfinProfile({ jellyfinUserId: id, name: id, avatarUrl: null, isAdmin, restrictionProfile: null });
+    }
+    const signedIn = (id: string) => `curatorr_admin=${encodeURIComponent(app.signCookie(`${id}.${Date.now()}`))}`;
+
+    for (const id of [owner!, otherAdmin!]) expect((await call(app, 'GET', '/api/settings', signedIn(id))).statusCode).toBe(200);
+    for (const cookie of ['', signedIn(member!), signedIn(String(OWNER))]) {
+      const res = await call(app, 'GET', '/api/settings', cookie);
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({ error: 'Sign in as a Jellyfin administrator', needAdmin: true });
+    }
   });
 });
 

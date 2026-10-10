@@ -114,6 +114,38 @@ describe('setup', () => {
     expect((await app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } })).statusCode).toBe(200);
   });
 
+  const jellyfinConnected = (store: Awaited<ReturnType<typeof freshInstall>>['store']) =>
+    store.set('jellyfin', {
+      url: 'http://127.0.0.1:9',
+      publicUrl: null,
+      serverId: 'server',
+      serverName: 'Home',
+      deviceId: 'device',
+      token: 'jellyfin-token',
+      ownerId: 'a'.repeat(32),
+      ownerName: 'Admin',
+      libraryIds: [],
+    });
+  const jellyfinAdmin = (app: Awaited<ReturnType<typeof freshInstall>>['app']) =>
+    `curatorr_admin=${encodeURIComponent(app.signCookie(`${'a'.repeat(32)}.${Date.now()}`))}`;
+
+  it('lets Jellyfin go when the owner signs in with Plex while setting up', async () => {
+    const { app, store } = await freshInstall();
+    jellyfinConnected(store);
+    expect((await claim(app, 1, jellyfinAdmin(app))).json()).toMatchObject({ status: 'ok' });
+    expect(store.get('jellyfin')).toBeNull();
+    expect(store.mediaServer()).toBe('plex');
+  });
+
+  it('turns down a Plex sign-in for setup once Curatorr is set up with Jellyfin', async () => {
+    const { app, store } = await freshInstall();
+    jellyfinConnected(store);
+    store.set('setupComplete', true);
+    expect((await claim(app, 1, jellyfinAdmin(app))).statusCode).toBe(409);
+    expect(store.get('plex').ownerId).toBeNull();
+    expect(store.get('jellyfin')).not.toBeNull();
+  });
+
   it('sends a saved API key only to the address it was saved for', async () => {
     // Set up without Plex: there's no owner to sign in, so anyone can reach these routes.
     const { app, store } = await freshInstall();

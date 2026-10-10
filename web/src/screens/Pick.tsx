@@ -1,4 +1,4 @@
-import type { Pick, WizardOptionsResponse } from '@curatorr/shared';
+import type { MediaServer, Pick, WizardOptionsResponse } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Inbox, Play, RotateCcw, SkipForward } from 'lucide-react';
@@ -17,7 +17,7 @@ import {
   useStatus,
   type ServerSyncResult,
 } from '../lib/api';
-import { fallBackIfStillHere, plural, runtime, vibrate, watchLink, type WatchLink } from '../lib/format';
+import { fallBackIfStillHere, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
 import { navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
@@ -27,17 +27,22 @@ type Decline = 'skipped' | 'later' | 'seen' | 'never';
 /** The profile asked for this movie in Seerr. */
 const requested = (p: Pick) => p.reasons.some((r) => r.kind === 'requested');
 
-/** Toast after a mark, depending on what happened in Plex. */
-function markMessage(kind: Decline, title: string, plex: ServerSyncResult | undefined) {
+/** Toast after a mark, depending on what happened on the media server. */
+function markMessage(kind: Decline, title: string, result: ServerSyncResult | undefined, server: MediaServer | null) {
+  const name = serverName(server);
   if (kind === 'skipped') return `Skipped ${title}`;
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
-    if (plex === 'synced' || plex === 'already') return `${title} is on your Plex Watchlist`;
-    if (plex === 'failed') return `Added ${title} to your watchlist, but couldn't reach Plex`;
+    if (result === 'synced' || result === 'already') {
+      return server === 'jellyfin' ? `${title} is in your Jellyfin favourites` : `${title} is on your Plex Watchlist`;
+    }
+    if (result === 'failed') return `Added ${title} to your watchlist, but couldn't reach ${name}`;
     return `Added ${title} to your watchlist`;
   }
-  if (plex === 'synced') return `Marked ${title} as watched in Plex`;
-  if (plex === 'failed') return `Marked ${title} as seen, but couldn't update Plex`;
+  if (result === 'synced') {
+    return server === 'jellyfin' ? `Marked ${title} as played in Jellyfin` : `Marked ${title} as watched in Plex`;
+  }
+  if (result === 'failed') return `Marked ${title} as seen, but couldn't update ${name}`;
   return `Marked ${title} as seen`;
 }
 
@@ -66,6 +71,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const like = search.get('like');
   const { data, isLoading, isFetching, error, refetch } = useRecommendations(criteria, like);
   const { data: status } = useStatus();
+  const name = serverName(status?.server);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -142,7 +148,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       .then(({ id, server }) => {
         refreshQuestions();
         toast({
-          message: markMessage(kind, pick.movie.title, server),
+          message: markMessage(kind, pick.movie.title, server, status?.server ?? null),
           duration: kind === 'skipped' ? 3000 : undefined,
           action: {
             label: 'Undo',
@@ -151,7 +157,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               undoFeedback(id)
                 .then((res) => {
                   refreshQuestions();
-                  if (res.server === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+                  if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
                 })
                 .catch((err) => toast({ message: errorMessage(err) }));
             },
@@ -173,7 +179,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     if (!current) return;
     if (status?.demo) {
       e.preventDefault();
-      toast({ message: 'Demo mode: connect Plex in setup to play movies.' });
+      toast({ message: 'Demo mode: connect Plex or Jellyfin in setup to play movies.' });
       return;
     }
     sendFeedback(current.movie.id, 'accepted', { keepalive: true }).catch(() => {});
@@ -266,11 +272,11 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       onClick={(e) => onWatch(e, link)}
       className={buttonClass('primary', 'lg', watchClass)}
     >
-      <Play className="size-5 fill-current" /> Watch on Plex
+      <Play className="size-5 fill-current" /> Watch on {name}
     </a>
   ) : (
     <Button variant="primary" size="lg" disabled className={watchClass}>
-      <Play className="size-5 fill-current" /> Not in Plex yet
+      <Play className="size-5 fill-current" /> Not in {name} yet
     </Button>
   );
 

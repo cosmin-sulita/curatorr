@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { config } from '../config.js';
+import {
+  jellyfinAuthorization,
+  jellyfinLink,
+  jellyfinRestriction,
+  supportedJellyfin,
+  toJellyfinItem,
+  toJellyfinUser,
+} from './jellyfin.js';
 import { connectionCandidates, parseGuids, plexDefaultAvatar, plexLinks, toPlexItem } from './plex.js';
 import { assignSagas, fromRadarr, sagaTitle, tmdbSized } from './radarr.js';
+import { matchRequests, type SeerrRequest } from './seerr.js';
 
 describe('parseGuids', () => {
   it('reads the modern Plex agent', () => {
@@ -202,5 +212,137 @@ describe('fromRadarr', () => {
   it('resizes TMDB urls only', () => {
     expect(tmdbSized('https://image.tmdb.org/t/p/original/x.jpg', 'w342')).toBe('https://image.tmdb.org/t/p/w342/x.jpg');
     expect(tmdbSized(undefined, 'w342')).toBeNull();
+  });
+});
+
+describe('jellyfinAuthorization', () => {
+  it('names Curatorr and carries the token in the one header Jellyfin 12 still reads', () => {
+    expect(jellyfinAuthorization('device-1', 'secret')).toBe(
+      `MediaBrowser Client="Curatorr", Device="Curatorr", DeviceId="device-1", Version="${config.version}", Token="secret"`,
+    );
+  });
+
+  it('leaves the token out before signing in, and keeps quotes out of the values', () => {
+    const header = jellyfinAuthorization('a "b"');
+    expect(header).not.toContain('Token');
+    expect(header).toContain('DeviceId="a%20%22b%22"');
+  });
+});
+
+describe('toJellyfinItem', () => {
+  it("maps a movie's provider ids and the person's marks", () => {
+    const item = toJellyfinItem({
+      Id: 'f1a2',
+      Name: 'The Matrix',
+      ProviderIds: { Tmdb: '603', Imdb: 'tt0133093' },
+      UserData: { Played: true, LastPlayedDate: '2026-03-02T20:15:30.1234567Z', IsFavorite: true },
+    });
+    expect(item).toEqual({
+      id: 'f1a2',
+      title: 'The Matrix',
+      tmdbId: 603,
+      imdbId: 'tt0133093',
+      played: true,
+      lastPlayedAt: Date.UTC(2026, 2, 2, 20, 15, 30, 123),
+      favorite: true,
+    });
+  });
+
+  it('reads provider ids in any case, and a movie nobody marked', () => {
+    const item = toJellyfinItem({ Id: 'x', Name: 'Alien', ProviderIds: { tmdb: '348', IMDB: 'tt0078748' } });
+    expect(item).toMatchObject({ tmdbId: 348, imdbId: 'tt0078748', played: false, lastPlayedAt: null, favorite: false });
+  });
+});
+
+describe('toJellyfinUser', () => {
+  it('maps the policy Curatorr uses', () => {
+    const user = toJellyfinUser({
+      Id: 'abcd',
+      Name: 'Kid',
+      PrimaryImageTag: 'tag1',
+      Policy: { IsAdministrator: false, IsDisabled: false, MaxParentalRating: 10 },
+    });
+    expect(user).toEqual({ id: 'abcd', name: 'Kid', admin: false, disabled: false, maxParentalRating: 10, imageTag: 'tag1' });
+  });
+
+  it('reads a user without a policy or a picture as an unrestricted member', () => {
+    expect(toJellyfinUser({ Id: 'x', Name: 'New' })).toEqual({
+      id: 'x',
+      name: 'New',
+      admin: false,
+      disabled: false,
+      maxParentalRating: null,
+      imageTag: null,
+    });
+  });
+});
+
+describe('jellyfinRestriction', () => {
+  it("maps Jellyfin's age limit to the nearest Curatorr limit at or below it", () => {
+    expect([0, 7, 10, 12, 13, 16, 17, 18, null].map((age) => jellyfinRestriction(age, false))).toEqual([
+      'little_kid',
+      'little_kid',
+      'older_kid',
+      'older_kid',
+      'teen',
+      'teen',
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('never restricts an administrator', () => {
+    expect(jellyfinRestriction(10, true)).toBeNull();
+  });
+});
+
+describe('jellyfinLink', () => {
+  it("opens the movie's page in Jellyfin's web app, under a base path too", () => {
+    expect(jellyfinLink('https://media.example.com/jellyfin', 'srv1', 'item1')).toBe(
+      'https://media.example.com/jellyfin/web/#/details?id=item1&serverId=srv1',
+    );
+  });
+});
+
+describe('supportedJellyfin', () => {
+  it('takes 10.9 and later, including 12', () => {
+    expect(['10.8.13', '10.9.0', '10.10.7', '10.11.5', '12.0.1', 'unknown'].map(supportedJellyfin)).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+  });
+});
+
+describe('matchRequests', () => {
+  const movies = [
+    { id: 1, tmdbId: 603 },
+    { id: 2, tmdbId: 949 },
+  ];
+  const request = (id: number, tmdbId: number, by: number): SeerrRequest => ({
+    id,
+    status: 2,
+    type: 'movie',
+    media: { tmdbId },
+    requestedBy: { id: by },
+  });
+
+  it('pairs requests with Jellyfin profiles, however Seerr writes the user id', () => {
+    const profiles = [{ id: 10, plex_user_id: null, jellyfin_user_id: '4f1e0a2b3c4d5e6f7a8b9c0d1e2f3a4b' }];
+    const users = [{ id: 7, jellyfinUserId: '4F1E0A2B-3C4D-5E6F-7A8B-9C0D1E2F3A4B' }];
+    expect(matchRequests(profiles, movies, users, [request(1, 603, 7)])).toEqual([
+      { profileId: 10, movieId: 1, requestedAt: null },
+    ]);
+  });
+
+  it('still pairs Plex accounts by their Plex id', () => {
+    const profiles = [{ id: 11, plex_user_id: 5001, jellyfin_user_id: null }];
+    expect(matchRequests(profiles, movies, [{ id: 8, plexId: 5001 }], [request(2, 949, 8)])).toEqual([
+      { profileId: 11, movieId: 2, requestedAt: null },
+    ]);
   });
 });

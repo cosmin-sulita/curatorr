@@ -26,6 +26,7 @@ import {
   type WizardStep,
 } from '@curatorr/shared';
 import { HttpError, UpstreamError } from '../http.js';
+import { jellyfinLink } from '../integrations/jellyfin.js';
 import { plexLinks, PlexServerClient } from '../integrations/plex.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
@@ -59,6 +60,8 @@ export interface ProfileData {
   requestedByOthers: Set<number>;
   /** The media server Curatorr uses. */
   server: MediaServer | null;
+  /** The movies this profile can open there (Jellyfin: its library access and parental controls); null when all can. */
+  available: Set<number> | null;
   includeWatched: boolean;
   boostRequests: boolean;
 }
@@ -75,6 +78,7 @@ export function profileData(store: Store, row: ProfileRow): ProfileData {
     requested: store.requestedIds(row.id),
     requestedByOthers: store.requestedByOthers(row.id),
     server: store.mediaServer(),
+    available: store.availableMovies(row),
     includeWatched: app.includeWatched,
     boostRequests: app.boostRequests,
   };
@@ -92,12 +96,15 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
   // Only insist on a server match when matching is actually working.
   const server = d.server;
   const requireServer = server && d.movies.some((m) => onServer(m, server)) ? server : null;
+  const available = requireServer ? d.available : null;
   const watched = new Set(d.watched.map((w) => w.movieId));
   const certs = allowedCerts(d.restriction);
   // For sagas, "watched" also covers "Seen it", and only parts this profile can play and may see
   // count: a part held back by its restrictions mustn't hold back the sequels it may watch.
   const seen = new Set([...watched, ...d.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
-  const playable = d.movies.filter((m) => (!requireServer || onServer(m, requireServer)) && certAllowed(m, certs));
+  const playable = d.movies.filter(
+    (m) => (!requireServer || onServer(m, requireServer)) && (!available || available.has(m.id)) && certAllowed(m, certs),
+  );
   // Only requests still waiting to be watched get the boost and the label.
   const requested = new Set(d.boostRequests ? [...d.requested].filter((id) => !seen.has(id)) : []);
   // A movie someone else asked for isn't news to this profile when it arrives.
@@ -108,6 +115,7 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
     sagas: sagaState(playable, seen),
     allowedCerts: certs,
     requireServer,
+    available,
     includeWatched: d.includeWatched,
     watchlist: d.watchlist,
     requested,
@@ -129,6 +137,12 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
 
 /** Links that open a movie on the media server: `web` in a browser, `app` in its phone apps. */
 function watchLinks(store: Store, m: StoredMovie): { web: string; app: string | null } | null {
+  const jellyfin = store.get('jellyfin');
+  if (jellyfin) {
+    // Jellyfin's apps don't open links, so phones get its web app too.
+    if (!m.jellyfinId) return null;
+    return { web: jellyfinLink(jellyfin.publicUrl ?? jellyfin.url, jellyfin.serverId, m.jellyfinId), app: null };
+  }
   const plex = store.get('plex');
   return m.plexRatingKey && plex.machineId ? plexLinks(plex.machineId, m.plexRatingKey, m.plexSlug) : null;
 }
@@ -232,7 +246,8 @@ export function likeSeeds(store: Store, row: ProfileRow, q = ''): LikeSeed[] {
     if (e.kind === 'seen') watchedAt.set(e.movieId, Math.max(watchedAt.get(e.movieId) ?? 0, e.createdAt));
   }
   const certs = allowedCerts(row.restriction_profile);
-  const movies = store.movies().filter((m) => certAllowed(m, certs));
+  const available = store.availableMovies(row);
+  const movies = store.movies().filter((m) => certAllowed(m, certs) && (!available || available.has(m.id)));
   const toSeed = (m: StoredMovie): LikeSeed => ({
     id: m.id,
     title: m.title,

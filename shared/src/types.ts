@@ -35,6 +35,8 @@ export interface Movie {
   plexSlug: string | null;
   /** Plex metadata id from the item's `plex://movie/<id>` guid (same null/'' convention). */
   plexGuid: string | null;
+  /** The movie's item id in Jellyfin. */
+  jellyfinId: string | null;
   /** The Radarr/TMDB collection the movie belongs to, if any. */
   saga: Saga | null;
   /** When Radarr added the movie: for a request, often long before its release. */
@@ -72,7 +74,7 @@ export interface Profile {
   isAdmin: boolean;
   restrictionProfile: RestrictionProfile;
   pinProtected: boolean;
-  /** True once Curatorr holds a Plex token for this profile. */
+  /** True once Curatorr can read this profile's watch history: with Plex, once it holds a token for it. */
   linked: boolean;
 }
 

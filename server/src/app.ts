@@ -9,6 +9,7 @@ import { openDb } from './db.js';
 import { seedDemo } from './demo.js';
 import { HttpError, UpstreamError } from './http.js';
 import { imageRoutes } from './routes/images.js';
+import { jellyfinRoutes } from './routes/jellyfin.js';
 import { pickRoutes } from './routes/picks.js';
 import { profileRoutes } from './routes/profiles.js';
 import { settingsRoutes } from './routes/settings.js';
@@ -50,7 +51,8 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
     return reply.code(500).send({ error: 'Something went wrong' });
   });
 
-  for (const routes of [statusRoutes, setupRoutes, profileRoutes, pickRoutes, settingsRoutes, imageRoutes]) {
+  const routeModules = [statusRoutes, setupRoutes, jellyfinRoutes, profileRoutes, pickRoutes, settingsRoutes, imageRoutes];
+  for (const routes of routeModules) {
     await routes(app, ctx);
   }
 

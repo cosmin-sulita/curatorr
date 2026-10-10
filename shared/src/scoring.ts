@@ -46,8 +46,10 @@ export interface ProfileContext {
   allowedCerts: Set<string> | null;
   /** Only offer movies found on this media server (so its Watch button works); null while matching isn't working. */
   requireServer: MediaServer | null;
+  /** Movies the profile can open on the media server (Jellyfin: its library access and parental controls). */
+  available?: Set<number> | null;
   includeWatched: boolean;
-  /** Movies on the profile's Plex Watchlist. */
+  /** Movies on the profile's watchlist: the Plex Watchlist, or Jellyfin favourites. */
   watchlist: Set<number>;
   /** Unwatched movies the profile requested in Seerr. */
   requested?: Set<number>;
@@ -62,14 +64,14 @@ export function excludedIds(ctx: ProfileContext): Set<number> {
   return out;
 }
 
-/** Whether the profile's Plex restrictions allow the movie. */
+/** Whether the profile's parental restrictions allow the movie. */
 export function certAllowed(m: Movie, allowedCerts: Set<string> | null) {
   return !allowedCerts || (Boolean(m.certification) && allowedCerts.has(m.certification!.toUpperCase()));
 }
 
 /** Whether the library sync found the movie on the media server. */
 export function onServer(m: Movie, server: MediaServer): boolean {
-  return server === 'plex' ? Boolean(m.plexRatingKey) : false;
+  return Boolean(server === 'plex' ? m.plexRatingKey : m.jellyfinId);
 }
 
 export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
@@ -78,6 +80,7 @@ export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
     if (excluded.has(m.id)) return false;
     if (ctx.sagas?.blockedBy.has(m.id)) return false;
     if (ctx.requireServer && !onServer(m, ctx.requireServer)) return false;
+    if (ctx.available && !ctx.available.has(m.id)) return false;
     return certAllowed(m, ctx.allowedCerts);
   });
 }

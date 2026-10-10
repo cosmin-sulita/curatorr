@@ -121,6 +121,20 @@ const migrations: string[] = [
   UPDATE settings SET value = json_remove(json_set(value, '$.matched', value -> '$.matchedInPlex'), '$.matchedInPlex')
     WHERE key = 'sync' AND json_type(value, '$.matchedInPlex') IS NOT NULL;
   `,
+  // v8: Jellyfin, as the alternative to Plex.
+  `
+  ALTER TABLE movies ADD COLUMN jellyfin_id TEXT;          -- the movie's item id in Jellyfin
+  ALTER TABLE profiles ADD COLUMN jellyfin_user_id TEXT;   -- the Jellyfin user the profile stands for
+  CREATE UNIQUE INDEX profiles_jellyfin_user ON profiles (jellyfin_user_id);
+
+  -- The movies each Jellyfin profile can open (its library access and parental controls), as
+  -- tmdb:<id> and imdb:<id> keys, so they don't depend on when the library was last synced.
+  CREATE TABLE available (
+    profile_id INTEGER NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    PRIMARY KEY (profile_id, key)
+  );
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

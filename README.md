@@ -23,22 +23,22 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 ## Features
 
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
-- **Plex Home profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex. Plex parental restrictions carry over.
+- **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions carry over, and with Jellyfin, so does which libraries each person can open.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get one of the ten best picks, drawn again each evening.
 - **Something like…** Start from a movie you loved (what you watched lately is listed first, or search the library) and get the unwatched movies that share the most keywords and themes with it.
 - **Ranked by the Tomatometer, and by you.** IMDb and TMDB scores stand in when there's no RT score. Movies that just arrived rank higher for a few weeks, and each person's picks lean toward what they watched lately, saying "Because you watched …" when that made the difference.
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
-- **Stays in sync with Plex.** "Seen it" marks the movie watched in Plex for that person, and "Watchlist" adds it to their Plex Watchlist. Undo puts things back. Movies on someone's Plex Watchlist, even ones added in another Plex app, rank higher for them. The server owner can turn this off in Settings.
-- **Remembers what you asked for.** Connect Seerr during setup or in Settings, and the movies each person requested rank higher for them once downloaded and while still unwatched, labelled "You requested this". Requests are matched to profiles by Plex account. The server owner can turn this off in Settings.
-- **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web.
+- **Stays in sync with Plex or Jellyfin.** "Seen it" marks the movie watched for that person, and "Watchlist" adds it to their Plex Watchlist or their Jellyfin favourites. Undo puts things back. Movies on someone's Plex Watchlist or in their Jellyfin favourites, even ones added in another app, rank higher for them. The server owner can turn this off in Settings.
+- **Remembers what you asked for.** Connect Seerr during setup or in Settings, and the movies each person requested rank higher for them once downloaded and while still unwatched, labelled "You requested this". Requests are matched to profiles by Plex account or Jellyfin user. The server owner can turn this off in Settings.
+- **Watch on Plex** opens the movie's page in the Plex app on phones, where your server is listed as a place to play it. On desktop it goes straight to the movie in Plex Web. **Watch on Jellyfin** opens the movie in Jellyfin's web app, on phones too, since the Jellyfin apps don't open links.
 
 ## Requirements
 
 - A Docker host (`linux/amd64` or `linux/arm64`).
 - [Radarr](https://radarr.video) v3 or newer. Curatorr only reads from it.
-- [Plex Media Server](https://www.plex.tv), optional but recommended. It brings the profiles, watched status, parental restrictions, Watchlist sync and Watch on Plex.
-- [Seerr](https://github.com/seerr-team/seerr), optional, and only together with Plex.
+- [Plex Media Server](https://www.plex.tv) or [Jellyfin](https://jellyfin.org) 10.9 or newer, optional but recommended. Either one brings the profiles, watched status, parental restrictions, Watchlist sync and the Watch button. Curatorr uses one of them, chosen during setup.
+- [Seerr](https://github.com/seerr-team/seerr), optional, and only together with Plex or Jellyfin.
 - HTTPS, through your reverse proxy, to install the app on phones.
 
 ## Try the demo
@@ -47,7 +47,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 docker run --rm -p 7979:7979 -e CURATORR_DEMO=1 ghcr.io/cosmin-sulita/curatorr:latest
 ```
 
-Then open http://localhost:7979. The demo library has about 95 movies and three profiles, needs no Radarr or Plex, and is gone when you stop the container.
+Then open http://localhost:7979. The demo library has about 95 movies and three profiles, needs no Radarr, Plex or Jellyfin, and is gone when you stop the container.
 
 ## Install with Docker
 
@@ -82,8 +82,10 @@ Then open http://localhost:7979. The demo library has about 95 movies and three 
    Set `PUID`/`PGID` to the user that owns the data folder (run `id` on the host).
 3. Open `http://<host-ip>:7979` and follow the setup:
    1. **Radarr**: its address (e.g. `http://192.168.1.10:7878`) and API key (Radarr → Settings → General → Security).
-   2. **Plex**: sign in with the account that owns the server, then pick the server and its movie libraries. Plex Home users are imported as profiles. You can skip this step if you don't use Plex.
-   3. **Seerr** (optional, and only with Plex, since requests are matched to profiles by Plex account): its address (e.g. `http://192.168.1.10:5055`) and API key (Seerr → Settings → General → API Key).
+   2. **Plex or Jellyfin**: choose the one you watch with, or skip this step if you use neither.
+      - **Plex**: sign in with the account that owns the server, then pick the server and its movie libraries. Plex Home users are imported as profiles.
+      - **Jellyfin**: its address (e.g. `http://192.168.1.10:8096`) and an administrator's username and password, then its movie libraries. Every Jellyfin user who isn't disabled becomes a profile. Curatorr keeps a sign-in of its own (listed as Curatorr under Dashboard → Devices), not the password. If people open Jellyfin at a different address from the one Curatorr uses (`https://jellyfin.example.com`, say), enter that too, for Watch on Jellyfin.
+   3. **Seerr** (optional, and only with Plex or Jellyfin, since requests are matched to profiles by their account): its address (e.g. `http://192.168.1.10:5055`) and API key (Seerr → Settings → General → API Key).
    4. **Finish**: the library syncs right away, then every 6 hours (configurable).
 
 ### Updating
@@ -105,11 +107,11 @@ curatorr.example.com {
 Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome). Until you dismiss it, the first question shows a tip with these steps (an **Install** button on Android).
 
 > [!WARNING]
-> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device. Settings are protected once you sign in with Plex during setup: from then on only the Plex server owner can change them. Without Plex there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
+> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device; Jellyfin profiles have no PIN. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
 
 ## How picks work
 
-1. **Eligible movies**: downloaded in Radarr, found in Plex, not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's Plex restrictions.
+1. **Eligible movies**: downloaded in Radarr, found in Plex or Jellyfin (with Jellyfin, in a library this person can open), not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's parental restrictions.
 2. **Tags**: each movie gets *themes* (Superheroes, Heists & Cons, Time Travel, Prison & Escape, Family Ties… 43 in all) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic, Moving). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse or match nothing. Generic keywords (*army*, *computer*) and TMDB's tone words (*amused*, *hopeful*) only back up a stronger signal, and idioms don't count, in keywords or in the plot (*cat and mouse* isn't about cats, and *haunted by his past* isn't a ghost story). Tags are refreshed on every sync and whenever Curatorr starts. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts).
 3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing), then:
    - up to + 8 for how strongly the theme/mood matches;
@@ -120,7 +122,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
    - − 4 for each earlier evening it was shown and not played, up to − 16, for a month. A pick shown in the last three hours doesn't count yet, so going back and answering the same way gives the same pick that evening.
 
    A small daily shuffle keeps near-ties from always landing on the same movie. It turns over at 4 am in the `TZ` you set, so it never changes mid-evening. **Surprise me** goes further: it deals the ten best picks in an order drawn for each person each evening, so its first pick isn't always the top-ranked movie.
-4. **Taste**: what a profile watched (in Plex, started from Curatorr, or marked "Seen it") is summed up the way "Something like…" compares movies, with recent watches counting most. Movies that resemble it rank higher than the other matches, and ones that don't, lower. It counts for little until a profile has watched a few movies, and tonight's watches only count from tomorrow, so picks don't shift mid-evening. A pick it helped says "Because you watched …".
+4. **Taste**: what a profile watched (in Plex or Jellyfin, started from Curatorr, or marked "Seen it") is summed up the way "Something like…" compares movies, with recent watches counting most. Movies that resemble it rank higher than the other matches, and ones that don't, lower. It counts for little until a profile has watched a few movies, and tonight's watches only count from tomorrow, so picks don't shift mid-evening. A pick it helped says "Because you watched …".
 5. **Close matches**: if fewer than six movies match every answer, the list is topped up with other movies of that genre and length, clearly labelled: first those matching the theme *or* the mood, then the rest.
 6. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, shown picks, requests, the watchlist, new arrivals and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
 
@@ -136,13 +138,15 @@ Everything is set in the web UI. A few environment variables exist for special c
 | `PUID` / `PGID` | `1000` | User the app runs as |
 | `TZ` | `UTC` | Time zone |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
-| `CURATORR_DEMO` | unset | `1` runs a demo library with no Radarr or Plex |
+| `CURATORR_DEMO` | unset | `1` runs a demo library with no Radarr, Plex or Jellyfin |
 
 ## Troubleshooting
 
-- **A movie never comes up.** It has to be downloaded in Radarr and, with Plex, found in one of the libraries you picked. It's left out for anyone who watched it in Plex (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their Plex restrictions. New downloads show up after the next sync, or straight away with Settings → Sync now.
+- **A movie never comes up.** It has to be downloaded in Radarr and, with Plex or Jellyfin, found in one of the libraries you picked. It's left out for anyone who watched it there (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their parental restrictions (with Jellyfin, also by which libraries they can open). New downloads show up after the next sync, or straight away with Settings → Sync now.
 - **Watch on Plex opens the Plex app, but not the movie.** Links on phones need the movie's library to use the **Plex Movie** agent. Libraries on an older agent get a link that the redesigned Plex apps ignore.
-- **Settings ask you to sign in.** Only the Plex account that owns the server can change settings, so sign in with that one.
+- **Watch on Jellyfin goes to the wrong address.** It uses the address Curatorr reaches Jellyfin at, unless you enter the one people open it at: Settings → Jellyfin → Change connection or libraries.
+- **Settings ask you to sign in.** Only the Plex account that owns the server, or with Jellyfin one of its administrators, can change settings, so sign in with that one.
+- **Jellyfin with single sign-on.** Curatorr signs in to Jellyfin with a username and password, so it can't connect as an administrator who only signs in through a single sign-on plugin.
 - **Starting over.** Stop the container and delete `curatorr.db` (with its `-wal` and `-shm` files) from the data folder. Setup runs again on the next start.
 
 ## Contributing
@@ -160,4 +164,4 @@ To build the image yourself: `docker build -t curatorr .`
 
 [MIT](LICENSE)
 
-Curatorr isn't affiliated with Radarr, Plex, Seerr, Rotten Tomatoes, IMDb or TMDB. Ratings and artwork come from Radarr.
+Curatorr isn't affiliated with Radarr, Plex, Jellyfin, Seerr, Rotten Tomatoes, IMDb or TMDB. Ratings and artwork come from Radarr.

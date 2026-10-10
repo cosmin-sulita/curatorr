@@ -25,6 +25,7 @@ function part(sagaId: number, part: number, parts: number): Movie {
     plexRatingKey: String(id),
     plexSlug: null,
     plexGuid: null,
+    jellyfinId: null,
     saga: { id: sagaId, title: `Saga ${sagaId}`, part, parts },
     addedAt: null,
     arrivedAt: null,

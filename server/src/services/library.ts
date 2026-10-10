@@ -1,6 +1,7 @@
 import { tagMovie } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
+import { JellyfinClient } from '../integrations/jellyfin.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
 import { syncRequests } from './requests.js';
@@ -50,7 +51,7 @@ export class LibrarySync {
     private readonly log: FastifyBaseLogger,
   ) {}
 
-  /** Pulls the Radarr library, re-tags it and links each movie to its Plex item. */
+  /** Pulls the Radarr library, re-tags it and links each movie to its item on the media server. */
   async run(): Promise<void> {
     if (this.syncing) {
       this.again = true;
@@ -84,6 +85,19 @@ export class LibrarySync {
             m.plexSlug = item.slug;
             // Listings always carry the guid, so "none" here is final (legacy agent).
             m.plexGuid = item.plexGuid ?? '';
+            matched++;
+          }
+        }
+      }
+      const jellyfin = this.store.get('jellyfin');
+      if (jellyfin) {
+        const client = JellyfinClient.connected(jellyfin);
+        const items = (await Promise.all(jellyfin.libraryIds.map((libraryId) => client.movies({ libraryId })))).flat();
+        const index = indexByIds(items);
+        for (const m of movies) {
+          const item = findByIds(index, m);
+          if (item) {
+            m.jellyfinId = item.id;
             matched++;
           }
         }

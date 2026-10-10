@@ -57,7 +57,13 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     const { hidden } = parse(z.object({ hidden: z.boolean() }), req.body);
     const row = store.profileRow(id);
     if (!row) throw new HttpError(404, 'Profile not found');
-    if (row.is_admin && hidden) throw new HttpError(400, "The owner's profile can't be hidden");
+    if (hidden) {
+      // The Plex owner always shows. A Jellyfin administrator may be an account nobody watches with.
+      if (row.is_admin && row.jellyfin_user_id == null) throw new HttpError(400, "The owner's profile can't be hidden");
+      if (!store.profileRows().some((p) => p.id !== id)) {
+        throw new HttpError(400, "Keep at least one profile on Who's watching");
+      }
+    }
     store.setProfileHidden(id, hidden);
     return { ok: true };
   });

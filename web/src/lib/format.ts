@@ -1,3 +1,5 @@
+import type { MediaServer } from '@curatorr/shared';
+
 export function runtime(minutes: number | null) {
   if (!minutes) return null;
   const h = Math.floor(minutes / 60);
@@ -18,6 +20,9 @@ export function relativeTime(epochMs: number | null) {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
+export const serverName = (server: MediaServer | null | undefined) => (server === 'jellyfin' ? 'Jellyfin' : 'Plex');
+
 /** iPhones and iPads. iPadOS reports itself as a Mac, so also look for touch. */
 export function isIOS() {
   const ua = navigator.userAgent;
@@ -35,10 +40,10 @@ export interface WatchLink {
 }
 
 /**
- * The "Watch on Plex" link for this device. On phones it's a watch.plex.tv link, which the
+ * The Watch button's link for this device. With Plex, phones get a watch.plex.tv link, which the
  * Plex apps claim as a universal/app link, opened in the same window because iOS hands those
  * to the app most reliably on a direct tap. Movies without one use the plex:// scheme. On
- * desktop it's Plex Web.
+ * desktop it's Plex Web. Jellyfin's apps take no links, so every device gets its web app.
  */
 export function watchLink(appUrl: string | null, webUrl: string | null): WatchLink | null {
   if (appUrl && isMobileDevice()) {

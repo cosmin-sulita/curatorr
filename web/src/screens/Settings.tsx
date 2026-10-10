@@ -1,3 +1,4 @@
+import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -18,8 +19,9 @@ import {
   type SettingsResponse,
 } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
-import { plural, relativeTime } from '../lib/format';
+import { plural, relativeTime, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
+import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 import { ServiceForm } from './Setup';
 
@@ -38,7 +40,7 @@ export function SettingsScreen() {
   const isAdmin = Boolean(status?.isAdmin);
   const settings = useSettings(isAdmin);
   const [showNews, setShowNews] = useState(false);
-  // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
+  // People leave to copy an API key or sign in to their media server; a reload on their return would lose that.
   useDeferUpdates();
 
   return (
@@ -48,8 +50,8 @@ export function SettingsScreen() {
         <h1 className="mt-3 font-display text-5xl">Settings</h1>
 
         <div className="mt-8 space-y-5">
-          {status?.profile && <ProfileLists name={status.profile.name} />}
-          {!isAdmin && <AdminSignIn />}
+          {status?.profile && <ProfileLists name={status.profile.name} server={status.server} />}
+          {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
           {isAdmin && settings.isLoading && <Spinner />}
           {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
           {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
@@ -75,7 +77,7 @@ export function SettingsScreen() {
 }
 
 /** The profile's own marks: movies added to the watchlist, and movies hidden from picks. */
-function ProfileLists({ name }: { name: string }) {
+function ProfileLists({ name, server }: { name: string; server: MediaServer | null }) {
   const marked = useHidden();
   const qc = useQueryClient();
   const toast = useToast();
@@ -91,13 +93,13 @@ function ProfileLists({ name }: { name: string }) {
       const res = await undoFeedback(h.id);
       const done = h.kind === 'later' ? `Removed ${h.movie.title} from your watchlist` : `Restored ${h.movie.title}`;
       toast({
-        message: res.server === 'failed' ? `${done}, but couldn't update Plex` : done,
+        message: res.server === 'failed' ? `${done}, but couldn't update ${serverName(server)}` : done,
         action: {
           label: 'Undo',
           run: () =>
             sendFeedback(h.movie.id, h.kind)
               .then((r) => {
-                if (r.server === 'failed') toast({ message: "Undone here, but Plex couldn't be updated" });
+                if (r.server === 'failed') toast({ message: `Undone here, but ${serverName(server)} couldn't be updated` });
               })
               .catch((err) => toast({ message: errorMessage(err) }))
               .finally(refresh),
@@ -147,12 +149,25 @@ function ProfileLists({ name }: { name: string }) {
   );
 }
 
-function AdminSignIn() {
-  return (
+function AdminSignIn({ server }: { server: MediaServer | null }) {
+  return server === 'jellyfin' ? (
+    <Section title="Manage Curatorr" description="Only a Jellyfin administrator can change connections and profiles.">
+      <JellyfinSignIn />
+    </Section>
+  ) : (
     <Section title="Manage Curatorr" description="Only the Plex server owner can change connections and profiles.">
       <OwnerSignIn />
     </Section>
   );
+}
+
+/** The media server Curatorr is connected to, and as whom. */
+function serverDescription({ server, plex, jellyfin }: SettingsResponse) {
+  if (server === 'jellyfin' && jellyfin) {
+    return `${jellyfin.serverName} (${jellyfin.url}), connected as ${jellyfin.ownerName}`;
+  }
+  if (plex.serverName) return `${plex.serverName} (${plex.serverUrl}), signed in as ${plex.ownerName}`;
+  return server ? 'Not connected' : 'Not connected. Plex or Jellyfin brings profiles, watch history and parental limits.';
 }
 
 const SYNC_INTERVALS = [1, 3, 6, 12, 24];
@@ -162,7 +177,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
   const toast = useToast();
   const [editRadarr, setEditRadarr] = useState(false);
   const [editSeerr, setEditSeerr] = useState(false);
-  const [editPlex, setEditPlex] = useState(false);
+  const [editServer, setEditServer] = useState<MediaServer | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = () => {
@@ -200,6 +215,20 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
     });
 
   const { sync, seerr } = data;
+  const name = serverName(data.server);
+  // Connected far enough to have read movies and users from it.
+  const connected = data.server === 'jellyfin' || Boolean(data.plex.machineId);
+
+  const refreshProfiles = async () => {
+    const server = data.server === 'jellyfin' ? 'jellyfin' : 'plex';
+    setRefreshing(true);
+    await run(
+      () => api(`/api/setup/${server}/users`, { json: {} }),
+      `Profiles updated from ${server === 'plex' ? 'Plex Home' : 'Jellyfin'}`,
+    );
+    qc.invalidateQueries({ queryKey: ['profiles'] });
+    setRefreshing(false);
+  };
 
   return (
     <>
@@ -209,9 +238,9 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             <dt className="text-muted">Movies</dt>
             <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.movies}</dd>
           </div>
-          {data.plex.machineId && (
+          {connected && (
             <div>
-              <dt className="text-muted">Found in Plex</dt>
+              <dt className="text-muted">Found in {name}</dt>
               <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matched}</dd>
             </div>
           )}
@@ -237,7 +266,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
           <div className="flex items-center justify-between gap-4">
             <span>
               <span className="block font-medium">Include movies already watched</span>
-              <span className="block text-sm text-muted">Off: anything a profile watched in Plex is skipped.</span>
+              <span className="block text-sm text-muted">Off: anything a profile watched in {name} is skipped.</span>
             </span>
             <Toggle
               label="Include movies already watched"
@@ -245,16 +274,18 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               onChange={(v) => updateApp({ includeWatched: v })}
             />
           </div>
-          {!demo && data.plex.machineId && (
+          {!demo && connected && (
             <div className="flex items-center justify-between gap-4">
               <span>
-                <span className="block font-medium">Update Plex when you mark movies</span>
+                <span className="block font-medium">Update {name} when you mark movies</span>
                 <span className="block text-sm text-muted">
-                  Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist.
+                  {data.server === 'jellyfin'
+                    ? 'Seen it marks the movie played in Jellyfin. Watchlist adds it to your Jellyfin favourites.'
+                    : 'Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist.'}
                 </span>
               </span>
               <Toggle
-                label="Update Plex when you mark movies"
+                label={`Update ${name} when you mark movies`}
                 checked={data.app.syncToServer}
                 onChange={(v) => updateApp({ syncToServer: v })}
               />
@@ -315,37 +346,41 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
       )}
 
       {!demo && (
-        <Section
-          title="Plex"
-          description={
-            data.plex.serverName
-              ? `${data.plex.serverName} (${data.plex.serverUrl}), signed in as ${data.plex.ownerName}`
-              : 'Not connected'
-          }
-        >
-          {editPlex ? (
+        <Section title={data.server ? name : 'Media server'} description={serverDescription(data)}>
+          {editServer === 'plex' ? (
             <PlexConnect
               signedIn={data.plex.signedIn}
               onDone={() => {
-                setEditPlex(false);
+                setEditServer(null);
                 run(() => api('/api/sync', { json: {} }), 'Plex connected');
+              }}
+            />
+          ) : editServer === 'jellyfin' ? (
+            <JellyfinConnect
+              saved={data.jellyfin}
+              onDone={() => {
+                setEditServer(null);
+                run(() => api('/api/sync', { json: {} }), 'Jellyfin connected');
               }}
             />
           ) : (
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setEditPlex(true)}>{data.plex.machineId ? 'Change server or libraries' : 'Connect Plex'}</Button>
-              {data.plex.machineId && (
-                <Button
-                  variant="ghost"
-                  loading={refreshing}
-                  onClick={async () => {
-                    setRefreshing(true);
-                    await run(() => api('/api/setup/plex/users', { json: {} }), 'Profiles updated from Plex Home');
-                    qc.invalidateQueries({ queryKey: ['profiles'] });
-                    setRefreshing(false);
-                  }}
-                >
-                  Refresh profiles from Plex Home
+              {/* Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here. */}
+              {data.server === 'jellyfin' ? (
+                <Button onClick={() => setEditServer('jellyfin')}>Change connection or libraries</Button>
+              ) : data.server === 'plex' ? (
+                <Button onClick={() => setEditServer('plex')}>
+                  {data.plex.machineId ? 'Change server or libraries' : 'Connect Plex'}
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={() => setEditServer('plex')}>Connect Plex</Button>
+                  <Button onClick={() => setEditServer('jellyfin')}>Connect Jellyfin</Button>
+                </>
+              )}
+              {connected && (
+                <Button variant="ghost" loading={refreshing} onClick={refreshProfiles}>
+                  Refresh profiles from {data.server === 'jellyfin' ? 'Jellyfin' : 'Plex Home'}
                 </Button>
               )}
             </div>
@@ -405,12 +440,18 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{p.name}</span>
                 <span className="block text-xs text-muted">
-                  {p.isAdmin ? 'Owner' : p.restrictionProfile ? 'Restricted by Plex' : 'Member'}
+                  {p.isAdmin
+                    ? data.server === 'jellyfin'
+                      ? 'Administrator'
+                      : 'Owner'
+                    : p.restrictionProfile
+                      ? `Restricted by ${name}`
+                      : 'Member'}
                   {p.serverUser && !p.linked && ', waiting for PIN'}
                 </span>
               </span>
-              {/* The owner always shows; the server won't hide them. */}
-              {!p.isAdmin && (
+              {/* The Plex owner always shows. A Jellyfin administrator may be an account nobody watches with. */}
+              {(!p.isAdmin || data.server === 'jellyfin') && (
                 <Toggle
                   label={`Show ${p.name}`}
                   checked={!p.hidden}
@@ -431,7 +472,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
         </ul>
       </Section>
 
-      {!demo && data.plex.ownerName && (
+      {!demo && (data.plex.ownerName || data.jellyfin) && (
         <Button
           variant="ghost"
           className="w-full"

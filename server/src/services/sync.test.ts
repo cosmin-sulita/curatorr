@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { openDb } from '../db.js';
+import { openDb, type DB } from '../db.js';
 import { fromRadarr, type RadarrMovie } from '../integrations/radarr.js';
 import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
@@ -307,10 +307,21 @@ describe('re-tagging the stored library', () => {
 });
 
 describe('a database from an older version', () => {
+  /** Takes a new database back to version 6: v7 only renamed settings, and v8 added Jellyfin. */
+  const backToVersion6 = (db: DB) =>
+    db.exec(`
+      DROP TABLE available;
+      DROP INDEX profiles_jellyfin_user;
+      ALTER TABLE profiles DROP COLUMN jellyfin_user_id;
+      ALTER TABLE movies DROP COLUMN jellyfin_id;
+      PRAGMA user_version = 6;
+    `);
+
   it('gains arrival dates and reads the library again on the next start', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-migrate-'));
     // As version 5 left it: no arrival dates, and a recent sync that wouldn't be repeated for hours.
     const old = openDb(dir);
+    backToVersion6(old);
     old.exec('ALTER TABLE movies DROP COLUMN arrived_at; PRAGMA user_version = 5');
     new Store(old).set('sync', { at: Date.now(), movies: 1, matched: 0, error: null });
     old.close();
@@ -328,7 +339,7 @@ describe('a database from an older version', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-migrate-'));
     // As version 6 saved them, with syncing to Plex turned off.
     const old = openDb(dir);
-    old.exec('PRAGMA user_version = 6');
+    backToVersion6(old);
     const save = old.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     save.run('app', JSON.stringify({ includeWatched: false, syncIntervalHours: 6, syncToPlex: false, boostRequests: true }));
     save.run('sync', JSON.stringify({ at: 1, movies: 20, matchedInPlex: 12, error: null }));
@@ -337,6 +348,9 @@ describe('a database from an older version', () => {
     const store = new Store(openDb(dir));
     expect(store.get('app')).toEqual({ includeWatched: false, syncIntervalHours: 6, syncToServer: false, boostRequests: true });
     expect(store.get('sync')).toEqual({ at: 1, movies: 20, matched: 12, error: null });
+    // And it has room for Jellyfin.
+    store.replaceMovies([{ ...fromRadarr(radarrMovies[1]!), jellyfinId: 'item-2' }], Date.now());
+    expect(store.movie(2)!.jellyfinId).toBe('item-2');
 
     store.db.close();
     rmSync(dir, { recursive: true, force: true });

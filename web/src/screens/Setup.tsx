@@ -1,36 +1,39 @@
+import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Check } from 'lucide-react';
+import { Check, ChevronLeft } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Shell } from '../components/Shell';
 import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
-import { api, ApiError, errorMessage, useSettings, type SettingsResponse } from '../lib/api';
+import { api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
+import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 
-type Step = 'radarr' | 'plex' | 'seerr' | 'finish';
+type Step = 'radarr' | 'server' | 'seerr' | 'finish';
 const STEPS: { id: Step; label: string }[] = [
   { id: 'radarr', label: 'Radarr' },
-  { id: 'plex', label: 'Plex' },
+  { id: 'server', label: 'Server' },
   { id: 'seerr', label: 'Seerr' },
   { id: 'finish', label: 'Finish' },
 ];
 
-/** After a reload, setup carries on at the first step still to do. Plex is done once Plex Home users are profiles. */
+/** After a reload, setup carries on at the first step still to do. The server is done once its users are profiles. */
 function resumeAt(s: SettingsResponse | undefined): Step {
   if (!s?.radarr) return 'radarr';
-  if (!s.profiles.some((p) => p.serverUser)) return 'plex';
+  if (!s.profiles.some((p) => p.serverUser)) return 'server';
   return s.seerr ? 'finish' : 'seerr';
 }
 
 export function SetupScreen() {
   const settings = useSettings(true);
+  const { data: status } = useStatus();
   const [step, setStep] = useState<Step | null>(null);
   const current: Step = step ?? resumeAt(settings.data);
-  // Once someone has signed in with Plex, only that account can carry on, so another device asks for it.
+  // Once someone has connected Plex or Jellyfin, only their account can carry on, so another device asks for it.
   const ownerOnly = settings.error instanceof ApiError && Boolean(settings.error.data.needAdmin);
-  // People leave to copy an API key or sign in to Plex; a reload on their return would lose that.
+  // People leave to copy an API key or sign in to their media server; a reload on their return would lose that.
   useDeferUpdates();
 
   return (
@@ -56,30 +59,39 @@ export function SetupScreen() {
             <Spinner />
           ) : ownerOnly ? (
             <Panel title="Continue setup">
-              <p className="mb-4 text-muted">
-                Setup was started by signing in with Plex. Sign in with the same Plex account to carry on here.
-              </p>
-              <OwnerSignIn />
+              {status?.server === 'jellyfin' ? (
+                <>
+                  <p className="mb-4 text-muted">
+                    Setup was started by connecting Jellyfin. Sign in as one of its administrators to carry on here.
+                  </p>
+                  <JellyfinSignIn />
+                </>
+              ) : (
+                <>
+                  <p className="mb-4 text-muted">
+                    Setup was started by signing in with Plex. Sign in with the same Plex account to carry on here.
+                  </p>
+                  <OwnerSignIn />
+                </>
+              )}
             </Panel>
           ) : current === 'radarr' ? (
             <ServiceForm
               service="Radarr"
               initialUrl={settings.data?.radarr?.url ?? ''}
               hasKey={false}
-              onSaved={() => setStep('plex')}
+              onSaved={() => setStep('server')}
             />
-          ) : current === 'plex' ? (
-            <Panel title="Connect Plex">
-              <PlexConnect
-                signedIn={Boolean(settings.data?.plex.signedIn)}
-                onDone={() => setStep('seerr')}
-                onSkip={async () => {
-                  await api('/api/setup/server/skip', { json: {} });
-                  // No Seerr step: its requests are matched to profiles by Plex account.
-                  setStep('finish');
-                }}
-              />
-            </Panel>
+          ) : current === 'server' ? (
+            <ServerStep
+              settings={settings.data}
+              onDone={() => setStep('seerr')}
+              onSkip={async () => {
+                await api('/api/setup/server/skip', { json: {} });
+                // No Seerr step: its requests are matched to profiles by Plex or Jellyfin account.
+                setStep('finish');
+              }}
+            />
           ) : current === 'seerr' ? (
             <ServiceForm
               service="Seerr"
@@ -95,6 +107,89 @@ export function SetupScreen() {
         </div>
       </div>
     </Shell>
+  );
+}
+
+/** Plex or Jellyfin: setup connects one of them, or neither. */
+function ServerStep({
+  settings,
+  onDone,
+  onSkip,
+}: {
+  settings: SettingsResponse | undefined;
+  onDone: () => void;
+  onSkip: () => Promise<void>;
+}) {
+  // After a reload, carry on with the server signed in to already.
+  const [server, setServer] = useState<MediaServer | null>(settings?.server ?? null);
+  const [skipping, setSkipping] = useState(false);
+
+  if (server) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setServer(null)}
+          className="-mt-2 mb-2 -ml-2 inline-flex h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-muted transition hover:text-fg"
+        >
+          <ChevronLeft className="size-4" /> Plex or Jellyfin
+        </button>
+        {server === 'plex' ? (
+          <Panel title="Connect Plex">
+            <PlexConnect signedIn={Boolean(settings?.plex.signedIn)} onDone={onDone} />
+          </Panel>
+        ) : (
+          <Panel title="Connect Jellyfin">
+            <JellyfinConnect saved={settings?.jellyfin ?? null} onDone={onDone} />
+          </Panel>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <Panel title="Plex or Jellyfin?">
+      <p className="mb-4 text-muted">
+        Curatorr reads who has watched what from your media server, and each of its users gets a profile.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ServerOption name="Plex" onClick={() => setServer('plex')}>
+          Sign in with the account that owns your Plex server. Plex Home users become profiles.
+        </ServerOption>
+        <ServerOption name="Jellyfin" onClick={() => setServer('jellyfin')}>
+          Sign in as a Jellyfin administrator. Its users become profiles.
+        </ServerOption>
+      </div>
+      <Button
+        variant="ghost"
+        size="lg"
+        className="mt-4"
+        loading={skipping}
+        onClick={async () => {
+          setSkipping(true);
+          try {
+            await onSkip();
+          } finally {
+            setSkipping(false);
+          }
+        }}
+      >
+        Skip, I don't use either
+      </Button>
+    </Panel>
+  );
+}
+
+function ServerOption({ name, onClick, children }: { name: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start gap-1 rounded-2xl bg-ink/60 p-4 text-left ring-1 ring-line transition hover:bg-white/5 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+    >
+      <span className="text-lg font-semibold">{name}</span>
+      <span className="text-sm text-muted">{children}</span>
+    </button>
   );
 }
 

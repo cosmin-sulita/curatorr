@@ -1,11 +1,17 @@
 import type { Movie } from '@curatorr/shared';
 import { normalizeBaseUrl, requestJson } from '../http.js';
 import type { ProfileRow } from '../store.js';
+import { jellyfinIdKey } from './jellyfin.js';
 
-/** The subset of a Seerr user that Curatorr uses. `plexId` is the plex.tv account id. */
-export interface SeerrUser {
-  id: number;
+/** The account a Seerr user signs in with: a plex.tv account, or a Jellyfin user. */
+interface SeerrAccount {
   plexId?: number | null;
+  jellyfinUserId?: string | null;
+}
+
+/** The subset of a Seerr user that Curatorr uses. */
+export interface SeerrUser extends SeerrAccount {
+  id: number;
   displayName?: string;
 }
 
@@ -17,7 +23,7 @@ export interface SeerrRequest {
   type?: 'movie' | 'tv';
   createdAt?: string;
   media?: { tmdbId?: number | null; mediaType?: 'movie' | 'tv' };
-  requestedBy?: { id: number; plexId?: number | null };
+  requestedBy?: SeerrAccount & { id: number };
 }
 
 interface SeerrPage<T> {
@@ -81,27 +87,36 @@ export interface RequestEntry {
   requestedAt: number | null;
 }
 
+const plexAccount = (id: number) => `plex:${id}`;
+const jellyfinAccount = (id: string) => `jellyfin:${jellyfinIdKey(id)}`;
+const accountOf = (u: SeerrAccount | undefined) =>
+  u?.plexId ? plexAccount(u.plexId) : u?.jellyfinUserId ? jellyfinAccount(u.jellyfinUserId) : undefined;
+
 /**
- * Pairs movie requests with profiles by Plex account and with library movies by TMDB id.
+ * Pairs movie requests with profiles by Plex or Jellyfin account and with library movies by TMDB id.
  * Declined requests, TV and movies not in the library are left out. A movie requested
  * more than once by the same person keeps the earliest request.
  */
 export function matchRequests(
-  profiles: Pick<ProfileRow, 'id' | 'plex_user_id'>[],
+  profiles: Pick<ProfileRow, 'id' | 'plex_user_id' | 'jellyfin_user_id'>[],
   movies: Pick<Movie, 'id' | 'tmdbId'>[],
   users: SeerrUser[],
   requests: SeerrRequest[],
 ): RequestEntry[] {
-  const profileByPlexId = new Map(profiles.flatMap((p) => (p.plex_user_id != null ? [[p.plex_user_id, p.id]] : [])));
-  // Request listings may leave out each requester's Plex id; the user list has it.
-  const plexIdByUser = new Map(users.flatMap((u) => (u.plexId ? [[u.id, u.plexId]] : [])));
+  const profileByAccount = new Map<string, number>();
+  for (const p of profiles) {
+    if (p.plex_user_id != null) profileByAccount.set(plexAccount(p.plex_user_id), p.id);
+    if (p.jellyfin_user_id != null) profileByAccount.set(jellyfinAccount(p.jellyfin_user_id), p.id);
+  }
+  // Request listings may leave out each requester's account; the user list has it.
+  const accountByUser = new Map(users.map((u) => [u.id, accountOf(u)] as const));
   const movieByTmdb = new Map(movies.flatMap((m) => (m.tmdbId != null ? [[m.tmdbId, m.id]] : [])));
 
   const out = new Map<string, RequestEntry>();
   for (const r of requests) {
     if (r.status === DECLINED || (r.type ?? r.media?.mediaType) !== 'movie') continue;
-    const plexId = (r.requestedBy && plexIdByUser.get(r.requestedBy.id)) ?? r.requestedBy?.plexId;
-    const profileId = plexId != null ? profileByPlexId.get(plexId) : undefined;
+    const account = (r.requestedBy && accountByUser.get(r.requestedBy.id)) ?? accountOf(r.requestedBy);
+    const profileId = account ? profileByAccount.get(account) : undefined;
     const movieId = r.media?.tmdbId != null ? movieByTmdb.get(r.media.tmdbId) : undefined;
     if (profileId == null || movieId == null) continue;
 

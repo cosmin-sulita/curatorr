@@ -131,6 +131,7 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
       requests.filter((r) => r.profile_id !== profileId && (r.requested_at ?? 0) <= at).map((r) => r.movie_id),
     ),
     server: 'plex',
+    available: null,
     includeWatched: false,
     boostRequests: true,
   };
