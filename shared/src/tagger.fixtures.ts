@@ -498,4 +498,17 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'escape her past, Helena is forced to face her demons when her father unexpectedly escapes from prison.',
     notThemes: ['supernatural'],
   },
+  {
+    title: 'Elvis', genres: ['Music', 'History', 'Drama'], runtime: 159, overview: '',
+    keywords: ['1950s', 'apathetic', 'biographical', 'biography', 'biopic', 'famous song', 'joyful', 'joyous',
+      'music business', "rock 'n' roll", 'rock singer', 'singer'],
+    themes: ['true-story', 'music'], notThemes: ['historical'],
+  },
+  {
+    title: 'Michael', genres: ['Music', 'Drama'], runtime: 128, overview: '',
+    keywords: ['1960s', '1970s', '1980s', 'abusive father', 'admiring', 'ambition', 'based on true story',
+      'biographical drama', 'biography', 'biopic', 'child abuse', 'music', 'music drama', 'music history',
+      'period drama', 'price of fame', 'rise to fame', 'sibling relationship', 'singer', 'singer-songwriter'],
+    themes: ['true-story', 'music'], notThemes: ['historical'],
+  },
 ];

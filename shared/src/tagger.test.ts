@@ -67,6 +67,13 @@ describe('tagThemes', () => {
     expect(tagThemes({ ...base, genres: ['Romance'] })).toHaveProperty('romance');
   });
 
+  it("doesn't call every History movie a Historical Epic", () => {
+    const history = { ...base, genres: ['History'] };
+    expect(tagThemes(history)).not.toHaveProperty('historical');
+    expect(tagThemes({ ...history, keywords: ['period drama'] })).not.toHaveProperty('historical');
+    expect(tagThemes({ ...history, keywords: ['period drama', '19th century'] }).historical).toBe(3);
+  });
+
   it('falls back to the overview when keywords are sparse or tag nothing', () => {
     const overview = 'A family moves into a house haunted by ghosts.';
     expect(tagThemes({ ...base, overview })).toHaveProperty('supernatural');

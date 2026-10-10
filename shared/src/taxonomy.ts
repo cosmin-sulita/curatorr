@@ -298,9 +298,11 @@ export const THEMES: ThemeDef[] = [
     overview: /\bparallel (world|universe)s?\b|\bmultiverse\b|\balternate reality\b|\bsimulation\b|\bdreams?\b/,
   },
   {
-    id: 'historical', label: 'Historical Epics', icon: 'Landmark', genres: ['History'],
-    strong: ['ancient rome', 'ancient greece', 'ancient egypt', 'roman empire', 'gladiator', 'viking', 'victorian era', 'period drama', 'costume drama', 'historical drama', 'historical fiction', '19th century', '18th century', '17th century', '16th century', '15th century', '14th century', '13th century', '12th century', 'middle ages'],
-    weak: ['medieval', 'empire', 'royalty', 'king', 'queen', 'historical'],
+    id: 'historical', label: 'Historical Epics', icon: 'Landmark',
+    // TMDB's History genre and "period drama" also cover 20th-century biopics (Elvis, Michael),
+    // so the genre doesn't count and "period drama" only backs up an earlier era.
+    strong: ['ancient rome', 'ancient greece', 'ancient egypt', 'roman empire', 'gladiator', 'viking', 'victorian era', 'costume drama', 'historical drama', 'historical fiction', '19th century', '18th century', '17th century', '16th century', '15th century', '14th century', '13th century', '12th century', 'middle ages'],
+    weak: ['medieval', 'empire', 'royalty', 'king', 'queen', 'historical', 'period drama'],
     overview: /\b1\d(th)? century\b|\bancient\b|\bmedieval\b/,
   },
   {
