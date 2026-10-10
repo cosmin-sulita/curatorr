@@ -2,6 +2,20 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.0.0 (2026-10-10)
+
+- fix(app): make the Back button a round button that's easier to spot ([3ea3acb](https://github.com/cosmin-sulita/curatorr/commit/3ea3acb))
+- fix(profiles): keep the PIN pad still while the PIN is checked ([c5df3f0](https://github.com/cosmin-sulita/curatorr/commit/c5df3f0))
+- feat(jellyfin): connect Jellyfin instead of Plex ([fac718f](https://github.com/cosmin-sulita/curatorr/commit/fac718f))
+- refactor(server): name what Plex and Jellyfin share after the media server ([bea4e30](https://github.com/cosmin-sulita/curatorr/commit/bea4e30))
+- docs(claude): describe the release flow and the branch and commit rules ([e0a478a](https://github.com/cosmin-sulita/curatorr/commit/e0a478a))
+- docs(readme): write it for people installing Curatorr, with screenshots ([12acf10](https://github.com/cosmin-sulita/curatorr/commit/12acf10))
+- docs(contributing): add a guide for contributors ([ec4c97c](https://github.com/cosmin-sulita/curatorr/commit/ec4c97c))
+- docs(license): add the MIT license ([35bd0e0](https://github.com/cosmin-sulita/curatorr/commit/35bd0e0))
+- ci(release): tag and publish each new changelog version ([b772476](https://github.com/cosmin-sulita/curatorr/commit/b772476))
+- chore(git): ignore local Claude Code settings and keep docs out of the image build ([928770e](https://github.com/cosmin-sulita/curatorr/commit/928770e))
+- docs(changelog): point commit links at the rewritten history ([ab614d4](https://github.com/cosmin-sulita/curatorr/commit/ab614d4))
+
 ## 0.10.0 (2026-10-10)
 
 - feat(setup): connect Seerr while setting up, or skip it ([a136166](https://github.com/cosmin-sulita/curatorr/commit/a136166))
