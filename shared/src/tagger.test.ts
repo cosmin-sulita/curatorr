@@ -53,6 +53,11 @@ describe('tagThemes', () => {
     expect(explainTags({ ...base, keywords: ['cold war'] }).themes.spies?.score).toBe(1);
   });
 
+  it('only lets a missing person back up a detective story', () => {
+    expect(tagThemes({ ...base, keywords: ['missing person'] })).not.toHaveProperty('whodunit');
+    expect(tagThemes({ ...base, keywords: ['missing person', 'detective'] }).whodunit).toBe(3);
+  });
+
   it('asks for more where one keyword is often a side detail', () => {
     expect(tagThemes({ ...base, keywords: ['dog'] })).not.toHaveProperty('animals');
     expect(tagThemes({ ...base, keywords: ['dog', 'police dog'] })).toHaveProperty('animals');

@@ -205,8 +205,9 @@ export const THEMES: ThemeDef[] = [
   },
   {
     id: 'whodunit', label: 'Whodunits & Detectives', icon: 'Fingerprint',
-    strong: ['whodunit', 'murder mystery', 'detective', 'private detective', 'police detective', 'murder investigation', 'sherlock holmes', 'investigation', 'missing person'],
-    weak: ['mystery', 'crime scene', 'police', 'fbi'],
+    strong: ['whodunit', 'murder mystery', 'detective', 'private detective', 'police detective', 'murder investigation', 'sherlock holmes', 'investigation'],
+    // A missing person is as often a comedy's setup (The Fall Guy) or a horror's (Get Out).
+    weak: ['mystery', 'crime scene', 'police', 'fbi', 'missing person'],
     exclude: ['paranormal investigation', 'paranormal investigator'],
     overview: /\bdetectives?\b|\bmurder mystery\b|\binvestigat|\bwhodunit\b/,
   },

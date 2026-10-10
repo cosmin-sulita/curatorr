@@ -458,6 +458,19 @@ export const TAGGED_MOVIES: TaggedMovie[] = [
       'mental break', 'mental desintegration', 'missing person', 'missing wife', 'neighbor', 'nosebleed', 'obsession',
       'odd neighbor', 'perception', 'public meltdown', 'quicksand', 'sewers', 'sick wife', 'toad', 'toupee',
       'tv news anchor', 'weatherman'],
-    notThemes: ['slashers'], moods: ['light'],
+    notThemes: ['slashers', 'whodunit'], moods: ['light'],
+  },
+  {
+    title: 'The Fall Guy', genres: ['Action', 'Comedy', 'Romance'], runtime: 127, overview: '',
+    keywords: ['action comedy', 'aftercreditsstinger', 'based on tv series', 'duringcreditsstinger', 'missing person',
+      'movie business', 'stuntman', 'sydney, australia'],
+    themes: ['romance'], notThemes: ['whodunit'], moods: ['light'],
+  },
+  {
+    title: 'Get Out', genres: ['Mystery', 'Thriller', 'Horror'], runtime: 104, overview: '',
+    keywords: ['brain surgery', 'dark comedy', 'disappearance', 'externally controlled action', 'hypnosis',
+      'interracial relationship', 'kidnapping', 'manipulation', 'missing person', 'neurosurgeon', 'parents-in-law',
+      'psychological thriller', 'race-conscious', 'racism', 'racist', 'revenge', 'satire', 'stereotype'],
+    themes: ['psychological'], notThemes: ['whodunit'], moods: ['edge'],
   },
 ];
