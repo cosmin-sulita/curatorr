@@ -4,6 +4,7 @@ import {
   pickingDay,
   qualityScore,
   rankMovies,
+  surpriseOrder,
   wizardOptions,
   type ProfileContext,
 } from './scoring.js';
@@ -295,6 +296,37 @@ describe('the daily shuffle', () => {
     vi.stubEnv('TZ', 'Europe/Bucharest');
     expect(pickingDay(Date.parse('2026-10-09T03:59:00+03:00'))).toBe('2026-10-08');
     expect(pickingDay(Date.parse('2026-10-09T04:01:00+03:00'))).toBe('2026-10-09');
+  });
+});
+
+describe('Surprise me', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  // Far enough apart that the daily jitter can't reorder them, listed best first.
+  const library = Array.from({ length: 20 }, (_, i) => movie({ ratings: { rt: 99 - i * 4 } }));
+  const best = library.map((m) => m.id);
+  const surprise = (seed: string, iso = '2026-10-08T20:00:00Z') => {
+    const opts = { now: Date.parse(iso), seed };
+    return surpriseOrder(rankMovies(library, {}, [], opts), opts).map((r) => r.movie.id);
+  };
+
+  it('draws the first pick from the ten best, not always the best one', () => {
+    vi.stubEnv('TZ', 'UTC');
+    const firsts = Array.from({ length: 50 }, (_, profile) => surprise(String(profile))[0]!);
+    expect(firsts.every((id) => best.slice(0, 10).includes(id))).toBe(true);
+    expect(new Set(firsts).size).toBeGreaterThan(5);
+  });
+
+  it('keeps the order all evening, and draws again the next', () => {
+    vi.stubEnv('TZ', 'UTC');
+    expect(surprise('1', '2026-10-08T19:00:00Z')).toEqual(surprise('1', '2026-10-08T23:00:00Z'));
+    expect(surprise('1', '2026-10-09T20:00:00Z')).not.toEqual(surprise('1', '2026-10-08T20:00:00Z'));
+  });
+
+  it('only reorders the ten best', () => {
+    const order = surprise('1');
+    expect(order.slice(0, 10)).not.toEqual(best.slice(0, 10));
+    expect(order.slice(0, 10).sort((a, b) => a - b)).toEqual(best.slice(0, 10));
+    expect(order.slice(10)).toEqual(best.slice(10, 12));
   });
 });
 

@@ -3,6 +3,7 @@ import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { Criteria } from '@curatorr/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
 import { Store, type StoredMovie } from '../store.js';
@@ -66,6 +67,27 @@ describe('picks for a restricted profile', () => {
     const titles = (await recommendFor(store, teen, {})).picks.map((p) => p.movie.title);
     expect(titles).toContain('Live Free or Die Hard');
     expect(titles).not.toContain('Die Hard');
+  });
+});
+
+describe('Surprise me', () => {
+  it('deals the ten best picks in a drawn order, while answers keep the ranking', async () => {
+    const store = tempStore();
+    // Far enough apart that the daily jitter can't reorder them, listed best first.
+    const movies = Array.from({ length: 15 }, (_, i) =>
+      movie({ ratings: { rt: 99 - i * 5, imdb: null, tmdb: null, metacritic: null } }),
+    );
+    store.replaceMovies(movies, Date.now());
+    const row = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const ids = async (c: Criteria) => (await recommendFor(store, row, c)).picks.map((p) => p.movie.id);
+    const best = movies.map((m) => m.id);
+
+    const surprise = await ids({ genre: null, theme: null, mood: null, time: null });
+    // Drawn in rank order only once in 10! draws.
+    expect(surprise.slice(0, 10)).not.toEqual(best.slice(0, 10));
+    expect(surprise.slice(0, 10).sort((a, b) => a - b)).toEqual(best.slice(0, 10));
+    expect(surprise.slice(10)).toEqual(best.slice(10, 12));
+    expect(await ids({ genre: 'Action' })).toEqual(best.slice(0, 12));
   });
 });
 

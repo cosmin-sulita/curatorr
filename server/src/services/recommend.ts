@@ -2,10 +2,12 @@ import {
   RESTRICTION_CERTS,
   certAllowed,
   eligibleMovies,
+  isSurprise,
   qualityScore,
   rankMovies,
   rankSimilar,
   sagaState,
+  surpriseOrder,
   tasteEvents,
   tasteProfile,
   wizardOptions,
@@ -194,7 +196,8 @@ async function toResponse(store: Store, ranked: RankedMovie[]): Promise<Recommen
 
 export async function recommendFor(store: Store, row: ProfileRow, criteria: Criteria): Promise<RecommendationsResponse> {
   const { ctx, eligible, opts } = picking(profileData(store, row), Date.now(), { taste: true });
-  return toResponse(store, rankMovies(eligible, criteria, ctx.feedback, opts));
+  const ranked = rankMovies(eligible, criteria, ctx.feedback, opts);
+  return toResponse(store, isSurprise(criteria) ? surpriseOrder(ranked, opts) : ranked);
 }
 
 /** "Something like…": the eligible movies that share the most with one the profile loved. */

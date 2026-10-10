@@ -362,6 +362,26 @@ export function topRanked(ranked: RankedMovie[], limit = MAX_RESULTS): RankedMov
   return ranked.slice(0, Math.max(limit, exact.length));
 }
 
+/** "Surprise me" deals this many of the best picks in a drawn order. */
+const SURPRISE_POOL = 10;
+
+/** "Surprise me" answers none of the questions. */
+export function isSurprise(c: Criteria) {
+  return !c.genre && !c.theme && !c.mood && !c.time;
+}
+
+/**
+ * "Surprise me": the best picks in an order drawn for the profile and the evening, each as likely as
+ * the others to come first, so it isn't always the top-ranked movie. Each movie draws its own place,
+ * so the order holds all evening, and the others keep theirs when one drops out of the best.
+ */
+export function surpriseOrder(ranked: RankedMovie[], opts: RankOptions): RankedMovie[] {
+  const day = pickingDay(opts.now);
+  const draw = (r: RankedMovie) => seededUnit(`${opts.seed}|${day}|surprise|${r.movie.id}`);
+  const pool = ranked.slice(0, SURPRISE_POOL).sort((a, b) => draw(b) - draw(a));
+  return [...pool, ...ranked.slice(SURPRISE_POOL)];
+}
+
 /**
  * Ranks eligible movies for the given criteria.
  * Exact matches always come first; if there are too few, close matches

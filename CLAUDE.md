@@ -40,6 +40,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - the theme/mood bonus, taste points (`tastePoints`) and the new-arrival bonus (`arrivalTime`: the file's `arrivedAt`, else `addedAt`);
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
+    - For "Surprise me" (no answers, `isSurprise`), `surpriseOrder` then deals the ten best in an order drawn per profile per evening. `rankMovies` itself leaves `{}` in rank order; `recommendFor` and `npm run eval` apply the draw.
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: Plex watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
   - `sagas.ts`: collection ordering.
@@ -94,7 +95,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - On phones, actions sit in a sticky `BottomBar`: Watch on Plex plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`plexLink` in `web/src/lib/format.ts`). Desktop opens Plex Web.
-  - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick.
+  - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 

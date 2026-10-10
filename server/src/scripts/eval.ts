@@ -25,8 +25,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import {
   arrivalTime,
+  isSurprise,
   qualityScore,
   rankMovies,
+  surpriseOrder,
   tagMovie,
   wizardOptions,
   type Criteria,
@@ -201,8 +203,11 @@ function wizardPaths(p: Picking): { c: Criteria; weight: number; skipped: string
   return out;
 }
 
-const rank = (p: Picking, c: Criteria, limit?: number) =>
-  rankMovies(p.eligible, c, p.ctx.feedback, limit ? { ...p.opts, limit } : p.opts);
+/** The picks in the order the pick screen shows them: "Surprise me" deals the best ones in a drawn order. */
+const rank = (p: Picking, c: Criteria, limit?: number) => {
+  const ranked = rankMovies(p.eligible, c, p.ctx.feedback, limit ? { ...p.opts, limit } : p.opts);
+  return isSurprise(c) ? surpriseOrder(ranked, p.opts) : ranked;
+};
 
 // ---------------------------------------------------------------------------
 // Would it have suggested what the profile watched?
