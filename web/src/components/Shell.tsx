@@ -86,9 +86,10 @@ export function BackButton() {
   return (
     <button
       onClick={() => window.history.back()}
-      className="-ml-2 inline-flex h-11 items-center gap-1 rounded-lg pr-3 pl-1 text-sm font-medium text-muted hover:text-fg"
+      aria-label="Back"
+      className="grid size-11 place-items-center rounded-full bg-surface text-fg ring-1 ring-line transition hover:bg-raised active:scale-95"
     >
-      <ChevronLeft className="size-5" /> Back
+      <ChevronLeft className="size-5" aria-hidden />
     </button>
   );
 }
