@@ -2,6 +2,13 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.1.0 (2026-10-11)
+
+- chore(deps): update to Node 26 and the latest packages ([5f201a4](https://github.com/cosmin-sulita/curatorr/commit/5f201a4))
+- feat(picks): count what audiences think, not only critics ([6032866](https://github.com/cosmin-sulita/curatorr/commit/6032866))
+- fix(header): keep the logo in place between screens on desktop ([e47b3b9](https://github.com/cosmin-sulita/curatorr/commit/e47b3b9))
+- docs(readme): put the badges under the title and the screenshots in their own section ([cc2cd53](https://github.com/cosmin-sulita/curatorr/commit/cc2cd53))
+
 ## 1.0.0 (2026-10-10)
 
 - fix(app): make the Back button a round button that's easier to spot ([3ea3acb](https://github.com/cosmin-sulita/curatorr/commit/3ea3acb))
