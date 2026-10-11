@@ -162,6 +162,8 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
   /** Continue without a media server: one local profile, no watch history. */
   app.post('/api/setup/server/skip', async (req) => {
     guard(req);
+    // Letting the media server go would leave no owner, which opens the settings to everyone.
+    if (store.get('setupComplete')) throw new HttpError(409, 'Curatorr is already set up');
     store.resetPlex();
     store.set('jellyfin', null);
     if (store.profileRows(true).length === 0) store.createLocalProfile('Me', true);

@@ -30,6 +30,9 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
     logController: new LogController({ disableRequestLogging: true }),
     trustProxy: true,
   });
+  // JSON bodies only. Any web page can post a form as text/plain, and one on a sibling subdomain would
+  // send Curatorr's cookies with it.
+  app.removeContentTypeParser('text/plain');
   const library = new LibrarySync(store, app.log);
   library.retag();
   const ctx: AppContext = { store, library };

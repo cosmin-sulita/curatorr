@@ -58,6 +58,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
   - `app.ts` builds the app; tests use `buildApp({ configDir, demo: true, logger: false })` and `app.inject`.
+    - **Hardening:** request bodies are JSON only (the `text/plain` parser is removed, so a form on another page can't reach a route).
   - Routes in `routes/` are `RouteModule`s that receive an `AppContext { store, library }`. Validate input with zod through `parse()` from `context.ts`, and throw `HttpError` for 4xx responses, which can carry flags like `needPin`, `needProfile` or `needSetup` that the client acts on.
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
@@ -75,7 +76,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
       - watchlists and requests are unions, with `wantedBy` naming whose for the chips;
       - each member's taste blends in `tastePoints` (half the mean plus half the lowest, without members who have no history);
       - feedback is the union, deduplicated by movie, kind and time, so a group's skip saved for each member counts once.
-  - **Media server:** Plex or Jellyfin, one at a time (`store.mediaServer()`). Setup asks which; connecting one lets the other go, and once setup is complete the other is refused (409). Settings can't switch.
+  - **Media server:** Plex or Jellyfin, one at a time (`store.mediaServer()`). Setup asks which; connecting one lets the other go, and once setup is complete the other is refused (409), and so is skipping both, which would leave no owner. Settings can't switch.
     - `services/mediaServer.ts` dispatches the profile sync (`syncServerState`) and the marks (`applyMark`/`revertMark`, behind `app.syncToServer`) to the Plex or Jellyfin version. Picks' `watchUrl`/`watchAppUrl` come from `watchLinks()` in `recommend.ts`.
     - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist. `services/profiles.ts` is the Plex Home side: import, PIN linking, history.
     - `integrations/jellyfin.ts` + `services/jellyfin.ts` + `routes/jellyfin.ts`: Curatorr signs in once as a Jellyfin administrator (username and password) and keeps that token: it reads and marks every user's movies by passing their `userId`. Only the `Authorization: MediaBrowser …` header (Jellyfin 12 dropped `X-Emby-*` and `api_key`), and only 10.9+ routes (`/Items?userId=`, `/UserPlayedItems`, `/UserFavoriteItems`, `/UserImage`); the legacy `/Users/{id}/…` forms are obsolete.

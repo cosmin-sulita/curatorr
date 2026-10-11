@@ -123,6 +123,19 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     expect((await call(app, 'GET', '/api/wizard/genre', profile)).statusCode).toBe(200);
   });
 
+  it("refuses the bodies a form on another site can send, so it can't reach a route with the owner's cookie", async () => {
+    for (const type of ['text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data; boundary=x']) {
+      const res = await app.inject({ method: 'POST', url: '/api/sync', headers: { cookie: owner, 'content-type': type }, payload: 'a=b' });
+      expect(res.statusCode, type).toBe(415);
+    }
+  });
+
+  it('keeps its media server once set up: skipping one is a step of setup only', async () => {
+    const res = await call(app, 'POST', '/api/setup/server/skip', owner);
+    expect(res.statusCode).toBe(409);
+    expect(store.owner()).toEqual({ server: 'plex', id: String(OWNER) });
+  });
+
   it("lets Radarr's webhook in with its secret, and nobody else", async () => {
     const { token } = store.get('radarrWebhook');
     expect(token.length).toBeGreaterThanOrEqual(32);
