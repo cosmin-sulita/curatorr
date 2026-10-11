@@ -2,6 +2,20 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.2.0 (2026-10-11)
+
+- feat(profiles): mark a movie watched for everyone who watched it together ([2cbd4be](https://github.com/cosmin-sulita/curatorr/commit/2cbd4be))
+- feat(picks): ask who Seen it, Watchlist or Never is for when watching together ([58ffda8](https://github.com/cosmin-sulita/curatorr/commit/58ffda8))
+- feat(profiles): pick one movie for two or more people watching together ([1d32217](https://github.com/cosmin-sulita/curatorr/commit/1d32217))
+- fix(setup): make the server step's Back button round like the others ([233f21b](https://github.com/cosmin-sulita/curatorr/commit/233f21b))
+- refactor(picks): rank for several profiles at once ([ee8ef06](https://github.com/cosmin-sulita/curatorr/commit/ee8ef06))
+- fix(sync): let calls from Radarr that name no movie through the webhook ([4510cb6](https://github.com/cosmin-sulita/curatorr/commit/4510cb6))
+- feat(wizard): suggest Halloween movies in October and Christmas movies in December ([bb88869](https://github.com/cosmin-sulita/curatorr/commit/bb88869))
+- feat(wizard): go straight to a pick from what just arrived ([f1a54c7](https://github.com/cosmin-sulita/curatorr/commit/f1a54c7))
+- feat(sync): show new downloads within minutes through a Radarr webhook ([bef2958](https://github.com/cosmin-sulita/curatorr/commit/bef2958))
+- ci(release): publish a release only once its image is pushed ([24666f9](https://github.com/cosmin-sulita/curatorr/commit/24666f9))
+- ci(build): build the app and the Docker image on develop and pull requests ([7c23b29](https://github.com/cosmin-sulita/curatorr/commit/7c23b29))
+
 ## 1.1.0 (2026-10-11)
 
 - chore(deps): update to Node 26 and the latest packages ([5f201a4](https://github.com/cosmin-sulita/curatorr/commit/5f201a4))
