@@ -94,14 +94,18 @@ export function onServer(m: Movie, server: MediaServer): boolean {
   return Boolean(server === 'plex' ? m.plexRatingKey : m.jellyfinId);
 }
 
+/** Whether the profile's limits allow the movie: its parental restrictions, and what it can open on the media server. */
+export function allowedFor(m: Movie, ctx: Pick<ProfileContext, 'allowedCerts' | 'available'>) {
+  return (!ctx.available || ctx.available.has(m.id)) && certAllowed(m, ctx.allowedCerts);
+}
+
 export function eligibleMovies(movies: Movie[], ctx: ProfileContext): Movie[] {
   const excluded = excludedIds(ctx);
   return movies.filter((m) => {
     if (excluded.has(m.id)) return false;
     if (ctx.sagas?.blockedBy.has(m.id)) return false;
     if (ctx.requireServer && !onServer(m, ctx.requireServer)) return false;
-    if (ctx.available && !ctx.available.has(m.id)) return false;
-    return certAllowed(m, ctx.allowedCerts);
+    return allowedFor(m, ctx);
   });
 }
 

@@ -1,6 +1,6 @@
 import {
   RESTRICTION_CERTS,
-  certAllowed,
+  allowedFor,
   eligibleMovies,
   isSurprise,
   onServer,
@@ -139,12 +139,12 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
   });
   const watched = union(views.map((v) => v.watched));
   const certs = intersection(members.map((m) => allowedCerts(m.restriction)));
-  const available = requireServer ? intersection(members.map((m) => m.available)) : null;
+  // What each member can open is known by TMDB and IMDb id, so it holds even while matching isn't working.
+  const available = intersection(members.map((m) => m.available));
+  const limits = { allowedCerts: certs, available };
   const seenByAll = intersection(views.map((v) => v.seen))!;
   // Only parts everyone can play and may see count: a part held back by limits mustn't hold back the sequels.
-  const playable = d.movies.filter(
-    (m) => (!requireServer || onServer(m, requireServer)) && (!available || available.has(m.id)) && certAllowed(m, certs),
-  );
+  const playable = d.movies.filter((m) => (!requireServer || onServer(m, requireServer)) && allowedFor(m, limits));
   const requested = union(views.map((v) => v.requested));
   const watchlist = union(members.map((m) => m.watchlist));
   // A movie only someone outside the group asked for isn't news to it when it arrives.
@@ -292,7 +292,7 @@ export async function recommendFor(store: Store, rows: ProfileRow[], criteria: C
 export async function similarFor(store: Store, rows: ProfileRow[], likedId: number): Promise<RecommendationsResponse> {
   const { ctx, eligible, opts } = picking(groupData(store, rows), Date.now());
   const liked = store.movie(likedId);
-  if (!liked || !certAllowed(liked, ctx.allowedCerts)) throw new HttpError(404, 'Movie not found');
+  if (!liked || !allowedFor(liked, ctx)) throw new HttpError(404, 'Movie not found');
   const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, opts);
   return { ...(await toResponse(store, ranked)), like: { id: liked.id, title: liked.title } };
 }
@@ -312,9 +312,8 @@ export function likeSeeds(store: Store, rows: ProfileRow[], q = ''): LikeSeed[] 
     for (const w of store.watchHistory(row.id)) latest(w.movieId, w.viewedAt ?? 0);
     for (const e of store.feedback(row.id)) if (e.kind === 'seen') latest(e.movieId, e.createdAt);
   }
-  const certs = intersection(rows.map((row) => allowedCerts(row.restriction_profile)));
-  const available = intersection(rows.map((row) => store.availableMovies(row)));
-  const movies = store.movies().filter((m) => certAllowed(m, certs) && (!available || available.has(m.id)));
+  const { ctx } = picking(groupData(store, rows), Date.now());
+  const movies = store.movies().filter((m) => allowedFor(m, ctx));
   const toSeed = (m: StoredMovie): LikeSeed => ({
     id: m.id,
     title: m.title,

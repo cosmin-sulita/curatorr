@@ -477,9 +477,13 @@ export class Store {
     });
   }
 
-  /** The movies a Jellyfin profile can open, as of its last sync; null for other profiles, or before one. */
+  /**
+   * The movies a Jellyfin profile can open, as of its last sync; none before one, since its library access
+   * and parental controls aren't known yet. Null for other profiles.
+   */
   availableMovies(row: ProfileRow): Set<number> | null {
-    if (row.jellyfin_user_id == null || row.watched_synced_at == null) return null;
+    if (row.jellyfin_user_id == null) return null;
+    if (row.watched_synced_at == null) return new Set();
     const rows = this.db.prepare('SELECT key FROM available WHERE profile_id = ?').all(row.id) as { key: string }[];
     const keys = new Set(rows.map((r) => r.key));
     return new Set(this.movies().flatMap((m) => (idKeys(m).some((k) => keys.has(k)) ? [m.id] : [])));

@@ -7,7 +7,7 @@ import type { Criteria } from '@curatorr/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
 import { Store, type StoredMovie } from '../store.js';
-import { ensurePlexIds, recommendFor } from './recommend.js';
+import { ensurePlexIds, likeSeeds, recommendFor, similarFor } from './recommend.js';
 
 let nextId = 1;
 function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
@@ -68,6 +68,60 @@ describe('picks for a restricted profile', () => {
     const titles = (await recommendFor(store, [teen], {})).picks.map((p) => p.movie.title);
     expect(titles).toContain('Live Free or Die Hard');
     expect(titles).not.toContain('Die Hard');
+  });
+});
+
+describe('a Jellyfin profile limited to some libraries', () => {
+  /** A kid with no parental rating, limited to the libraries Jellyfin lets them open. */
+  function jellyfinKid(store: Store) {
+    store.set('jellyfin', {
+      url: 'http://127.0.0.1:9',
+      publicUrl: null,
+      serverId: 'server',
+      serverName: 'Home',
+      deviceId: 'device',
+      token: 'token',
+      ownerId: 'a'.repeat(32),
+      ownerName: 'Boss',
+      libraryIds: [],
+    });
+    const id = store.upsertJellyfinProfile({ jellyfinUserId: 'c'.repeat(32), name: 'Kid', avatarUrl: null, isAdmin: false, restrictionProfile: null });
+    return id;
+  }
+  const canOpen = (store: Store, kid: number, movies: StoredMovie[]) =>
+    store.replaceJellyfinState(kid, { watched: [], watchlist: [], available: movies }, Date.now());
+  const titles = (picks: { picks: { movie: { title: string } }[] }) => picks.picks.map((p) => p.movie.title).sort();
+
+  it("offers nothing until Curatorr has read what the kid may open", async () => {
+    const store = tempStore();
+    const cartoon = movie({ title: 'Cartoon', jellyfinId: 'jf-cartoon' });
+    store.replaceMovies([cartoon, movie({ title: 'Grown-up', jellyfinId: 'jf-grown-up' })], Date.now());
+    const kid = jellyfinKid(store);
+    expect((await recommendFor(store, [store.profileRow(kid)!], {})).picks).toEqual([]);
+    expect(likeSeeds(store, [store.profileRow(kid)!], 'o')).toEqual([]);
+
+    canOpen(store, kid, [cartoon]);
+    expect(titles(await recommendFor(store, [store.profileRow(kid)!], {}))).toEqual(['Cartoon']);
+  });
+
+  it("keeps to the kid's libraries even when no movie matched Jellyfin", async () => {
+    const store = tempStore();
+    const cartoon = movie({ title: 'Cartoon' });
+    store.replaceMovies([cartoon, movie({ title: 'Grown-up' })], Date.now());
+    const kid = jellyfinKid(store);
+    canOpen(store, kid, [cartoon]);
+    expect(titles(await recommendFor(store, [store.profileRow(kid)!], {}))).toEqual(['Cartoon']);
+  });
+
+  it("won't start \"Something like…\" from a movie in a library the kid can't open", async () => {
+    const store = tempStore();
+    const cartoon = movie({ title: 'Cartoon', jellyfinId: 'jf-cartoon' });
+    const grownUp = movie({ title: 'Grown-up', jellyfinId: 'jf-grown-up' });
+    store.replaceMovies([cartoon, grownUp], Date.now());
+    const kid = jellyfinKid(store);
+    canOpen(store, kid, [cartoon]);
+    await expect(similarFor(store, [store.profileRow(kid)!], grownUp.id)).rejects.toThrow('Movie not found');
+    expect(likeSeeds(store, [store.profileRow(kid)!], 'o').map((s) => s.title)).toEqual(['Cartoon']);
   });
 });
 
