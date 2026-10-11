@@ -80,11 +80,13 @@ function UpdateChip() {
   );
 }
 
-export function BackButton() {
+/** Steps back through history, or runs `onClick` where the steps aren't in the URL (setup). */
+export function BackButton({ onClick, label = 'Back' }: { onClick?: () => void; label?: string }) {
   return (
     <button
-      onClick={() => window.history.back()}
-      aria-label="Back"
+      type="button"
+      onClick={onClick ?? (() => window.history.back())}
+      aria-label={label}
       className="grid size-11 place-items-center rounded-full bg-surface text-fg ring-1 ring-line transition hover:bg-raised active:scale-95"
     >
       <ChevronLeft className="size-5" aria-hidden />

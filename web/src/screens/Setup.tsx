@@ -1,9 +1,9 @@
 import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Check, ChevronLeft } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Shell } from '../components/Shell';
+import { BackButton, Shell } from '../components/Shell';
 import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
 import { api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
@@ -125,25 +125,15 @@ function ServerStep({
   const [skipping, setSkipping] = useState(false);
 
   if (server) {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setServer(null)}
-          className="-mt-2 mb-2 -ml-2 inline-flex h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-muted transition hover:text-fg"
-        >
-          <ChevronLeft className="size-4" /> Plex or Jellyfin
-        </button>
-        {server === 'plex' ? (
-          <Panel title="Connect Plex">
-            <PlexConnect signedIn={Boolean(settings?.plex.signedIn)} onDone={onDone} />
-          </Panel>
-        ) : (
-          <Panel title="Connect Jellyfin">
-            <JellyfinConnect saved={settings?.jellyfin ?? null} onDone={onDone} />
-          </Panel>
-        )}
-      </>
+    const back = { onClick: () => setServer(null), label: 'Back to Plex or Jellyfin' };
+    return server === 'plex' ? (
+      <Panel title="Connect Plex" back={back}>
+        <PlexConnect signedIn={Boolean(settings?.plex.signedIn)} onDone={onDone} />
+      </Panel>
+    ) : (
+      <Panel title="Connect Jellyfin" back={back}>
+        <JellyfinConnect saved={settings?.jellyfin ?? null} onDone={onDone} />
+      </Panel>
     );
   }
 
@@ -193,10 +183,26 @@ function ServerOption({ name, onClick, children }: { name: string; onClick: () =
   );
 }
 
-export function Panel({ title, children }: { title: string; children: ReactNode }) {
+export function Panel({
+  title,
+  back,
+  children,
+}: {
+  title: string;
+  /** A Back button beside the title, for a step that isn't in the URL. */
+  back?: { onClick: () => void; label: string };
+  children: ReactNode;
+}) {
   return (
     <section>
-      <h2 className="mb-4 text-xl font-semibold">{title}</h2>
+      {back ? (
+        <div className="mb-4 flex items-center gap-3">
+          <BackButton {...back} />
+          <h2 className="text-xl font-semibold">{title}</h2>
+        </div>
+      ) : (
+        <h2 className="mb-4 text-xl font-semibold">{title}</h2>
+      )}
       {children}
     </section>
   );
