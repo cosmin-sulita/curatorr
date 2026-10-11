@@ -97,6 +97,10 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts the media server only if Curatorr changed it.
+- **Watching together:**
+  - `shown`, `skipped` and `accepted` are saved for every member, with one timestamp, so a group's pass also counts in each person's own picks (decided with the maintainer).
+  - The marks are saved for the `profileIds` the "For whom?" sheet (`ForWhom`) returns: Seen it starts with nobody ticked, Watchlist and Never with everyone. Each mark is mirrored to that person's media server account.
+  - `POST /api/feedback` returns `ids`, one per row, and Undo deletes each of them. `DELETE` accepts a row of anyone in the current group.
 - **Ranking:**
   - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
   - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.

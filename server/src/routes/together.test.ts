@@ -86,6 +86,49 @@ describe('watching together (demo data)', () => {
     }
   });
 
+  const feedback = (cookie: string, payload: object) =>
+    app.inject({ method: 'POST', url: '/api/feedback', headers: { cookie }, payload });
+  const undo = (cookie: string, id: number) => app.inject({ method: 'DELETE', url: `/api/feedback/${id}`, headers: { cookie } });
+  const kinds = (name: string, movieId: number) =>
+    ctx.store.feedback(ids[name]!).filter((e) => e.movieId === movieId).map((e) => e.kind);
+  const movieId = (title: string) => ctx.store.movies().find((m) => m.title === title)!.id;
+
+  it("puts a group's Not tonight on everyone, and takes it back for everyone", async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const paddington = movieId('Paddington 2');
+    const res = await feedback(cookie, { movieId: paddington, kind: 'skipped' });
+    const { ids: rows } = res.json() as { ids: number[] };
+    expect(rows).toHaveLength(2);
+    expect([kinds('Alex', paddington), kinds('Sam', paddington)]).toEqual([['skipped'], ['skipped']]);
+    for (const id of rows) expect((await undo(cookie, id)).statusCode).toBe(200);
+    expect([kinds('Alex', paddington), kinds('Sam', paddington)]).toEqual([[], []]);
+  });
+
+  it('marks Seen it only for who has seen it, which takes it out of the group\'s picks', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const up = movieId('Up');
+    const res = await feedback(cookie, { movieId: up, kind: 'seen', profileIds: [ids.Sam] });
+    expect(res.statusCode).toBe(200);
+    expect([kinds('Alex', up), kinds('Sam', up)]).toEqual([[], ['seen']]);
+    const titles = async (c: string) =>
+      (await get<RecommendationsResponse>('/api/recommendations?genre=Animation', c)).picks.map((p) => p.movie.title);
+    expect(await titles(cookie)).not.toContain('Up');
+    expect(await titles(cookiesOf(await select('Alex')))).toContain('Up');
+    const { ids: rows } = res.json() as { ids: number[] };
+    await undo(cookie, rows[0]!);
+    expect(kinds('Sam', up)).toEqual([]);
+  });
+
+  it('refuses marks for someone outside the group, and Undo of their marks', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const coco = movieId('Coco');
+    expect((await feedback(cookie, { movieId: coco, kind: 'never', profileIds: [ids.Kids] })).statusCode).toBe(400);
+    expect((await feedback(cookie, { movieId: coco, kind: 'never', profileIds: [] })).statusCode).toBe(400);
+    const kidsOwn = ctx.store.addFeedback(ids.Kids!, coco, 'never');
+    expect((await undo(cookie, kidsOwn)).statusCode).toBe(404);
+    ctx.store.deleteFeedback(ids.Kids!, kidsOwn);
+  });
+
   it("is back to one profile once the evening's over", async () => {
     const alex = cookiesOf(await select('Alex'));
     const ended = `curatorr_together=${encodeURIComponent(app.signCookie(`${ids.Sam}|${Date.now() - 1000}`))}`;

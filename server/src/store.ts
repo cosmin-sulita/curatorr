@@ -551,11 +551,19 @@ export class Store {
     return row.id;
   }
 
-  feedbackEntry(profileId: number, id: number) {
-    const row = this.db
-      .prepare('SELECT id, movie_id, kind, plex_synced FROM feedback WHERE id = ? AND profile_id = ?')
-      .get(id, profileId) as { id: number; movie_id: number; kind: FeedbackKind; plex_synced: number } | undefined;
-    return row && { id: row.id, movieId: row.movie_id, kind: row.kind, serverSynced: Boolean(row.plex_synced) };
+  /** A feedback row, if it belongs to one of these profiles (the device's, and anyone watching with it). */
+  feedbackEntryOf(profileIds: number[], id: number) {
+    const row = this.db.prepare('SELECT id, profile_id, movie_id, kind, plex_synced FROM feedback WHERE id = ?').get(id) as
+      | { id: number; profile_id: number; movie_id: number; kind: FeedbackKind; plex_synced: number }
+      | undefined;
+    if (!row || !profileIds.includes(row.profile_id)) return undefined;
+    return {
+      id: row.id,
+      profileId: row.profile_id,
+      movieId: row.movie_id,
+      kind: row.kind,
+      serverSynced: Boolean(row.plex_synced),
+    };
   }
 
   /**

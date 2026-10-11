@@ -2,7 +2,7 @@ import { STEP_ORDER, shelfById, type Criteria } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
-import { applyMark, isServerMark, revertMark } from '../services/mediaServer.js';
+import { applyMark, isServerMark, revertMark, type ServerSyncResult } from '../services/mediaServer.js';
 import { likeSeeds, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
 import { requireGroup, requireProfile } from '../session.js';
 
@@ -19,6 +19,12 @@ const shelf = z
   .transform((v) => v || null);
 
 const criteriaSchema = z.object({ genre: optional, theme: optional, mood: optional, time: optional, shelf });
+
+/** What happened on the media server for a mark made for several people: the worst news first. */
+function overall(results: ServerSyncResult[]): ServerSyncResult {
+  for (const r of ['failed', 'synced', 'already'] as const) if (results.includes(r)) return r;
+  return 'skipped';
+}
 /** "Something like…": the movie the picks should resemble. */
 const likeSchema = z.object({ like: z.coerce.number().int().positive().optional() });
 
@@ -53,32 +59,51 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     return likeSeeds(store, group, q);
   });
 
+  /**
+   * Shown, skipped and played picks count for everyone watching; Seen it, Never and Watchlist for whoever
+   * `profileIds` names among them (the device's profile when it's on its own). Every row is saved at the
+   * same moment, so ranking for the group counts a shared one once.
+   */
   app.post('/api/feedback', async (req) => {
-    const profile = requireProfile(req, store);
+    const group = requireGroup(req, store);
     const body = parse(
       z.object({
         movieId: z.number().int(),
         kind: z.enum(['shown', 'skipped', 'seen', 'never', 'accepted', 'later']),
+        profileIds: z.array(z.number().int()).max(20).optional(),
       }),
       req.body,
     );
     const movie = store.movie(body.movieId);
     if (!movie) throw new HttpError(404, 'Movie not found');
-    const id = store.addFeedback(profile.id, movie.id, body.kind);
+    const personal = body.kind === 'seen' || body.kind === 'never' || body.kind === 'later';
+    const wanted = personal ? [...new Set(body.profileIds ?? [group[0]!.id])] : group.map((r) => r.id);
+    const targets = wanted.flatMap((id) => group.find((r) => r.id === id) ?? []);
+    if (!targets.length || targets.length < wanted.length) throw new HttpError(400, 'Mark it for someone watching');
+    const at = Date.now();
+    const ids = targets.map((row) => store.addFeedback(row.id, movie.id, body.kind, at));
 
-    // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for this profile.
-    if (!isServerMark(body.kind)) return { id };
-    const server = await applyMark(store, profile, movie, body.kind, req.log);
-    if (server === 'synced') store.setFeedbackSynced(id);
-    return { id, server };
+    // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for each of them.
+    if (!isServerMark(body.kind)) return { id: ids[0], ids };
+    const kind = body.kind;
+    const results = await Promise.all(
+      targets.map(async (row, i) => {
+        const result = await applyMark(store, row, movie, kind, req.log);
+        if (result === 'synced') store.setFeedbackSynced(ids[i]!);
+        return result;
+      }),
+    );
+    return { id: ids[0], ids, server: overall(results) };
   });
 
   /** Undo / restore. The media server is only changed back when Curatorr changed it in the first place. */
   app.delete('/api/feedback/:id', async (req) => {
-    const profile = requireProfile(req, store);
+    // Undo after a mark made for someone else in the group, too.
+    const group = requireGroup(req, store);
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
-    const entry = store.feedbackEntry(profile.id, id);
+    const entry = store.feedbackEntryOf(group.map((r) => r.id), id);
     if (!entry) throw new HttpError(404, 'Not found');
+    const profile = group.find((r) => r.id === entry.profileId)!;
 
     if (entry.kind !== 'seen' && entry.kind !== 'never' && entry.kind !== 'later') {
       store.deleteFeedback(profile.id, id);

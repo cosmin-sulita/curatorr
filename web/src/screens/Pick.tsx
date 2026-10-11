@@ -6,18 +6,19 @@ import { AnimatePresence, motion, useReducedMotionConfig, type PanInfo } from 'm
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { PosterShuffle } from '../components/PosterShuffle';
 import { RatingBadges } from '../components/Ratings';
+import { ForWhom, type PersonalMark } from '../components/ForWhom';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
 import {
   errorMessage,
   sendFeedback,
-  undoFeedback,
+  undoAll,
   useRecommendations,
   useStatus,
   type ServerSyncResult,
 } from '../lib/api';
-import { fallBackIfStillHere, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
+import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
 import { navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
@@ -35,10 +36,23 @@ function shelfCopy(shelf: string | null | undefined): { pick: string; more: stri
   return { pick: `${def.label} pick`, more: `More for ${def.label}` };
 }
 
-/** Toast after a mark, depending on what happened on the media server. */
-function markMessage(kind: Decline, title: string, result: ServerSyncResult | undefined, server: MediaServer | null) {
+/** Toast after a mark, depending on what happened on the media server. Watching together, it names `who`. */
+function markMessage(
+  kind: Decline,
+  title: string,
+  result: ServerSyncResult | undefined,
+  server: MediaServer | null,
+  who?: string[],
+) {
   const name = serverName(server);
   if (kind === 'skipped') return `Skipped ${title}`;
+  if (who) {
+    const failed = result === 'failed' ? `, but couldn't update ${name}` : '';
+    if (kind === 'never') return `${title} won't be suggested to ${listNames(who)} again`;
+    if (kind === 'seen') return `Marked ${title} as seen for ${listNames(who)}${failed}`;
+    const lists = listNames(who.map((n) => `${n}'s`));
+    return `Added ${title} to ${lists} ${who.length > 1 ? 'watchlists' : 'watchlist'}${failed}`;
+  }
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
     if (result === 'synced' || result === 'already') {
@@ -83,6 +97,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const name = serverName(status?.server);
   const toast = useToast();
   const qc = useQueryClient();
+  // Watching together: Seen it, Watchlist and Never first ask who they're for.
+  const people = status?.profile ? [status.profile, ...status.together] : [];
+  const together = people.length > 1;
+  const [asking, setAsking] = useState<PersonalMark | null>(null);
 
   const [queue, setQueue] = useState<Pick[] | null>(null);
   const shown = useRef(new Set<number>());
@@ -137,9 +155,14 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     if (shuffle === 'pending' && queue && !shuffling) setShuffle(null);
   }, [queue, shuffle, shuffling]);
 
-  const decline = (kind: Decline) => {
+  const decline = (kind: Decline, profileIds?: number[]) => {
     if (!current) return;
+    if (together && kind !== 'skipped' && !profileIds) {
+      setAsking(kind);
+      return;
+    }
     const pick = current;
+    const who = profileIds?.flatMap((id) => people.find((p) => p.id === id)?.name ?? []);
     vibrate();
     setQueue((q) => q?.slice(1) ?? null);
     const putBack = () => {
@@ -153,17 +176,17 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       qc.invalidateQueries({ queryKey: ['wizard'] });
       qc.invalidateQueries({ queryKey: ['like'] });
     };
-    sendFeedback(pick.movie.id, kind)
-      .then(({ id, server }) => {
+    sendFeedback(pick.movie.id, kind, { profileIds })
+      .then(({ ids, server }) => {
         refreshQuestions();
         toast({
-          message: markMessage(kind, pick.movie.title, server, status?.server ?? null),
+          message: markMessage(kind, pick.movie.title, server, status?.server ?? null, who),
           duration: kind === 'skipped' ? 3000 : undefined,
           action: {
             label: 'Undo',
             run: () => {
               putBack();
-              undoFeedback(id)
+              undoAll(ids)
                 .then((res) => {
                   refreshQuestions();
                   if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
@@ -463,7 +486,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                     </span>
                     <span className="mt-2 line-clamp-2 text-sm font-medium">
                       {p.movie.title}
-                      {requested(p) && <span className="sr-only">, you requested this</span>}
+                      {requested(p) && <span className="sr-only">, {p.reasons.find((r) => r.kind === 'requested')!.label}</span>}
                     </span>
                     <span className="flex gap-2 text-xs text-muted">
                       {p.movie.ratings.rt != null ? (
@@ -511,6 +534,22 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           </BottomBar>
         </motion.div>
       )}
+
+      {/* Outside Shell: its <main> is a stacking context below the header. */}
+      <AnimatePresence>
+        {asking && (
+          <ForWhom
+            key={asking}
+            kind={asking}
+            people={people}
+            onCancel={() => setAsking(null)}
+            onDone={(profileIds) => {
+              setAsking(null);
+              decline(asking, profileIds);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

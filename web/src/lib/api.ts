@@ -105,16 +105,26 @@ export function useLikeSeeds(q: string) {
  */
 export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
 
-/** `keepalive` lets the request finish while the page is being left (e.g. opening the media server). */
-export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean } = {}) {
-  return api<{ id: number; server?: ServerSyncResult }>('/api/feedback', {
-    json: { movieId, kind },
+/**
+ * `keepalive` lets the request finish while the page is being left (e.g. opening the media server).
+ * Watching together, `profileIds` says who Seen it, Never or Watchlist is for; other marks are for everyone.
+ * `ids` are the rows saved, one per person.
+ */
+export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean; profileIds?: number[] } = {}) {
+  return api<{ id: number; ids: number[]; server?: ServerSyncResult }>('/api/feedback', {
+    json: opts.profileIds ? { movieId, kind, profileIds: opts.profileIds } : { movieId, kind },
     keepalive: opts.keepalive,
   });
 }
 
 export function undoFeedback(id: number) {
   return api<{ ok: true; server?: ServerSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
+}
+
+/** Undoes a mark saved for several people: whether the media server failed for any of them. */
+export async function undoAll(ids: number[]): Promise<{ server?: ServerSyncResult }> {
+  const results = await Promise.all(ids.map(undoFeedback));
+  return { server: results.some((r) => r.server === 'failed') ? 'failed' : results[0]?.server };
 }
 
 export interface HiddenMovie {
