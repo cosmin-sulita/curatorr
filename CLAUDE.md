@@ -59,6 +59,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 - **`server/`**: Fastify 5.
   - `app.ts` builds the app; tests use `buildApp({ configDir, demo: true, logger: false })` and `app.inject`.
     - **Hardening:** request bodies are JSON only (the `text/plain` parser is removed, so a form on another page can't reach a route), and every response says `nosniff` and `Referrer-Policy: same-origin`. Framing stays allowed, for dashboards like Organizr. The image and avatar proxies only pass image content types.
+    - **What anyone can see:** `/api/status` only gives the last sync error's text to admins, since it names Radarr's or the media server's address, and the image and avatar proxies answer a failure with a plain "Image unavailable".
   - Routes in `routes/` are `RouteModule`s that receive an `AppContext { store, library }`. Validate input with zod through `parse()` from `context.ts`, and throw `HttpError` for 4xx responses, which can carry flags like `needPin`, `needProfile` or `needSetup` that the client acts on.
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.

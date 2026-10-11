@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from 'fastify';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError, UpstreamError } from '../http.js';
@@ -13,6 +14,15 @@ function imageType(res: Response) {
   return /^image\/(jpeg|png|webp|gif|avif)\b/i.test(type) ? type : 'image/jpeg';
 }
 
+/** Anyone can ask for an image, so a failure doesn't say where Radarr or Jellyfin is; the log does. */
+function unavailable(log: FastifyBaseLogger) {
+  return (err: unknown): never => {
+    if (!(err instanceof UpstreamError)) throw err;
+    log.warn({ err: err.message }, 'image unavailable');
+    throw new HttpError(502, 'Image unavailable');
+  };
+}
+
 export const imageRoutes: RouteModule = (app, { store }) => {
   /** Proxies Radarr's MediaCover images so the API key never reaches the browser. */
   app.get('/api/image/:id/:kind', async (req, reply) => {
@@ -22,7 +32,7 @@ export const imageRoutes: RouteModule = (app, { store }) => {
     const radarr = store.get('radarr');
     if (!path || !radarr) throw new HttpError(404, 'No image');
 
-    const res = await new RadarrClient(radarr.url, radarr.apiKey).image(path);
+    const res = await new RadarrClient(radarr.url, radarr.apiKey).image(path).catch(unavailable(req.log));
     return reply
       .header('content-type', imageType(res))
       .header('cache-control', `public, max-age=${WEEK_S}`)
@@ -40,7 +50,8 @@ export const imageRoutes: RouteModule = (app, { store }) => {
       .userImage(userId, tag)
       .catch((err) => {
         // The picture was taken off since the profiles were read: the browser draws a blobatar.
-        throw err instanceof UpstreamError && err.status === 404 ? new HttpError(404, 'No image') : err;
+        if (err instanceof UpstreamError && err.status === 404) throw new HttpError(404, 'No image');
+        return unavailable(req.log)(err);
       });
     return reply
       .header('content-type', imageType(res))

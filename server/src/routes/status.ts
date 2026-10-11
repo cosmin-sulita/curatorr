@@ -18,15 +18,18 @@ export const statusRoutes: RouteModule = (app, { store, library }) => {
       if (!row) continue;
       syncServerState(store, row, req.log).catch((err) => req.log.warn({ err }, 'media server state sync failed'));
     }
+    const admin = isAdmin(req, store);
+    // A sync error names Radarr's or the media server's address, which only the owner needs to see.
+    const lastError = sync.error && (admin ? sync.error : 'The last library sync failed');
     return {
       version: config.version,
       setupComplete: store.get('setupComplete'),
       demo: store.demo,
       server: store.mediaServer(),
-      isAdmin: isAdmin(req, store),
+      isAdmin: admin,
       profile: profile ? toProfile(profile) : null,
       together: together.map(toProfile),
-      library: { movies: store.movies().length, lastSync: sync.at, syncing: library.syncing, lastError: sync.error },
+      library: { movies: store.movies().length, lastSync: sync.at, syncing: library.syncing, lastError },
     };
   });
 };

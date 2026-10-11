@@ -137,6 +137,16 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     expect(res.headers['x-frame-options']).toBeUndefined();
   });
 
+  it("shows why the last sync failed to the owner only, since it names Radarr's address", async () => {
+    store.update('sync', { error: 'Radarr: could not reach http://192.168.1.10:7878: ECONNREFUSED' });
+    const lastError = async (cookie = '') => (await call(app, 'GET', '/api/status', cookie)).json().library.lastError;
+    expect(await lastError()).toBe('The last library sync failed');
+    expect(await lastError(profile)).toBe('The last library sync failed');
+    expect(await lastError(owner)).toMatch(/^Radarr: could not reach http:\/\/192\.168\.1\.10:7878/);
+    store.update('sync', { error: null });
+    expect(await lastError()).toBeNull();
+  });
+
   it('keeps its media server once set up: skipping one is a step of setup only', async () => {
     const res = await call(app, 'POST', '/api/setup/server/skip', owner);
     expect(res.statusCode).toBe(409);

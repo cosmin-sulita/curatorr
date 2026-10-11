@@ -83,4 +83,12 @@ describe("Radarr's images, through Curatorr", () => {
     expect(res.headers['content-type']).toBe('image/jpeg');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
+
+  it("doesn't tell visitors where Radarr is when it can't be reached", async () => {
+    ctx.store.set('radarr', { url: 'http://127.0.0.1:9', apiKey: 'radarr-key' });
+    const res = await image(1);
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toEqual({ error: 'Image unavailable' });
+    ctx.store.set('radarr', { url: base, apiKey: 'radarr-key' });
+  });
 });
