@@ -3,15 +3,19 @@ import {
   JUST_ARRIVED,
   MIN_OPTION_COUNT,
   MOODS,
+  SEASONS,
   THEMES,
   TIME_OPTIONS,
   genreById,
   moodById,
+  seasonById,
   themeById,
   timeById,
+  type SeasonDef,
   type ShelfDef,
 } from './taxonomy.js';
 import { emptySagaState, type SagaState } from './sagas.js';
+import { keywordPhrases } from './tagger.js';
 import type {
   Criteria,
   FeedbackEvent,
@@ -204,6 +208,8 @@ export function tagStrength(score: number | undefined) {
 
 function reasonsFor(m: Movie, c: Criteria): Reason[] {
   const reasons: Reason[] = [];
+  const season = c.shelf ? seasonById.get(c.shelf) : undefined;
+  if (season?.chip && onHoliday(m, season)) reasons.push({ kind: 'season', label: season.chip });
   if (c.genre && m.genres.includes(c.genre)) {
     reasons.push({ kind: 'genre', label: genreById.get(c.genre)?.label ?? c.genre });
   }
@@ -355,10 +361,34 @@ export function arrivedLately(m: Movie, now: number) {
   return days != null && days <= JUST_ARRIVED_DAYS;
 }
 
+/** A movie set on the season's holiday itself gets this much on the season's shortcut, so those lead it. */
+const SEASON_BONUS = 5;
+
+/** The season the evening of `now` belongs to, if any. */
+export function seasonFor(now: number): SeasonDef | null {
+  const month = Number(pickingDay(now).slice(5, 7));
+  return SEASONS.find((s) => s.month === month) ?? null;
+}
+
+/** Whether one of the movie's keywords holds a holiday term, as a whole word: "halloween party" does. */
+function onHoliday(m: Movie, season: SeasonDef) {
+  return m.keywords.some((k) => [...keywordPhrases(k)].some((p) => season.keywords.includes(p)));
+}
+
+function inSeason(m: Movie, season: SeasonDef) {
+  return (
+    onHoliday(m, season) ||
+    Boolean(season.genres?.some((g) => m.genres.includes(g))) ||
+    Boolean(season.themes?.some((t) => (m.themes[t] ?? 0) > 0))
+  );
+}
+
 /** Whether the movie belongs on the shortcut's shelf; without one, every movie does. */
 export function matchesShelf(m: Movie, shelf: string | null | undefined, now: number) {
   if (!shelf) return true;
-  return shelf === JUST_ARRIVED.id && arrivedLately(m, now);
+  if (shelf === JUST_ARRIVED.id) return arrivedLately(m, now);
+  const season = seasonById.get(shelf);
+  return season ? inSeason(m, season) : false;
 }
 
 /** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */
@@ -436,6 +466,7 @@ export function rankMovies(
   const signals = profileSignals(feedback, opts);
   const sagas = opts.sagas ?? emptySagaState();
   const startingSaga = c.time === 'saga';
+  const season = c.shelf ? seasonById.get(c.shelf) : undefined;
 
   // "Start a saga" only offers first parts of sagas the profile hasn't started.
   const base = eligible.filter(
@@ -446,8 +477,8 @@ export function rankMovies(
       (!startingSaga || sagas.starters.has(m.id)),
   );
 
-  // A matching sequel whose earlier part is unwatched brings in that part instead,
-  // as long as it fits the genre and time answers. On "Just arrived" it needn't be new itself.
+  // A matching sequel whose earlier part is unwatched brings in that part instead, as long as it
+  // fits the genre and time answers, and a season's shortcut. On "Just arrived" it needn't be new.
   const startsFor = new Set<number>();
   if (!startingSaga) {
     const eligibleById = new Map(eligible.map((m) => [m.id, m]));
@@ -457,6 +488,7 @@ export function rankMovies(
         const first = eligibleById.get(sagas.blockedBy.get(sequel.id)?.id ?? -1);
         if (!first || !matchesCriteria(sequel, c) || !matchesShelf(sequel, c.shelf, opts.now)) continue;
         if (!matchesGenre(first, c.genre) || !matchesTime(first, c.time)) continue;
+        if (season && !inSeason(first, season)) continue;
         startsFor.add(first.id);
         if (!inBase.has(first.id)) {
           base.push(first);
@@ -506,6 +538,7 @@ export function rankMovies(
     }
     if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
     if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
+    if (season && onHoliday(m, season)) score += SEASON_BONUS;
     score += taste.get(m.id) ?? 0;
 
     const adj = personalAdjustment(m, signals, opts);
@@ -587,6 +620,10 @@ function shelfOptions(pool: Movie[], now: number, opts: FacetOptions, used: Set<
   if (fresh.length >= MIN_OPTION_COUNT && fresh.length <= pool.length / 2) {
     out.push(shelfOption(JUST_ARRIVED, fresh, opts, used));
   }
+  // However much of the library is the season's: a library of horror is all Halloween.
+  const season = seasonFor(now);
+  const seasonal = season ? pool.filter((m) => inSeason(m, season)) : [];
+  if (season && seasonal.length >= MIN_OPTION_COUNT) out.push(shelfOption(season, seasonal, opts, used));
   return out;
 }
 

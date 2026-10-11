@@ -32,7 +32,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript source (no build step).
 
 - **`shared/`**: pure, unit-tested logic used by both sides.
-  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, the first question's shortcuts (`SHELVES`, `JUST_ARRIVED`), plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
+  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, the first question's shortcuts (`SHELVES`: `JUST_ARRIVED` and the `SEASONS`), plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods. `explainTags` keeps the evidence behind each tag.
     - Each keyword counts once per tag, through its best term, and each term counts once.
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
@@ -46,7 +46,12 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - **Shortcuts** (`Criteria.shelf`): `matchesShelf` keeps a shortcut's movies, ranked as usual and not shuffled.
       - Given `now`, `wizardOptions` returns them as `shelves` on the genre step. `npm run eval` reports each as a row of its own.
       - **Just arrived** (`'new'`) is the movies that arrived in the last `JUST_ARRIVED_DAYS` (30), by `arrivalTime`. Its tile needs at least 3 of them and at most half of the pool, so a library imported last week isn't all "new". Every pick on it says when it arrived.
-      - A new sequel still brings in its unwatched first part, as answers do.
+      - **Seasons** (`SEASONS`):
+        - **Halloween** is October and **Christmas** is December, by `pickingDay`, so the last night lasts until 4 am (`seasonFor`).
+        - A season has keywords that set a movie on the holiday itself (found inside longer keywords through `keywordPhrases`), plus genres and themes that fit it. Halloween is Horror, Supernatural, Vampires and Zombies; Monsters is left out because of its sharks and kaiju.
+        - Keyword matches get `SEASON_BONUS` (5) and the season's chip.
+        - The tile needs at least 3 movies, with no half rule.
+      - **Sagas:** a new sequel still brings in its unwatched first part, as answers do. On a season, the first part must fit the season too.
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
   - `sagas.ts`: collection ordering.

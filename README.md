@@ -20,6 +20,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions carry over, and with Jellyfin, so does which libraries each person can open.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get one of the ten best picks, drawn again each evening.
 - **Just arrived.** A tile on the first question goes straight to the best of what arrived in your library this past month, each pick saying when it came.
+- **In season.** In October a **Halloween** tile goes straight to a spooky pick, movies set on Halloween first. In December a **Christmas** tile does the same for Christmas movies.
 - **Something like…** Start from a movie you loved (what you watched lately is listed first, or search the library) and get the unwatched movies that share the most keywords and themes with it.
 - **Ranked by critics, audiences and you.** The Rotten Tomatoes critics' score counts as much as the IMDb audience rating, so a crowd-pleaser the critics panned still gets its chance. Movies that just arrived rank higher for a few weeks, and each person's picks lean toward what they watched lately, saying "Because you watched …" when that made the difference.
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
@@ -31,7 +32,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/wizard.webp" width="260" alt="The first question, What kind of movie tonight?, with genre cards, Something like… and Surprise me">
+  <img src="docs/screenshots/wizard.webp" width="260" alt="The first question, What kind of movie tonight?, with Something like…, the Just arrived and Halloween shortcuts, genre cards and Surprise me">
   <img src="docs/screenshots/pick.webp" width="260" alt="Tonight's pick: Avengers: Endgame, with its ratings, its Time Travel theme and a Watch on Plex button">
   <img src="docs/screenshots/like.webp" width="260" alt="Something like Inception: Everything Everywhere All at Once, labelled You requested this and Added 6 days ago">
 </p>
@@ -132,6 +133,8 @@ If your proxy asks people to sign in, let `/api/radarr/webhook` through. Radarr 
 5. **Close matches**: if fewer than six movies match every answer, the list is topped up with other movies of that genre and length, clearly labelled: first those matching the theme *or* the mood, then the rest.
 6. **Something like…**: eligible movies are compared with the one you loved by their TMDB keywords, themes, moods and genres. A rare keyword in common (*time loop*) counts for more than a common one. Likeness decides the order and the rating breaks near-ties. Skips, shown picks, requests, the watchlist, new arrivals and the daily shuffle work as above. Other parts of the same saga are left out, and movies that only share a genre or a mood are labelled as loose matches.
 7. **Shortcuts**: tiles on the first question that go straight to a pick, ranked as above, without the questions. **Just arrived** has the movies whose file arrived in the last 30 days. Its tile shows when there are at least three of them, and no more than half of what's left to watch, so a library you just imported isn't all "new". A sequel that just arrived brings in its first part if you haven't seen it, as answers do.
+
+   **Halloween** (in October, until 4 am after its last night) has horror and the movies tagged Supernatural, Vampires or Zombies, plus any set on Halloween (a *halloween* or *trick or treating* keyword). Those get + 5 and a "Set on Halloween" chip. **Christmas** (in December) has the movies with a *christmas* or *santa claus* keyword. A season's tile needs three of its movies that the person may watch; a first part only comes along if it fits the season too.
 
 ## Configuration
 

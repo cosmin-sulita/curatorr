@@ -216,7 +216,7 @@ const rank = (p: Picking, c: Criteria, limit?: number) => {
 // Would it have suggested what the profile watched?
 // ---------------------------------------------------------------------------
 
-const FAMILIES = ['Surprise me', 'genre', 'genre + theme', 'genre + mood', 'Just arrived'] as const;
+const FAMILIES = ['Surprise me', 'genre', 'genre + theme', 'genre + mood', 'Just arrived', 'Season'] as const;
 type Family = (typeof FAMILIES)[number];
 
 /** How one watch fared for one kind of question (averaged over the questions of that kind). */
@@ -245,9 +245,8 @@ function questions(p: Picking, m: Movie): { family: Family; c: Criteria }[] {
   const out: { family: Family; c: Criteria }[] = [{ family: 'Surprise me', c: {} }];
   const first = wizardOptions(p.eligible, 'genre', {}, { ...facet, now: p.opts.now });
   for (const shelf of first.shelves ?? []) {
-    if (shelf.id === JUST_ARRIVED.id && matchesShelf(m, shelf.id, p.opts.now)) {
-      out.push({ family: 'Just arrived', c: { shelf: shelf.id } });
-    }
+    if (!matchesShelf(m, shelf.id, p.opts.now)) continue;
+    out.push({ family: shelf.id === JUST_ARRIVED.id ? 'Just arrived' : 'Season', c: { shelf: shelf.id } });
   }
   const genres = new Set(first.options.map((o) => o.id));
   for (const genre of m.genres.filter((g) => genres.has(g))) {

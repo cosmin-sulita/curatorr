@@ -454,7 +454,34 @@ export interface ShelfDef {
 /** The movies that arrived in the library lately. */
 export const JUST_ARRIVED: ShelfDef = { id: 'new', label: 'Just arrived', icon: 'Sparkles', color: '#0f766e' };
 
-export const SHELVES: ShelfDef[] = [JUST_ARRIVED];
+/** A season's movies, offered as a shortcut during its month. */
+export interface SeasonDef extends ShelfDef {
+  /** 1–12, by the evening's date (the day turns over at 4 am). */
+  month: number;
+  /** Keywords that set a movie on the holiday itself, also inside longer keywords ("halloween party"). */
+  keywords: string[];
+  /** The chip for those movies, which rank first. */
+  chip?: string;
+  /** Genres and themes that fit the season too. */
+  genres?: string[];
+  themes?: string[];
+}
+
+export const SEASONS: SeasonDef[] = [
+  {
+    id: 'halloween', label: 'Halloween', icon: 'Ghost', color: '#c2410c', month: 10,
+    keywords: ['halloween', 'trick or treating'], chip: 'Set on Halloween',
+    // Not Monsters & Creatures: sharks, dinosaurs and kaiju aren't Halloween's.
+    genres: ['Horror'], themes: ['supernatural', 'vampires', 'zombies'],
+  },
+  {
+    id: 'christmas', label: 'Christmas', icon: 'TreePine', color: '#15803d', month: 12,
+    // Every match is set at Christmas, so none needs a chip.
+    keywords: ['christmas', 'santa claus'],
+  },
+];
+
+export const SHELVES: ShelfDef[] = [JUST_ARRIVED, ...SEASONS];
 
 /** Certifications allowed per Plex Home restriction profile (US, UK and DE ratings). */
 export const RESTRICTION_CERTS: Record<'little_kid' | 'older_kid' | 'teen', string[]> = {
@@ -473,3 +500,4 @@ export const moodById = new Map(MOODS.map((m) => [m.id, m]));
 export const genreById = new Map(GENRES.map((g) => [g.id, g]));
 export const timeById = new Map(TIME_OPTIONS.map((t) => [t.id, t]));
 export const shelfById = new Map(SHELVES.map((s) => [s.id, s]));
+export const seasonById = new Map(SEASONS.map((s) => [s.id, s]));

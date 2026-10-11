@@ -113,7 +113,19 @@ export interface WizardOptionsResponse {
 }
 
 export interface Reason {
-  kind: 'genre' | 'theme' | 'mood' | 'keyword' | 'time' | 'rating' | 'watchlist' | 'requested' | 'saga' | 'added' | 'taste';
+  kind:
+    | 'genre'
+    | 'theme'
+    | 'mood'
+    | 'keyword'
+    | 'time'
+    | 'rating'
+    | 'watchlist'
+    | 'requested'
+    | 'saga'
+    | 'added'
+    | 'taste'
+    | 'season';
   label: string;
 }
 

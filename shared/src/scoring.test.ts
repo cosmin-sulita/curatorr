@@ -9,6 +9,7 @@ import {
   type ProfileContext,
 } from './scoring.js';
 import { sagaState } from './sagas.js';
+import { RESTRICTION_CERTS } from './taxonomy.js';
 import type { FeedbackEvent, Movie, Ratings } from './types.js';
 
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
@@ -551,5 +552,80 @@ describe('Just arrived', () => {
     // Half of it is.
     const half = [...Array.from({ length: 4 }, () => arrived(3)), ...Array.from({ length: 4 }, () => arrived(200))];
     expect(wizardOptions(half, 'genre', {}, { image, now: NOW }).shelves).toHaveLength(1);
+  });
+});
+
+describe('seasons', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const image = (m: Movie, kind: 'fanart' | 'poster') => (kind === 'fanart' ? m.fanartUrl : m.posterUrl);
+  const OCTOBER = Date.parse('2026-10-20T20:00:00Z');
+  const DECEMBER = Date.parse('2026-12-10T20:00:00Z');
+  const ids = (ranked: { movie: Movie }[]) => ranked.map((r) => r.movie.id).sort((a, b) => a - b);
+  const shelves = (movies: Movie[], now: number) =>
+    (wizardOptions(movies, 'genre', {}, { image, now }).shelves ?? []).map((s) => [s.id, s.count]);
+
+  it('gives Halloween the horror, ghosts, vampires and zombies, and the movies set on Halloween', () => {
+    const spooky = [
+      movie({ genres: ['Horror'] }),
+      movie({ genres: ['Comedy'], themes: { supernatural: 2 } }),
+      movie({ genres: ['Comedy'], themes: { vampires: 2 } }),
+      movie({ genres: ['Action'], themes: { zombies: 2 } }),
+      movie({ genres: ['Family'], keywords: ['halloween party'] }),
+      movie({ genres: ['Family'], keywords: ['trick or treating'] }),
+    ];
+    // Sharks and dinosaurs are monsters, but not Halloween's.
+    const others = [movie({ genres: ['Thriller'], themes: { monsters: 4 } }), movie({ genres: ['Drama'] })];
+    const ranked = rankMovies([...spooky, ...others], { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test' });
+    expect(ids(ranked)).toEqual(ids(spooky.map((movie) => ({ movie }))));
+  });
+
+  it('puts the movies set on Halloween first, and says so', () => {
+    // Two points lower on Rotten Tomatoes, one lower in score: the +5 lifts it past the shuffle.
+    const set = movie({ genres: ['Horror'], keywords: ['halloween'], ratings: { rt: 80 } });
+    const plain = movie({ genres: ['Horror'], ratings: { rt: 82 } });
+    const ranked = rankMovies([plain, set], { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test' });
+    expect(ranked.map((r) => r.movie.id)).toEqual([set.id, plain.id]);
+    expect(ranked[0]!.reasons).toContainEqual({ kind: 'season', label: 'Set on Halloween' });
+    expect(ranked[1]!.reasons.some((r) => r.kind === 'season')).toBe(false);
+  });
+
+  it('gives Christmas the movies with Christmas in their keywords', () => {
+    const festive = [movie({ keywords: ['christmas eve'] }), movie({ keywords: ['santa claus'] }), movie({ keywords: ['christmas'] })];
+    const ranked = rankMovies([...festive, movie({ genres: ['Horror'] })], { shelf: 'christmas' }, [], { now: DECEMBER, seed: 'test' });
+    expect(ids(ranked)).toEqual(ids(festive.map((movie) => ({ movie }))));
+  });
+
+  it('offers each season on the first question in its own month, until 4 am after its last night', () => {
+    vi.stubEnv('TZ', 'Europe/Bucharest');
+    const library = [
+      ...Array.from({ length: 3 }, () => movie({ genres: ['Horror'] })),
+      ...Array.from({ length: 3 }, () => movie({ keywords: ['christmas'] })),
+    ];
+    expect(shelves(library, Date.parse('2026-10-01T05:00:00+03:00'))).toEqual([['halloween', 3]]);
+    expect(shelves(library, Date.parse('2026-10-31T23:00:00+02:00'))).toEqual([['halloween', 3]]);
+    expect(shelves(library, Date.parse('2026-11-01T03:30:00+02:00'))).toEqual([['halloween', 3]]);
+    expect(shelves(library, Date.parse('2026-11-01T05:00:00+02:00'))).toEqual([]);
+    expect(shelves(library, Date.parse('2026-12-24T20:00:00+02:00'))).toEqual([['christmas', 3]]);
+  });
+
+  it('needs three movies of the season that the profile may watch, however much of the library they are', () => {
+    const scary = Array.from({ length: 5 }, () => movie({ genres: ['Horror'], certification: 'R' }));
+    const friendly = [movie({ themes: { supernatural: 2 }, certification: 'PG' }), movie({ keywords: ['halloween'], certification: 'G' })];
+    const kids = ctx({ allowedCerts: new Set(RESTRICTION_CERTS.older_kid) });
+    expect(shelves(eligibleMovies([...scary, ...friendly], kids), OCTOBER)).toEqual([]);
+    const more = [...friendly, movie({ themes: { vampires: 2 }, certification: 'PG' })];
+    expect(shelves(eligibleMovies([...scary, ...more], kids), OCTOBER)).toEqual([['halloween', 3]]);
+    // A library of horror is all Halloween, and still gets the tile.
+    expect(shelves(scary, OCTOBER)).toEqual([['halloween', 5]]);
+  });
+
+  it("doesn't bring in a first part that isn't the season's", () => {
+    const part = (n: number, extra: Partial<Movie>) => movie({ genres: ['Comedy'], saga: { id: 70, title: 'Pals', part: n, parts: 2 }, ...extra });
+    const [p1, p2] = [part(1, {}), part(2, { keywords: ['halloween'] })];
+    const horror = movie({ genres: ['Horror'] });
+    const library = [p1, p2, horror];
+    const sagas = sagaState(library, new Set());
+    const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test', sagas });
+    expect(ranked.map((r) => r.movie.id)).toEqual([horror.id]);
   });
 });
