@@ -559,8 +559,8 @@ export class Store {
 
   /** A feedback row, if it belongs to one of these profiles (the device's, and anyone watching with it). */
   feedbackEntryOf(profileIds: number[], id: number) {
-    const row = this.db.prepare('SELECT id, profile_id, movie_id, kind, plex_synced FROM feedback WHERE id = ?').get(id) as
-      | { id: number; profile_id: number; movie_id: number; kind: FeedbackKind; plex_synced: number }
+    const row = this.db.prepare('SELECT id, profile_id, movie_id, kind, created_at, plex_synced FROM feedback WHERE id = ?').get(id) as
+      | { id: number; profile_id: number; movie_id: number; kind: FeedbackKind; created_at: number; plex_synced: number }
       | undefined;
     if (!row || !profileIds.includes(row.profile_id)) return undefined;
     return {
@@ -568,6 +568,7 @@ export class Store {
       profileId: row.profile_id,
       movieId: row.movie_id,
       kind: row.kind,
+      createdAt: row.created_at,
       serverSynced: Boolean(row.plex_synced),
     };
   }

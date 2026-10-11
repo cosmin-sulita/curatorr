@@ -104,7 +104,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Watching together:**
   - `shown`, `skipped` and `accepted` are saved for every member, with one timestamp, so a group's pass also counts in each person's own picks (decided with the maintainer).
   - The marks are saved for the `profileIds` the "For whom?" sheet (`ForWhom`) returns: Seen it starts with nobody ticked, Watchlist and Never with everyone. Each mark is mirrored to that person's media server account.
-  - `POST /api/feedback` returns `ids`, one per row, and Undo deletes each of them. `DELETE` accepts a row of anyone in the current group.
+  - `POST /api/feedback` returns `ids`, one per row, and Undo deletes each of them. `DELETE` accepts a row of the device's profile, or of anyone in the current group when it was made tonight.
   - **Afterwards:** `accepted` in a group also records a `together` row (migration v9; a second Watch within 6 hours reuses it).
     - Every 10 minutes, outside demo mode, `services/together.ts` (`settleTogether`, started in `index.ts`) refreshes the members' histories.
     - Once one shows the movie watched since the pick, the others who haven't watched it get `seen` and `applyMark`.

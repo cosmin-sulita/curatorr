@@ -129,6 +129,18 @@ describe('watching together (demo data)', () => {
     ctx.store.deleteFeedback(ids.Kids!, kidsOwn);
   });
 
+  it("only undoes a member's marks from tonight, not ones they made before", async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const coco = movieId('Coco');
+    const monthAgo = ctx.store.addFeedback(ids.Sam!, coco, 'never', Date.now() - 30 * 24 * 60 * 60 * 1000);
+    expect((await undo(cookie, monthAgo)).statusCode).toBe(404);
+    expect(kinds('Sam', coco)).toEqual(['never']);
+    ctx.store.deleteFeedback(ids.Sam!, monthAgo);
+    // The device's own profile can still restore its older marks, as Settings does.
+    const alexOwn = ctx.store.addFeedback(ids.Alex!, coco, 'never', Date.now() - 30 * 24 * 60 * 60 * 1000);
+    expect((await undo(cookie, alexOwn)).statusCode).toBe(200);
+  });
+
   it('remembers a movie a group starts playing, once however often Watch is tapped', async () => {
     const cookie = cookiesOf(await together(['Alex', 'Sam']));
     const shrek = movieId('Shrek');

@@ -1,4 +1,4 @@
-import { STEP_ORDER, shelfById, type Criteria } from '@curatorr/shared';
+import { STEP_ORDER, dayStart, shelfById, type Criteria } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
@@ -104,7 +104,9 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const group = requireGroup(req, store);
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
     const entry = store.feedbackEntryOf(group.map((r) => r.id), id);
-    if (!entry) throw new HttpError(404, 'Not found');
+    // Someone else's marks only from tonight: the ones made while watching together.
+    const othersOlder = entry && entry.profileId !== group[0]!.id && entry.createdAt < dayStart(Date.now());
+    if (!entry || othersOlder) throw new HttpError(404, 'Not found');
     const profile = group.find((r) => r.id === entry.profileId)!;
 
     if (entry.kind !== 'seen' && entry.kind !== 'never' && entry.kind !== 'later') {
