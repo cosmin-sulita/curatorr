@@ -130,6 +130,13 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     }
   });
 
+  it("tells browsers not to sniff Curatorr's responses or pass on its address", async () => {
+    const res = await call(app, 'GET', '/api/status');
+    expect(res.headers).toMatchObject({ 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin' });
+    // Dashboards like Organizr show it in a frame.
+    expect(res.headers['x-frame-options']).toBeUndefined();
+  });
+
   it('keeps its media server once set up: skipping one is a step of setup only', async () => {
     const res = await call(app, 'POST', '/api/setup/server/skip', owner);
     expect(res.statusCode).toBe(409);

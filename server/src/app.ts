@@ -38,6 +38,11 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
   const ctx: AppContext = { store, library };
 
   await app.register(cookie, { secret: store.get('cookieSecret') });
+  // Every response is what it says it is, and links out don't carry Curatorr's address. Framing stays
+  // allowed: dashboards like Organizr show the app in a frame.
+  app.addHook('onSend', async (_req, reply) => {
+    reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'same-origin');
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {

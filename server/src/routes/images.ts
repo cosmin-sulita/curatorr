@@ -7,6 +7,12 @@ import { RadarrClient } from '../integrations/radarr.js';
 
 const WEEK_S = 7 * 24 * 60 * 60;
 
+/** Only images go through: anything else Radarr or Jellyfin sends is served as a JPEG, never as a page. */
+function imageType(res: Response) {
+  const type = res.headers.get('content-type') ?? '';
+  return /^image\/(jpeg|png|webp|gif|avif)\b/i.test(type) ? type : 'image/jpeg';
+}
+
 export const imageRoutes: RouteModule = (app, { store }) => {
   /** Proxies Radarr's MediaCover images so the API key never reaches the browser. */
   app.get('/api/image/:id/:kind', async (req, reply) => {
@@ -18,7 +24,7 @@ export const imageRoutes: RouteModule = (app, { store }) => {
 
     const res = await new RadarrClient(radarr.url, radarr.apiKey).image(path);
     return reply
-      .header('content-type', res.headers.get('content-type') ?? 'image/jpeg')
+      .header('content-type', imageType(res))
       .header('cache-control', `public, max-age=${WEEK_S}`)
       .send(Buffer.from(await res.arrayBuffer()));
   });
@@ -37,7 +43,7 @@ export const imageRoutes: RouteModule = (app, { store }) => {
         throw err instanceof UpstreamError && err.status === 404 ? new HttpError(404, 'No image') : err;
       });
     return reply
-      .header('content-type', res.headers.get('content-type') ?? 'image/jpeg')
+      .header('content-type', imageType(res))
       .header('cache-control', `public, max-age=${WEEK_S}`)
       .send(Buffer.from(await res.arrayBuffer()));
   });
