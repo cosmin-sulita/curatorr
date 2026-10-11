@@ -46,16 +46,17 @@ jobs:
           cache-to: type=gha,mode=max
 
   # A release is a new top section in CHANGELOG.md, whose heading is also the app's version
-  # (server/build.mjs). Once it reaches main, tag it and publish its notes as a GitHub Release.
-  # Running the workflow by hand on main rebuilds the current release's image, e.g. for a newer base image.
-  release:
+  # (server/build.mjs). Once it reaches main, push its image, then tag it and publish its notes as a
+  # GitHub Release, so a release never lacks its image: if the image fails, nothing is published and a
+  # re-run starts over. Running the workflow by hand on main rebuilds the current release's image,
+  # e.g. for a newer base image.
+  version:
     needs: test
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
       publish: ${{ steps.version.outputs.new == 'true' || github.event_name == 'workflow_dispatch' }}
     env:
       GH_TOKEN: ${{ github.token }}
@@ -74,18 +75,10 @@ jobs:
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.version.outputs.new == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          # The notes are the top section's body. An existing tag (e.g. pushed by hand) is reused.
-          awk '/^## /{n++; next} n==1' CHANGELOG.md > notes.md
-          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Curatorr $VERSION" --notes-file notes.md
 
   image:
-    needs: release
-    if: needs.release.outputs.publish == 'true'
+    needs: version
+    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -106,8 +99,8 @@ jobs:
           # latest only moves with a release: x.y.z, x.y and latest all point at the same image.
           flavor: latest=false
           tags: |
-            type=semver,pattern={{version}},value=v${{ needs.release.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.release.outputs.version }}
+            type=semver,pattern={{version}},value=v${{ needs.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.version.outputs.version }}
             type=raw,value=latest
       - uses: docker/build-push-action@v7
         with:
@@ -118,3 +111,20 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  release:
+    needs: [version, image]
+    if: needs.version.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          # The notes are the top section's body. An existing tag (e.g. pushed by hand) is reused.
+          awk '/^## /{n++; next} n==1' CHANGELOG.md > notes.md
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Curatorr $VERSION" --notes-file notes.md
