@@ -53,6 +53,8 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `db.ts` holds the migrations: an append-only array applied via `PRAGMA user_version`. Never edit an old entry; add a new one.
   - `store.ts` wraps every query. App settings live as JSON in the `settings` table through `store.get(key)`, which fills missing keys from `defaults()`.
   - `services/library.ts` syncs Radarr → SQLite on a timer, re-tags movies and matches them to the media server's items by TMDB/IMDb id (`indexByIds`). `retag()` also runs at startup, so a vocabulary change applies without a sync.
+    - **Radarr's webhook:** `routes/radarr.ts` takes it at `POST /api/radarr/webhook?token=…`, and the token in `radarrWebhook` settings stands in for a sign-in. Imports and deletions call `syncSoon()`, which syncs two minutes later, once Plex or Jellyfin has scanned the file; bursts make one sync.
+    - **Retries:** the scheduler's 10-minute check (`syncDue`) also syncs again while a movie that arrived in the last hour isn't on the media server yet, since picks only offer what the server has.
   - `scripts/tags.ts` (`npm run tags`) and `scripts/eval.ts` (`npm run eval`) are read-only reports on a copy of a real database in `config/`. It holds Plex or Jellyfin tokens: never commit or upload it.
     - Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against `npm run tags` (coverage, unmatched keywords, idiom candidates), not the demo.
     - `npm run eval` replays each watch with that evening's library, history and wizard questions, and reports MRR and hit@k for new arrivals and the backlog, plus a staleness simulation. It never reads `settings`. Measure ranking changes with `--save` and `--compare` rather than by feel.

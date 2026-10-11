@@ -179,6 +179,8 @@ export interface SettingsResponse {
   } | null;
   app: { includeWatched: boolean; syncIntervalHours: number; syncToServer: boolean; boostRequests: boolean };
   sync: { at: number | null; movies: number; matched: number; error: string | null; syncing: boolean };
+  /** Radarr's webhook: the secret in its address, and when Radarr last called, with what. */
+  webhook: { token: string; at: number | null; event: string | null; title: string | null };
   /** `serverUser`: the profile stands for a user on the media server. */
   profiles: (Profile & { hidden: boolean; serverUser: boolean })[];
 }

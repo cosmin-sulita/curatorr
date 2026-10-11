@@ -1,4 +1,4 @@
-import { tagMovie } from '@curatorr/shared';
+import { onServer, tagMovie } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { JellyfinClient } from '../integrations/jellyfin.js';
@@ -40,11 +40,18 @@ export async function fetchPlexItems(store: Store, token: string): Promise<PlexI
   return all;
 }
 
+/** Radarr reports an import before Plex or Jellyfin has scanned the file, so its webhook syncs this much later. */
+const WEBHOOK_SYNC_DELAY_MS = 2 * 60 * 1000;
+/** A movie that arrived this recently and isn't on the media server yet makes the scheduler sync again. */
+const AWAIT_SERVER_MS = 60 * 60 * 1000;
+
 export class LibrarySync {
   syncing = false;
   /** Asked to sync during a sync: settings may have changed under it, so it runs once more. */
   private again = false;
   private timer: NodeJS.Timeout | null = null;
+  /** A sync Radarr's webhook asked for, waiting for the media server to catch up. */
+  private soon: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly store: Store,
@@ -144,15 +151,41 @@ export class LibrarySync {
     this.run().catch(() => {});
   }
 
-  /** Checks every 10 minutes whether the configured sync interval has elapsed. */
+  /** Syncs once Plex or Jellyfin has had time to scan a new file. A burst of calls makes one sync. */
+  syncSoon() {
+    if (this.soon) return;
+    this.soon = setTimeout(() => {
+      this.soon = null;
+      this.trigger();
+    }, WEBHOOK_SYNC_DELAY_MS);
+    this.soon.unref();
+  }
+
+  /** Whether the scheduler should sync now. */
+  syncDue(now = Date.now()): boolean {
+    const { at } = this.store.get('sync');
+    const intervalMs = this.store.get('app').syncIntervalHours * 60 * 60 * 1000;
+    // Movies synced by an older version lack Plex ids that newer features rely on.
+    const outdated = this.store.movies().some((m) => m.plexRatingKey && m.plexGuid == null);
+    return !at || now - at >= intervalMs || outdated || this.awaitingServer(now);
+  }
+
+  /**
+   * A movie arrived in the last hour, but the media server, which has the others, hasn't added it yet.
+   * A sync right after an import can come before the server's scan, and picks only offer what it has.
+   */
+  private awaitingServer(now: number): boolean {
+    const server = this.store.mediaServer();
+    const movies = this.store.movies();
+    if (!server || !movies.some((m) => onServer(m, server))) return false;
+    return movies.some((m) => !onServer(m, server) && Date.parse(m.arrivedAt ?? '') > now - AWAIT_SERVER_MS);
+  }
+
+  /** Checks every 10 minutes whether a sync is due. */
   schedule() {
     const tick = () => {
       if (this.syncing || !this.store.get('setupComplete')) return;
-      const { at } = this.store.get('sync');
-      const intervalMs = this.store.get('app').syncIntervalHours * 60 * 60 * 1000;
-      // Movies synced by an older version lack Plex ids that newer features rely on.
-      const outdated = this.store.movies().some((m) => m.plexRatingKey && m.plexGuid == null);
-      if (!at || Date.now() - at >= intervalMs || outdated) this.trigger();
+      if (this.syncDue()) this.trigger();
     };
     tick();
     this.timer = setInterval(tick, 10 * 60 * 1000);
@@ -161,5 +194,7 @@ export class LibrarySync {
 
   stop() {
     if (this.timer) clearInterval(this.timer);
+    if (this.soon) clearTimeout(this.soon);
+    this.soon = null;
   }
 }

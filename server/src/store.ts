@@ -70,6 +70,17 @@ export interface RequestSyncInfo {
   error: string | null;
 }
 
+/** Radarr's webhook: the secret in its address, and when Radarr last called, with what. */
+export interface RadarrWebhookInfo {
+  token: string;
+  at: number | null;
+  event: string | null;
+  /** The movie the last call named. */
+  title: string | null;
+}
+
+export const newWebhookToken = () => randomBytes(24).toString('base64url');
+
 interface SettingsShape {
   setupComplete: boolean;
   cookieSecret: string;
@@ -80,6 +91,7 @@ interface SettingsShape {
   sync: SyncInfo;
   seerr: SeerrSettings | null;
   seerrSync: RequestSyncInfo;
+  radarrWebhook: RadarrWebhookInfo;
 }
 
 const defaults = (): SettingsShape => ({
@@ -101,6 +113,7 @@ const defaults = (): SettingsShape => ({
   sync: { at: null, movies: 0, matched: 0, error: null },
   seerr: null,
   seerrSync: { at: null, requests: 0, profiles: 0, error: null },
+  radarrWebhook: { token: newWebhookToken(), at: null, event: null, title: null },
 });
 
 // ---------------------------------------------------------------------------
@@ -191,7 +204,7 @@ export class Store {
         : stored;
     }
     // Persist generated defaults (secrets, client id) so they stay stable.
-    if (key === 'cookieSecret' || key === 'plex') this.set(key, fallback);
+    if (key === 'cookieSecret' || key === 'plex' || key === 'radarrWebhook') this.set(key, fallback);
     return fallback;
   }
 
@@ -201,7 +214,7 @@ export class Store {
       .run(key, JSON.stringify(value));
   }
 
-  update<K extends 'plex' | 'app' | 'sync' | 'seerrSync'>(key: K, patch: Partial<SettingsShape[K]>) {
+  update<K extends 'plex' | 'app' | 'sync' | 'seerrSync' | 'radarrWebhook'>(key: K, patch: Partial<SettingsShape[K]>) {
     this.set(key, { ...this.get(key), ...patch });
   }
 

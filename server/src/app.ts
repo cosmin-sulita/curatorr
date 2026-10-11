@@ -12,6 +12,7 @@ import { imageRoutes } from './routes/images.js';
 import { jellyfinRoutes } from './routes/jellyfin.js';
 import { pickRoutes } from './routes/picks.js';
 import { profileRoutes } from './routes/profiles.js';
+import { radarrRoutes } from './routes/radarr.js';
 import { settingsRoutes } from './routes/settings.js';
 import { setupRoutes } from './routes/setup.js';
 import { statusRoutes } from './routes/status.js';
@@ -51,7 +52,16 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
     return reply.code(500).send({ error: 'Something went wrong' });
   });
 
-  const routeModules = [statusRoutes, setupRoutes, jellyfinRoutes, profileRoutes, pickRoutes, settingsRoutes, imageRoutes];
+  const routeModules = [
+    statusRoutes,
+    setupRoutes,
+    jellyfinRoutes,
+    profileRoutes,
+    pickRoutes,
+    settingsRoutes,
+    radarrRoutes,
+    imageRoutes,
+  ];
   for (const routes of routeModules) {
     await routes(app, ctx);
   }

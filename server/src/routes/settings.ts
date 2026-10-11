@@ -35,6 +35,8 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
       },
       app: store.get('app'),
       sync: { ...store.get('sync'), syncing: library.syncing },
+      // The secret in the address Radarr calls; only the owner sees it.
+      webhook: store.get('radarrWebhook'),
       profiles: store.profileRows(true).map((r) => ({
         ...toProfile(r),
         hidden: Boolean(r.hidden),

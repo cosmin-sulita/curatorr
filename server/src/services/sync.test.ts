@@ -357,6 +357,62 @@ describe('a database from an older version', () => {
   });
 });
 
+describe("the scheduler's check", () => {
+  const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
+  const MINUTE = 60_000;
+  const cleanups: (() => void)[] = [];
+  afterAll(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
+
+  /** Just synced, with The Matrix on Plex and Heat, whose file arrived `ago` ms before, there or not. */
+  function justSynced({ ago, heatOnPlex, matrixOnPlex = true }: { ago: number; heatOnPlex: boolean; matrixOnPlex?: boolean }) {
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-due-'));
+    const store = new Store(openDb(dir));
+    cleanups.push(() => {
+      store.db.close();
+      rmSync(dir, { recursive: true, force: true });
+    });
+    store.update('plex', { adminToken: OWNER_TOKEN, machineId: 'machine', serverUrl: 'http://127.0.0.1:9', sectionIds: ['1'] });
+    store.set('setupComplete', true);
+    const now = Date.now();
+    const onPlex = (yes: boolean, key: string) => (yes ? { plexRatingKey: key, plexGuid: `guid-${key}` } : {});
+    store.replaceMovies(
+      [
+        { ...fromRadarr(radarrMovies[0]!), ...onPlex(matrixOnPlex, '101') },
+        { ...fromRadarr(radarrMovies[1]!), arrivedAt: new Date(now - ago).toISOString(), ...onPlex(heatOnPlex, '102') },
+      ],
+      now,
+    );
+    store.set('sync', { at: now, movies: 2, matched: 1, error: null });
+    return { library: new LibrarySync(store, silent), store, now };
+  }
+
+  it('syncs again while a movie that just arrived is missing from Plex', () => {
+    const { library, now } = justSynced({ ago: 10 * MINUTE, heatOnPlex: false });
+    expect(library.syncDue(now)).toBe(true);
+  });
+
+  it('waits for the interval once Plex has the new movie', () => {
+    const { library, now } = justSynced({ ago: 10 * MINUTE, heatOnPlex: true });
+    expect(library.syncDue(now)).toBe(false);
+  });
+
+  it('stops waiting for Plex an hour after the movie arrived', () => {
+    const { library, now } = justSynced({ ago: 61 * MINUTE, heatOnPlex: false });
+    expect(library.syncDue(now)).toBe(false);
+  });
+
+  it("doesn't wait for Plex when no movie is found there at all", () => {
+    const { library, now } = justSynced({ ago: 10 * MINUTE, heatOnPlex: false, matrixOnPlex: false });
+    expect(library.syncDue(now)).toBe(false);
+  });
+
+  it('syncs once the interval has passed', () => {
+    const { library, store, now } = justSynced({ ago: 10 * MINUTE, heatOnPlex: true });
+    store.update('sync', { at: now - 6 * 60 * MINUTE });
+    expect(library.syncDue(now)).toBe(true);
+  });
+});
+
 describe('sync requests while a sync is under way', () => {
   let radarr: Server;
   let base: string;

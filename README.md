@@ -89,6 +89,7 @@ Then open http://localhost:7979. The demo library has about 95 movies and three 
       - **Jellyfin**: its address (e.g. `http://192.168.1.10:8096`) and an administrator's username and password, then its movie libraries. Every Jellyfin user who isn't disabled becomes a profile. Curatorr keeps a sign-in of its own (listed as Curatorr under Dashboard → Devices), not the password. If people open Jellyfin at a different address from the one Curatorr uses (`https://jellyfin.example.com`, say), enter that too, for Watch on Jellyfin.
    3. **Seerr** (optional, and only with Plex or Jellyfin, since requests are matched to profiles by their account): its address (e.g. `http://192.168.1.10:5055`) and API key (Seerr → Settings → General → API Key).
    4. **Finish**: the library syncs right away, then every 6 hours (configurable).
+4. Optional, so new downloads show up within minutes: copy the webhook address from Curatorr's **Settings → Radarr**. In Radarr, open Settings → Connect, add a **Webhook**, tick **On File Import**, **On Movie Delete** and **On Movie File Delete**, paste the address as its URL and save. Press **Test** there, and Curatorr's settings show that Radarr called. If Radarr reaches Curatorr at a different address from your browser, use that one with the same ending.
 
 ### Updating
 
@@ -107,6 +108,8 @@ curatorr.example.com {
 ```
 
 Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS Safari) or **Install app** (Android Chrome). Until you dismiss it, the first question shows a tip with these steps (an **Install** button on Android).
+
+If your proxy asks people to sign in, let `/api/radarr/webhook` through. Radarr can't sign in, and the secret in the webhook's address protects that path. **New address** in Settings replaces a secret that got out.
 
 > [!WARNING]
 > **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device; Jellyfin profiles have no PIN. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
@@ -144,7 +147,7 @@ Everything is set in the web UI. A few environment variables exist for special c
 
 ## Troubleshooting
 
-- **A movie never comes up.** It has to be downloaded in Radarr and, with Plex or Jellyfin, found in one of the libraries you picked. It's left out for anyone who watched it there (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their parental restrictions (with Jellyfin, also by which libraries they can open). New downloads show up after the next sync, or straight away with Settings → Sync now.
+- **A movie never comes up.** It has to be downloaded in Radarr and, with Plex or Jellyfin, found in one of the libraries you picked. It's left out for anyone who watched it there (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their parental restrictions (with Jellyfin, also by which libraries they can open). With Radarr's webhook (step 4 of the install), new downloads show up a couple of minutes after Radarr imports them, once Plex or Jellyfin has added them too. Without it they show up after the next sync, or straight away with Settings → Sync now.
 - **Watch on Plex opens the Plex app, but not the movie.** Links on phones need the movie's library to use the **Plex Movie** agent. Libraries on an older agent get a link that the redesigned Plex apps ignore.
 - **Watch on Jellyfin goes to the wrong address.** It uses the address Curatorr reaches Jellyfin at, unless you enter the one people open it at: Settings → Jellyfin → Change connection or libraries.
 - **Settings ask you to sign in.** Only the Plex account that owns the server, or with Jellyfin one of its administrators, can change settings, so sign in with that one.

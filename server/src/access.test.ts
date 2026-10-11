@@ -14,6 +14,7 @@ const ADMIN_ROUTES: [Method, string][] = [
   ['PUT', '/api/settings/seerr'],
   ['DELETE', '/api/settings/seerr'],
   ['POST', '/api/sync'],
+  ['POST', '/api/settings/webhook'],
   ['PATCH', '/api/profiles/1'],
   ['POST', '/api/setup/radarr/test'],
   ['POST', '/api/setup/radarr'],
@@ -69,13 +70,14 @@ const call = (app: App, method: Method, url: string, cookie = '') =>
 
 describe('who can call each route, once the Plex owner has set Curatorr up', () => {
   let app: App;
+  let store: Awaited<ReturnType<typeof freshApp>>['store'];
   let profile = '';
   let owner = '';
 
   beforeAll(async () => {
     const fresh = await freshApp();
     app = fresh.app;
-    const { store } = fresh;
+    store = fresh.store;
     // An unused port: nothing here may reach a real Plex server.
     store.update('plex', { adminToken: 'owner-token', ownerId: OWNER, ownerName: 'Owner', machineId: 'm', serverUrl: 'http://127.0.0.1:9' });
     store.set('setupComplete', true);
@@ -118,6 +120,16 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
   it('lets the owner and a picked profile through', async () => {
     expect((await call(app, 'GET', '/api/settings', owner)).statusCode).toBe(200);
     expect((await call(app, 'GET', '/api/wizard/genre', profile)).statusCode).toBe(200);
+  });
+
+  it("lets Radarr's webhook in with its secret, and nobody else", async () => {
+    const { token } = store.get('radarrWebhook');
+    expect(token.length).toBeGreaterThanOrEqual(32);
+    for (const url of ['/api/radarr/webhook', '/api/radarr/webhook?token=wrong', `/api/radarr/webhook?token=${token}x`]) {
+      expect((await call(app, 'POST', url, owner)).statusCode).toBe(401);
+    }
+    const res = await app.inject({ method: 'POST', url: `/api/radarr/webhook?token=${token}`, payload: { eventType: 'Test' } });
+    expect(res.statusCode).toBe(200);
   });
 });
 

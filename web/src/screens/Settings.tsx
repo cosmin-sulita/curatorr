@@ -1,11 +1,12 @@
 import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, RefreshCw } from 'lucide-react';
+import clsx from 'clsx';
+import { Copy, LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
+import { Avatar, Button, Img, inputClass, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   api,
@@ -171,6 +172,99 @@ function serverDescription({ server, plex, jellyfin }: SettingsResponse) {
 }
 
 const SYNC_INTERVALS = [1, 3, 6, 12, 24];
+
+/** What Radarr's last webhook call was about. */
+function lastCall({ at, event, title }: SettingsResponse['webhook']) {
+  if (!at) return "Radarr hasn't called yet. Once the webhook is saved, press Test in Radarr.";
+  const movie = title ?? 'a movie';
+  const what =
+    event === 'Test'
+      ? 'a test'
+      : event === 'Download'
+        ? `imported ${movie}`
+        : event === 'MovieFileDelete'
+          ? `deleted the file of ${movie}`
+          : event === 'MovieDelete'
+            ? `removed ${movie}`
+            : event;
+  return `Radarr last called ${relativeTime(at)}: ${what}.`;
+}
+
+/** The address Radarr calls when a movie is imported or deleted, so new downloads show up within minutes. */
+function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webhook']; onRenewed: () => void }) {
+  const toast = useToast();
+  const field = useRef<HTMLInputElement>(null);
+  const [renewing, setRenewing] = useState<'ask' | 'busy' | null>(null);
+  const address = `${window.location.origin}/api/radarr/webhook?token=${webhook.token}`;
+
+  const copy = async () => {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(address);
+      copied = true;
+    } catch {
+      // Plain-HTTP addresses have no clipboard API: copy the selected field instead.
+      field.current?.focus();
+      field.current?.setSelectionRange(0, address.length);
+      copied = document.execCommand('copy');
+    }
+    toast({ message: copied ? 'Copied the webhook address' : 'Select the address and copy it' });
+  };
+
+  const renew = async () => {
+    setRenewing('busy');
+    try {
+      await api('/api/settings/webhook', { json: {} });
+      toast({ message: 'Made a new address. Paste it into Radarr again.' });
+    } catch (err) {
+      toast({ message: errorMessage(err) });
+    }
+    setRenewing(null);
+    onRenewed();
+  };
+
+  return (
+    <div className="mt-6 border-t border-line pt-5">
+      <h3 className="font-medium">New downloads within minutes</h3>
+      <p className="mt-1 text-sm text-muted">
+        In Radarr, open Settings → Connect, add a Webhook, tick On File Import, On Movie Delete and On Movie File Delete,
+        and paste this address as its URL.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          ref={field}
+          readOnly
+          value={address}
+          onFocus={(e) => e.currentTarget.select()}
+          aria-label="Webhook address for Radarr"
+          className={clsx(inputClass, 'min-w-0 font-mono text-sm')}
+        />
+        <Button onClick={copy}>
+          <Copy className="size-4" /> Copy
+        </Button>
+      </div>
+      <p className="mt-1.5 text-xs text-faint">If Radarr reaches Curatorr at another address, use that one with the same ending.</p>
+      <p className="mt-3 text-sm text-muted" role="status">
+        {lastCall(webhook)}
+      </p>
+      {renewing === 'ask' ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm">The current address will stop working.</span>
+          <Button variant="danger" onClick={renew}>
+            Make a new address
+          </Button>
+          <Button variant="ghost" onClick={() => setRenewing(null)}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <Button variant="ghost" className="mt-2 -ml-4" loading={renewing === 'busy'} onClick={() => setRenewing('ask')}>
+          New address
+        </Button>
+      )}
+    </div>
+  );
+}
 
 function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }) {
   const qc = useQueryClient();
@@ -342,6 +436,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
           ) : (
             <Button onClick={() => setEditRadarr(true)}>Change connection</Button>
           )}
+          {data.radarr && !editRadarr && <RadarrWebhook webhook={data.webhook} onRenewed={refresh} />}
         </Section>
       )}
 
