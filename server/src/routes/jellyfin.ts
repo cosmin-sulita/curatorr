@@ -119,13 +119,19 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     const jellyfin = store.get('jellyfin');
     if (!jellyfin) throw new HttpError(409, "Curatorr isn't connected to Jellyfin");
     const body = parse(z.object({ username: username.min(1), password: password.min(1) }), req.body);
+    // Only an administrator may manage Curatorr, so only their passwords go to Jellyfin: anyone else's
+    // wrong ones would only count toward Jellyfin locking their account. Someone made an administrator
+    // lately is one here after the next library sync, or a refresh of the profiles.
+    const name = body.username.toLowerCase();
+    const known = store.profileRows(true).find((p) => p.jellyfin_user_id != null && p.name.toLowerCase() === name);
+    if (!known?.is_admin) throw new HttpError(403, `${body.username} isn't a Jellyfin administrator`);
     // The sign-in only shows who it is. It gets a device of its own, because Jellyfin keeps one token
     // per device and user, and Curatorr's own must stay; and it ends straight away.
     const device = `${jellyfin.deviceId}-${randomUUID()}`;
     const { token, user } = await signIn(new JellyfinClient(jellyfin.url, device), body.username, body.password);
     await new JellyfinClient(jellyfin.url, device, token).logout().catch(() => {});
     if (!user.admin) throw new HttpError(403, `${user.name} isn't a Jellyfin administrator`);
-    // Rights given since the profiles were last refreshed count straight away.
+    // Their name and picture as Jellyfin has them now.
     saveJellyfinProfile(store, user);
     setAdminCookie(reply, user.id);
     return { status: 'ok', account: { name: user.name } };

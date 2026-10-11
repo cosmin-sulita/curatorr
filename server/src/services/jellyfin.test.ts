@@ -451,7 +451,19 @@ describe('Curatorr with Jellyfin, over the API', () => {
 
     const member = await post(app, '/api/jellyfin/login', { username: 'Kid', password: 'kid-pass' });
     expect(member.statusCode).toBe(403);
-    expect(fake.state.logouts).toHaveLength(logouts + 2);
+    expect(member.json().error).toBe("Kid isn't a Jellyfin administrator");
+  });
+
+  it("only asks Jellyfin about administrators' passwords, so nobody else can be locked out through Curatorr", async () => {
+    const signIns = fake.state.signIns;
+    for (const username of ['Kid', 'kid', 'Nobody', 'Retired']) {
+      for (let i = 0; i < 3; i++) {
+        const res = await post(app, '/api/jellyfin/login', { username, password: 'guess' });
+        expect(res.statusCode).toBe(403);
+        expect(res.json().error).toBe(`${username} isn't a Jellyfin administrator`);
+      }
+    }
+    expect(fake.state.signIns).toBe(signIns);
   });
 
   it('pauses after five wrong passwords in a row, without asking Jellyfin again', async () => {
