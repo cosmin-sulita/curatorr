@@ -2,6 +2,23 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.2.1 (2026-10-11)
+
+- fix(settings): line up the Radarr section and show its whole address ([636627b](https://github.com/cosmin-sulita/curatorr/commit/636627b))
+- docs(readme): show the request bonus as a line of its own ([aca364a](https://github.com/cosmin-sulita/curatorr/commit/aca364a))
+- docs: describe the shown-pick grace and feedback pruning as they work ([64589ac](https://github.com/cosmin-sulita/curatorr/commit/64589ac))
+- fix(docker): keep the database readable by Curatorr's user only ([97d53fd](https://github.com/cosmin-sulita/curatorr/commit/97d53fd))
+- perf(picks): find movies like the one you loved faster ([84ef4ca](https://github.com/cosmin-sulita/curatorr/commit/84ef4ca))
+- fix(status): show why a sync failed to the owner only ([b787738](https://github.com/cosmin-sulita/curatorr/commit/b787738))
+- fix(images): never show what Radarr or Jellyfin sends for a picture as a page ([54bc877](https://github.com/cosmin-sulita/curatorr/commit/54bc877))
+- fix(picks): only undo tonight's marks for others when watching together ([e2589a7](https://github.com/cosmin-sulita/curatorr/commit/e2589a7))
+- fix(setup): keep the media server once Curatorr is set up ([90e4b83](https://github.com/cosmin-sulita/curatorr/commit/90e4b83))
+- fix(settings): only let the browser that started a Plex sign-in finish it ([2b3b8d4](https://github.com/cosmin-sulita/curatorr/commit/2b3b8d4))
+- fix(picks): keep a Jellyfin profile to its libraries until Curatorr knows them ([17529ba](https://github.com/cosmin-sulita/curatorr/commit/17529ba))
+- fix(settings): only check Jellyfin administrators' passwords when signing in ([875b2db](https://github.com/cosmin-sulita/curatorr/commit/875b2db))
+- fix(profiles): give custom Plex restrictions the strictest limit ([bb4b85e](https://github.com/cosmin-sulita/curatorr/commit/bb4b85e))
+- fix(profiles): apply a PIN or parental limit added in Plex or Jellyfin at the next sync ([a3c804a](https://github.com/cosmin-sulita/curatorr/commit/a3c804a))
+
 ## 1.2.0 (2026-10-11)
 
 - feat(profiles): mark a movie watched for everyone who watched it together ([2cbd4be](https://github.com/cosmin-sulita/curatorr/commit/2cbd4be))
