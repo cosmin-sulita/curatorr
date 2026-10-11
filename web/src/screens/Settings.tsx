@@ -6,7 +6,7 @@ import { AnimatePresence } from 'motion/react';
 import { useRef, useState, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Avatar, Button, Img, inputClass, Notice, Spinner, Toggle } from '../components/ui';
+import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   api,
@@ -173,9 +173,9 @@ function serverDescription({ server, plex, jellyfin }: SettingsResponse) {
 
 const SYNC_INTERVALS = [1, 3, 6, 12, 24];
 
-/** What Radarr's last webhook call was about. */
+/** What Radarr's last webhook call was about; null before the first one. */
 function lastCall({ at, event, title }: SettingsResponse['webhook']) {
-  if (!at) return "Radarr hasn't called yet. Once the webhook is saved, press Test in Radarr.";
+  if (!at) return null;
   const movie = title ?? 'a movie';
   const what =
     event === 'Test'
@@ -190,12 +190,24 @@ function lastCall({ at, event, title }: SettingsResponse['webhook']) {
   return `Radarr last called ${relativeTime(at)}: ${what}.`;
 }
 
+/** What to do in Radarr with the address. */
+const WEBHOOK_STEPS = [
+  'In Radarr, open Settings → Connect and add a Webhook.',
+  'Tick On File Import, On Movie Delete and On Movie File Delete.',
+  'Paste the address below as its URL, press Test, then save.',
+];
+
+/** A URL with break points after its slashes, "?" and "=", so it wraps where it reads naturally. */
+const breakable = (url: string) =>
+  url.split(/(?<=[/?=])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
+
 /** The address Radarr calls when a movie is imported or deleted, so new downloads show up within minutes. */
 function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webhook']; onRenewed: () => void }) {
   const toast = useToast();
-  const field = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLParagraphElement>(null);
   const [renewing, setRenewing] = useState<'ask' | 'busy' | null>(null);
   const address = `${window.location.origin}/api/radarr/webhook?token=${webhook.token}`;
+  const called = lastCall(webhook);
 
   const copy = async () => {
     let copied = false;
@@ -203,12 +215,17 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
       await navigator.clipboard.writeText(address);
       copied = true;
     } catch {
-      // Plain-HTTP addresses have no clipboard API: copy the selected field instead.
-      field.current?.focus();
-      field.current?.setSelectionRange(0, address.length);
-      copied = document.execCommand('copy');
+      // Plain-HTTP addresses have no clipboard API: select the address and copy that instead.
+      const selection = window.getSelection();
+      if (field.current && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(field.current);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copied = document.execCommand('copy');
+      }
     }
-    toast({ message: copied ? 'Copied the webhook address' : 'Select the address and copy it' });
+    toast({ message: copied ? 'Copied the address' : 'Select the address and copy it' });
   };
 
   const renew = async () => {
@@ -226,41 +243,52 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
   return (
     <div className="mt-6 border-t border-line pt-5">
       <h3 className="font-medium">New downloads within minutes</h3>
-      <p className="mt-1 text-sm text-muted">
-        In Radarr, open Settings → Connect, add a Webhook, tick On File Import, On Movie Delete and On Movie File Delete,
-        and paste this address as its URL.
+      {/* Whether it works comes first: once it's set up, that's what someone comes here to check. The status
+          dot and the step numbers share one gutter, so their lines start together. */}
+      <p className="mt-1.5 flex gap-2 text-sm text-muted" role="status">
+        <span className="flex h-5 w-4 shrink-0 items-center" aria-hidden>
+          <span className={clsx('size-2 rounded-full', called ? 'bg-emerald-400' : 'bg-faint')} />
+        </span>
+        <span>{called ?? "Radarr hasn't called yet."}</span>
       </p>
-      <div className="mt-3 flex gap-2">
-        <input
-          ref={field}
-          readOnly
-          value={address}
-          onFocus={(e) => e.currentTarget.select()}
-          aria-label="Webhook address for Radarr"
-          className={clsx(inputClass, 'min-w-0 font-mono text-sm')}
-        />
-        <Button onClick={copy}>
-          <Copy className="size-4" /> Copy
-        </Button>
-      </div>
-      <p className="mt-1.5 text-xs text-faint">If Radarr reaches Curatorr at another address, use that one with the same ending.</p>
-      <p className="mt-3 text-sm text-muted" role="status">
-        {lastCall(webhook)}
+      <ol className="mt-4 space-y-1 text-sm text-muted">
+        {WEBHOOK_STEPS.map((step, i) => (
+          <li key={step} className="flex gap-2">
+            <span className="w-4 shrink-0 text-faint tabular-nums">{i + 1}.</span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+      {/* The whole address, wrapped: a phone would only show its start in a field. A tap selects it all. */}
+      <p
+        ref={field}
+        className="mt-4 rounded-xl bg-ink px-3.5 py-3 font-mono text-sm wrap-anywhere select-all ring-1 ring-line"
+      >
+        {breakable(address)}
       </p>
+      <p className="mt-1.5 text-xs text-faint">
+        If Radarr reaches Curatorr at another address, keep the part from /api/radarr/webhook on.
+      </p>
+      {/* Keyed, so each row gets buttons of its own instead of the others fading into them. */}
       {renewing === 'ask' ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm">The current address will stop working.</span>
+        <div key="ask" className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="w-full text-sm">The current address will stop working.</p>
           <Button variant="danger" onClick={renew}>
             Make a new address
           </Button>
-          <Button variant="ghost" onClick={() => setRenewing(null)}>
+          <Button variant="ghost" onClick={() => setRenewing(null)} autoFocus>
             Cancel
           </Button>
         </div>
       ) : (
-        <Button variant="ghost" className="mt-2 -ml-4" loading={renewing === 'busy'} onClick={() => setRenewing('ask')}>
-          New address
-        </Button>
+        <div key="actions" className="mt-4 flex flex-wrap gap-3">
+          <Button onClick={copy}>
+            <Copy className="size-4" /> Copy address
+          </Button>
+          <Button variant="ghost" loading={renewing === 'busy'} onClick={() => setRenewing('ask')}>
+            New address
+          </Button>
+        </div>
       )}
     </div>
   );

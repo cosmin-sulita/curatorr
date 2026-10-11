@@ -213,6 +213,8 @@ export function useSettings(enabled: boolean) {
     queryFn: () => api<SettingsResponse>('/api/settings'),
     enabled,
     refetchInterval: (q) => (q.state.data?.sync.syncing ? 2_000 : false),
+    // Back from Radarr after pressing Test, its call shows without a reload.
+    refetchOnWindowFocus: true,
   });
 }
 
