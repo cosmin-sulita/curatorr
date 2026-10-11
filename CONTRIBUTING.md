@@ -33,7 +33,7 @@ The repo is an npm workspace:
 
 ## Before you open a pull request
 
-- `npm run typecheck` and `npm test` pass. CI runs both on every pull request.
+- `npm run typecheck`, `npm test` and `npm run build` pass. CI runs all three on every pull request, and builds the Docker image too.
 - New behaviour in `shared/` or `server/` comes with tests. When you fix a mis-tagged movie, add it to `shared/src/tagger.fixtures.ts`.
 - Database changes go in a new migration at the end of the list in `server/src/db.ts`. Never edit an old one.
 - UI changes work on a phone (390×844) and on a desktop (1440×900), and touch targets stay at least 44pt. The demo library is the quickest way to check.

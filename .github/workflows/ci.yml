@@ -26,6 +26,24 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+
+  # Builds the image a release would push, without pushing it, so a broken build shows up before main.
+  # main only moves by fast-forwarding to develop, whose run has already built the same commit.
+  image-check:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # A release is a new top section in CHANGELOG.md, whose heading is also the app's version
   # (server/build.mjs). Once it reaches main, tag it and publish its notes as a GitHub Release.

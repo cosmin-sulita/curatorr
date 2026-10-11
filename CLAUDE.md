@@ -25,7 +25,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 - **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few files arrive days before each start (Alex's two requests reached Radarr a month earlier), and seeded watches are a week apart. In demo mode everyone counts as admin and no profile has a PIN.
 - **Install scripts:** npm skips dependencies' install scripts unless `allowScripts` in the root `package.json` allows them. esbuild's is denied on purpose (it works without it). Approve a new one only after reviewing it, with `npm install-scripts approve <pkg>`.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
-- **CI** (`.github/workflows/ci.yml`) runs typecheck and tests on pushes to `main` and `develop` and on pull requests. On `main` it also publishes releases (see below).
+- **CI** (`.github/workflows/ci.yml`) runs the typecheck, the tests and the build on pushes to `main` and `develop` and on pull requests. Everywhere but `main` it also builds the Docker image for both platforms without pushing it. On `main` it publishes releases (see below).
 
 ## Architecture
 
