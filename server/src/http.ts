@@ -9,7 +9,7 @@ export class HttpError extends Error {
   }
 }
 
-/** A failure talking to Radarr, Plex or plex.tv. */
+/** A failure talking to Radarr, Plex, plex.tv, Jellyfin or Seerr. */
 export class UpstreamError extends Error {
   constructor(
     readonly service: string,

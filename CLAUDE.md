@@ -113,10 +113,10 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Ranking:**
   - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
   - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.
-  - **Shown picks:** `shown` costs −4 per earlier evening shown in the last 30 days, up to −16. It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick within an evening.
+  - **Shown picks:** `shown` costs −4 per evening shown in the last 30 days, up to −16. It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick for those three hours (later the same evening, that evening counts too).
   - **New arrivals:** a movie whose file arrived lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. Movies only another profile requested don't get it.
     - The date is Radarr's import date of the first file Curatorr saw (`arrived_at`), so an upgrade doesn't make a movie new again. Radarr's added date is when a request was made, often before release, and is only the fallback.
-  - **Retention:** `shown` and `skipped` are pruned after 90 days; `accepted` is kept for taste.
+  - **Retention:** `shown` and `skipped` older than 90 days are pruned when the server starts; `accepted` is kept for taste.
 - **README:** "How picks work" quotes these numbers and the other constants in `scoring.ts`. Update it in the same commit when they change.
 
 ### Branches, commits and releases
