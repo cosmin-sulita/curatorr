@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
@@ -16,6 +17,8 @@ describe('setup', () => {
   const originalTv = PLEX_HOSTS.tv;
   /** Plex tokens that reached the fake Plex server's /identity. */
   const tokensSeen: string[] = [];
+  /** The id plex.tv gives the next PIN Curatorr asks for. */
+  let nextPin = 1;
   /** API keys that reached a fake Radarr or Seerr, and where. */
   const keysSeen: { path: string; key: string | undefined }[] = [];
   const cleanups: (() => Promise<void>)[] = [];
@@ -29,6 +32,7 @@ describe('setup', () => {
         res.end(JSON.stringify(body));
       };
       // plex.tv: PIN 1 was approved by the owner, PIN 2 by someone else.
+      if (url.pathname === '/api/v2/pins' && req.method === 'POST') return json(201, { id: nextPin, code: 'CODE' });
       const pin = /^\/api\/v2\/pins\/(\d+)$/.exec(url.pathname);
       if (pin) return json(200, { id: Number(pin[1]), authToken: pin[1] === '1' ? 'owner-token' : 'stranger-token' });
       if (url.pathname === '/api/v2/user') {
@@ -72,8 +76,17 @@ describe('setup', () => {
     return { app, store: ctx.store };
   }
 
-  const claim = (app: Awaited<ReturnType<typeof freshInstall>>['app'], pin: number, cookie = '') =>
-    app.inject({ method: 'POST', url: `/api/plex/pin/${pin}/claim`, headers: { cookie }, payload: { purpose: 'setup' } });
+  type App = Awaited<ReturnType<typeof freshInstall>>['app'];
+  /** The cookies a response set, as a Cookie header. */
+  const cookiesOf = (res: LightMyRequestResponse) =>
+    [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
+  /** Starts a Plex sign-in in a browser, then finishes it there once plex.tv has PIN `pin` approved. */
+  async function claim(app: App, pin: number, cookie = '') {
+    nextPin = pin;
+    const started = await app.inject({ method: 'POST', url: '/api/plex/pin', headers: { cookie }, payload: {} });
+    const browser = [cookie, cookiesOf(started)].filter(Boolean).join('; ');
+    return app.inject({ method: 'POST', url: `/api/plex/pin/${pin}/claim`, headers: { cookie: browser }, payload: { purpose: 'setup' } });
+  }
 
   it('lets whoever opens a fresh install set it up, until someone signs in with Plex', async () => {
     const { app, store } = await freshInstall();
@@ -101,6 +114,22 @@ describe('setup', () => {
     // Signing in with another Plex account doesn't take setup over either.
     expect((await claim(app, 2)).statusCode).toBe(403);
     expect(store.get('plex').ownerId).toBe(OWNER);
+  });
+
+  it('only lets the browser that started a Plex sign-in finish it', async () => {
+    const { app, store } = await freshInstall();
+    store.update('plex', { adminToken: 'owner-token', ownerId: OWNER, ownerName: 'Owner' });
+    // The owner starts signing in to settings on their phone, and approves the PIN on plex.tv...
+    nextPin = 1;
+    const phone = cookiesOf(await app.inject({ method: 'POST', url: '/api/plex/pin', payload: {} }));
+    const login = (cookie: string) =>
+      app.inject({ method: 'POST', url: '/api/plex/pin/1/claim', headers: { cookie }, payload: { purpose: 'login' } });
+
+    // ...while another browser that learned the PIN's id tries to finish it.
+    const stranger = await login('');
+    expect(stranger.statusCode).toBe(404);
+    expect(stranger.headers['set-cookie']).toBeUndefined();
+    expect((await login(phone)).json()).toMatchObject({ status: 'ok' });
   });
 
   it('lets the owner carry on setting up from another device', async () => {

@@ -9,8 +9,12 @@ const ADMIN_COOKIE = 'curatorr_admin';
 const UNLOCKED_COOKIE = 'curatorr_unlocked';
 /** The others watching with this device's profile tonight, and when the group ends. */
 const TOGETHER_COOKIE = 'curatorr_together';
+/** Plex sign-ins started in this browser, which only it may finish. */
+const PLEX_PINS_COOKIE = 'curatorr_plex_pins';
 const YEAR_S = 365 * 24 * 60 * 60;
 const ADMIN_TTL_S = 30 * 24 * 60 * 60;
+/** Longer than plex.tv keeps a sign-in PIN. */
+const PLEX_PIN_TTL_S = 30 * 60;
 
 const cookieOptions = (maxAge: number) => ({
   path: '/',
@@ -43,6 +47,19 @@ export function setAdminCookie(reply: FastifyReply, accountId: number | string) 
 
 export function clearAdminCookie(reply: FastifyReply) {
   reply.clearCookie(ADMIN_COOKIE, { path: '/' });
+}
+
+/** The Plex sign-in PINs this browser started. */
+export function plexPinsHere(req: FastifyRequest): number[] {
+  return (readSigned(req, PLEX_PINS_COOKIE)?.split(',') ?? []).map(Number).filter(Number.isInteger);
+}
+
+/**
+ * Remembers that this browser started a Plex sign-in. plex.tv hands the token to whoever asks with the PIN's
+ * id, so only the browser that started it may finish it. A few at most: one sign-in is under way at a time.
+ */
+export function rememberPlexPin(req: FastifyRequest, reply: FastifyReply, id: number) {
+  reply.setCookie(PLEX_PINS_COOKIE, [...plexPinsHere(req), id].slice(-3).join(','), cookieOptions(PLEX_PIN_TTL_S));
 }
 
 function unlockedHere(req: FastifyRequest): Set<number> {

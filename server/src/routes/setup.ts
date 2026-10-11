@@ -12,7 +12,7 @@ import {
   PlexServerClient,
 } from '../integrations/plex.js';
 import { importHomeUsers } from '../services/profiles.js';
-import { isAdmin, requireAdmin, setAdminCookie } from '../session.js';
+import { isAdmin, plexPinsHere, rememberPlexPin, requireAdmin, setAdminCookie } from '../session.js';
 import { toProfile } from '../store.js';
 
 const radarrBody = z.object({ url: serviceUrl, apiKey: z.string().min(1) });
@@ -46,15 +46,17 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
 
   // ---- Plex sign-in (also used for admin login) ------------------------------
 
-  app.post('/api/plex/pin', async () => {
+  app.post('/api/plex/pin', async (req, reply) => {
     const { clientId } = store.get('plex');
     const pin = await createPin(clientId);
+    rememberPlexPin(req, reply, pin.id);
     return { id: pin.id, code: pin.code, authUrl: authUrl(clientId, pin.code) };
   });
 
   app.post('/api/plex/pin/:id/claim', async (req, reply) => {
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
     const { purpose } = parse(z.object({ purpose: z.enum(['setup', 'login']) }), req.body);
+    if (!plexPinsHere(req).includes(id)) throw new HttpError(404, 'Start the Plex sign-in again');
     const plex = store.get('plex');
 
     const token = await checkPin(plex.clientId, id);
