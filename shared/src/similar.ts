@@ -64,10 +64,41 @@ export function signature(m: Movie, idf: Map<string, number>): Signature {
   return sig;
 }
 
-function norm(s: Signature) {
+export function norm(s: Signature) {
   let sum = 0;
   for (const w of s.values()) sum += w * w;
   return Math.sqrt(sum);
+}
+
+export interface IndexEntry {
+  movie: Movie;
+  sig: Signature;
+  norm: number;
+}
+
+/** A library's keyword rarity and every movie's signature. */
+export interface LibraryIndex {
+  idf: Map<string, number>;
+  entries: Map<number, IndexEntry>;
+}
+
+const indexes = new WeakMap<Movie[], LibraryIndex>();
+
+/** Worked out once per library: the store keeps the same array until the next sync. */
+export function libraryIndex(library: Movie[]): LibraryIndex {
+  let index = indexes.get(library);
+  if (!index) {
+    const idf = keywordIdf(library);
+    const entries = new Map(
+      library.map((m) => {
+        const sig = signature(m, idf);
+        return [m.id, { movie: m, sig, norm: norm(sig) }] as const;
+      }),
+    );
+    index = { idf, entries };
+    indexes.set(library, index);
+  }
+  return index;
 }
 
 /** Cosine similarity, 0 (nothing in common) to 1 (the same signature). */
@@ -124,15 +155,16 @@ export function rankSimilar(
   feedback: FeedbackEvent[],
   opts: RankOptions,
 ): RankedMovie[] {
-  const idf = keywordIdf(library);
-  const likedSig = signature(liked, idf);
+  const { idf, entries } = libraryIndex(library);
+  const signatureOf = (m: Movie) => entries.get(m.id)?.sig ?? signature(m, idf);
+  const likedSig = signatureOf(liked);
   const likedKeywords = usableKeywords(liked);
   const signals = profileSignals(feedback, opts);
   const sagas = opts.sagas ?? emptySagaState();
 
   const candidates = eligible.flatMap((m) => {
     if (m.id === liked.id || (liked.saga && m.saga?.id === liked.saga.id)) return [];
-    const sim = similarity(likedSig, signature(m, idf));
+    const sim = similarity(likedSig, signatureOf(m));
     return sim > 0 ? [{ m, sim }] : [];
   });
   const strongSim = STRONG_SHARE * Math.max(0, ...candidates.map((c) => c.sim));

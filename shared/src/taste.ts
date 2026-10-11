@@ -1,5 +1,5 @@
 import { dayStart, type TasteProfile } from './scoring.js';
-import { keywordIdf, signature, type Signature } from './similar.js';
+import { libraryIndex, norm, type IndexEntry, type Signature } from './similar.js';
 import type { FeedbackEvent, Movie } from './types.js';
 
 /**
@@ -45,34 +45,8 @@ export function tasteEvents(
   return [...best.values()];
 }
 
-interface Entry {
-  movie: Movie;
-  sig: Signature;
-  norm: number;
-}
-
-const norm = (sig: Signature) => Math.sqrt([...sig.values()].reduce((sum, w) => sum + w * w, 0));
-
-/** Each library's signatures, worked out once: the store keeps the same array until the next sync. */
-const indexes = new WeakMap<Movie[], Map<number, Entry>>();
-
-function indexOf(library: Movie[]): Map<number, Entry> {
-  let index = indexes.get(library);
-  if (!index) {
-    const idf = keywordIdf(library);
-    index = new Map(
-      library.map((m) => {
-        const sig = signature(m, idf);
-        return [m.id, { movie: m, sig, norm: norm(sig) }];
-      }),
-    );
-    indexes.set(library, index);
-  }
-  return index;
-}
-
 /** Cosine between an entry and a vector of known length. */
-function cosine(a: Entry, b: Signature, bNorm: number) {
+function cosine(a: IndexEntry, b: Signature, bNorm: number) {
   let dot = 0;
   for (const [feature, w] of a.sig) dot += w * (b.get(feature) ?? 0);
   return a.norm && bNorm ? dot / (a.norm * bNorm) : 0;
@@ -83,10 +57,10 @@ function cosine(a: Entry, b: Signature, bNorm: number) {
  * Tonight's watches only count from tomorrow, so the picks stay put all evening.
  */
 export function tasteProfile(library: Movie[], events: TasteEvent[], now: number): TasteProfile {
-  const index = indexOf(library);
+  const index = libraryIndex(library).entries;
   const since = dayStart(now);
   const vector: Signature = new Map();
-  const watched: { entry: Entry; weight: number }[] = [];
+  const watched: { entry: IndexEntry; weight: number }[] = [];
   for (const e of events) {
     if (e.at != null && e.at >= since) continue;
     const entry = index.get(e.movieId);
