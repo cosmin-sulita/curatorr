@@ -22,6 +22,7 @@ import {
   type RankOptions,
   type RankedMovie,
   type RecommendationsResponse,
+  type WantedBy,
   type WizardOptionsResponse,
   type WizardStep,
 } from '@curatorr/shared';
@@ -47,6 +48,8 @@ function allowedCerts(restriction: string | null): Set<string> | null {
 /** Everything ranking needs to know about a profile. `npm run eval` builds it for earlier moments too. */
 export interface ProfileData {
   profileId: number;
+  /** For chips that say whose a pick is, when several watch together. */
+  name: string;
   restriction: string | null;
   movies: Movie[];
   /** What the profile watched in Plex, and when. */
@@ -70,6 +73,7 @@ export function profileData(store: Store, row: ProfileRow): ProfileData {
   const app = store.get('app');
   return {
     profileId: row.id,
+    name: row.name,
     restriction: row.restriction_profile,
     movies: store.movies(),
     watched: store.watchHistory(row.id),
@@ -91,33 +95,70 @@ export interface Picking {
   opts: RankOptions;
 }
 
-/** `taste` also works out the profile's taste, which only ranking the picks needs. */
-export function picking(d: ProfileData, now: number, { taste = false } = {}): Picking {
+const union = <T>(sets: Iterable<T>[]) => new Set(sets.flatMap((s) => [...s]));
+
+/** What every non-null set holds; null when none limits anything. */
+function intersection<T>(sets: (Set<T> | null)[]): Set<T> | null {
+  const limits = sets.filter((s): s is Set<T> => s != null);
+  if (!limits.length) return null;
+  return new Set([...limits[0]!].filter((x) => limits.every((s) => s.has(x))));
+}
+
+/** Members' marks of the same moment (a group's skip is saved for each of them) count once. */
+function dedupe(events: FeedbackEvent[]): FeedbackEvent[] {
+  const seen = new Set<string>();
+  return events.filter((e) => {
+    const key = `${e.movieId}|${e.kind}|${e.createdAt}`;
+    return !seen.has(key) && Boolean(seen.add(key));
+  });
+}
+
+/**
+ * The context and options for ranking at `now`, for one profile or several watching together.
+ * Together, a movie is out if anyone watched it or marked it Seen it or Never; everyone's limits apply;
+ * a saga goes on from where everyone has got to; anyone's watchlist and requests count; and tastes blend
+ * (see `tastePoints`). One profile is a group of one. `taste` also works out tastes, which only ranking
+ * the picks needs.
+ */
+export function picking(group: ProfileData | ProfileData[], now: number, { taste = false } = {}): Picking {
+  const members = Array.isArray(group) ? group : [group];
+  // The library and the app's settings are the same for every member.
+  const d = members[0]!;
   // Only insist on a server match when matching is actually working.
   const server = d.server;
   const requireServer = server && d.movies.some((m) => onServer(m, server)) ? server : null;
-  const available = requireServer ? d.available : null;
-  const watched = new Set(d.watched.map((w) => w.movieId));
-  const certs = allowedCerts(d.restriction);
-  // For sagas, "watched" also covers "Seen it", and only parts this profile can play and may see
-  // count: a part held back by its restrictions mustn't hold back the sequels it may watch.
-  const seen = new Set([...watched, ...d.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
+  const views = members.map((m) => {
+    const watched = new Set(m.watched.map((w) => w.movieId));
+    // For sagas, "watched" also covers "Seen it".
+    const seen = new Set([...watched, ...m.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
+    // Only requests still waiting to be watched get the boost and the label.
+    const requested = new Set(d.boostRequests ? [...m.requested].filter((id) => !seen.has(id)) : []);
+    // Movies saved with "Watchlist" count as the watchlist too.
+    const wanted = union([m.watchlist, m.feedback.filter((e) => e.kind === 'later').map((e) => e.movieId)]);
+    return { m, watched, seen, requested, wanted };
+  });
+  const watched = union(views.map((v) => v.watched));
+  const certs = intersection(members.map((m) => allowedCerts(m.restriction)));
+  const available = requireServer ? intersection(members.map((m) => m.available)) : null;
+  const seenByAll = intersection(views.map((v) => v.seen))!;
+  // Only parts everyone can play and may see count: a part held back by limits mustn't hold back the sequels.
   const playable = d.movies.filter(
     (m) => (!requireServer || onServer(m, requireServer)) && (!available || available.has(m.id)) && certAllowed(m, certs),
   );
-  // Only requests still waiting to be watched get the boost and the label.
-  const requested = new Set(d.boostRequests ? [...d.requested].filter((id) => !seen.has(id)) : []);
-  // A movie someone else asked for isn't news to this profile when it arrives.
-  const othersRequested = new Set([...d.requestedByOthers].filter((id) => !d.requested.has(id)));
+  const requested = union(views.map((v) => v.requested));
+  const watchlist = union(members.map((m) => m.watchlist));
+  // A movie only someone outside the group asked for isn't news to it when it arrives.
+  const ownRequests = union(members.map((m) => m.requested));
+  const othersRequested = new Set([...union(members.map((m) => m.requestedByOthers))].filter((id) => !ownRequests.has(id)));
   const ctx: ProfileContext = {
     watched,
-    feedback: d.feedback,
-    sagas: sagaState(playable, seen),
+    feedback: members.length > 1 ? dedupe(members.flatMap((m) => m.feedback)) : d.feedback,
+    sagas: sagaState(playable, seenByAll),
     allowedCerts: certs,
     requireServer,
     available,
     includeWatched: d.includeWatched,
-    watchlist: d.watchlist,
+    watchlist,
     requested,
   };
   return {
@@ -125,14 +166,33 @@ export function picking(d: ProfileData, now: number, { taste = false } = {}): Pi
     eligible: eligibleMovies(d.movies, ctx),
     opts: {
       now,
-      seed: String(d.profileId),
-      watchlist: d.watchlist,
+      seed: members
+        .map((m) => m.profileId)
+        .sort((a, b) => a - b)
+        .join('+'),
+      watchlist,
       requested,
       othersRequested,
       sagas: ctx.sagas,
-      taste: taste ? tasteProfile(d.movies, tasteEvents(d.watched, d.feedback), now) : undefined,
+      wantedBy: members.length > 1 ? wantedBy(views) : undefined,
+      taste: !taste
+        ? undefined
+        : members.length > 1
+          ? members.map((m) => ({ ...tasteProfile(d.movies, tasteEvents(m.watched, m.feedback), now), name: m.name }))
+          : tasteProfile(d.movies, tasteEvents(d.watched, d.feedback), now),
     },
   };
+}
+
+/** Whose request, and whose watchlist, each movie someone in the group wants is. */
+function wantedBy(views: { m: ProfileData; requested: Set<number>; wanted: Set<number> }[]): Map<number, WantedBy> {
+  const out = new Map<number, WantedBy>();
+  const entry = (id: number) => out.get(id) ?? out.set(id, { requested: [], watchlist: [] }).get(id)!;
+  for (const { m, requested, wanted } of views) {
+    for (const id of requested) entry(id).requested.push(m.name);
+    for (const id of wanted) entry(id).watchlist.push(m.name);
+  }
+  return out;
 }
 
 /** Links that open a movie on the media server: `web` in a browser, `app` in its phone apps. */
@@ -196,9 +256,12 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
   );
 }
 
-export function optionsFor(store: Store, row: ProfileRow, step: WizardStep, criteria: Criteria): WizardOptionsResponse {
+/** The profiles picking: one, or several watching together. */
+const groupData = (store: Store, rows: ProfileRow[]) => rows.map((row) => profileData(store, row));
+
+export function optionsFor(store: Store, rows: ProfileRow[], step: WizardStep, criteria: Criteria): WizardOptionsResponse {
   const now = Date.now();
-  const { ctx, eligible } = picking(profileData(store, row), now);
+  const { ctx, eligible } = picking(groupData(store, rows), now);
   return wizardOptions(eligible, step, criteria, {
     image: (m, kind) => (kind === 'fanart' ? (m.fanartUrl ?? m.posterUrl) : (m.posterUrl ?? m.fanartUrl)),
     sagaStarters: ctx.sagas?.starters,
@@ -219,15 +282,15 @@ async function toResponse(store: Store, ranked: RankedMovie[]): Promise<Recommen
   };
 }
 
-export async function recommendFor(store: Store, row: ProfileRow, criteria: Criteria): Promise<RecommendationsResponse> {
-  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now(), { taste: true });
+export async function recommendFor(store: Store, rows: ProfileRow[], criteria: Criteria): Promise<RecommendationsResponse> {
+  const { ctx, eligible, opts } = picking(groupData(store, rows), Date.now(), { taste: true });
   const ranked = rankMovies(eligible, criteria, ctx.feedback, opts);
   return toResponse(store, isSurprise(criteria) ? surpriseOrder(ranked, opts) : ranked);
 }
 
 /** "Something like…": the eligible movies that share the most with one the profile loved. */
-export async function similarFor(store: Store, row: ProfileRow, likedId: number): Promise<RecommendationsResponse> {
-  const { ctx, eligible, opts } = picking(profileData(store, row), Date.now());
+export async function similarFor(store: Store, rows: ProfileRow[], likedId: number): Promise<RecommendationsResponse> {
+  const { ctx, eligible, opts } = picking(groupData(store, rows), Date.now());
   const liked = store.movie(likedId);
   if (!liked || !certAllowed(liked, ctx.allowedCerts)) throw new HttpError(404, 'Movie not found');
   const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, opts);
@@ -238,17 +301,19 @@ export async function similarFor(store: Store, row: ProfileRow, likedId: number)
 const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 /**
- * Movies to start "Something like…" from: without a query, what the profile watched in Plex or
- * marked "Seen it", most recent first; with one, matching titles in the library, watched first.
+ * Movies to start "Something like…" from: without a query, what the profile (or anyone watching
+ * together) watched in Plex or marked "Seen it", most recent first; with one, matching titles in the
+ * library, watched first. Only movies everyone may see.
  */
-export function likeSeeds(store: Store, row: ProfileRow, q = ''): LikeSeed[] {
+export function likeSeeds(store: Store, rows: ProfileRow[], q = ''): LikeSeed[] {
   const watchedAt = new Map<number, number>();
-  for (const w of store.watchHistory(row.id)) watchedAt.set(w.movieId, w.viewedAt ?? 0);
-  for (const e of store.feedback(row.id)) {
-    if (e.kind === 'seen') watchedAt.set(e.movieId, Math.max(watchedAt.get(e.movieId) ?? 0, e.createdAt));
+  const latest = (id: number, at: number) => watchedAt.set(id, Math.max(watchedAt.get(id) ?? 0, at));
+  for (const row of rows) {
+    for (const w of store.watchHistory(row.id)) latest(w.movieId, w.viewedAt ?? 0);
+    for (const e of store.feedback(row.id)) if (e.kind === 'seen') latest(e.movieId, e.createdAt);
   }
-  const certs = allowedCerts(row.restriction_profile);
-  const available = store.availableMovies(row);
+  const certs = intersection(rows.map((row) => allowedCerts(row.restriction_profile)));
+  const available = intersection(rows.map((row) => store.availableMovies(row)));
   const movies = store.movies().filter((m) => certAllowed(m, certs) && (!available || available.has(m.id)));
   const toSeed = (m: StoredMovie): LikeSeed => ({
     id: m.id,

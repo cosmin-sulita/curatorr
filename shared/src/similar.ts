@@ -163,7 +163,7 @@ export function rankSimilar(
       quality,
       tier: strong ? 0 : 1,
       reasons: [
-        ...wantedReasons(adj),
+        ...wantedReasons(adj, opts.wantedBy?.get(m.id)),
         ...sagaReasons,
         ...addedReasons(adj),
         ...tagReasons(shared),

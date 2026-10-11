@@ -249,12 +249,16 @@ export interface RankOptions {
   /** Movies only other profiles requested: their arrival isn't news to this one. */
   othersRequested?: Set<number>;
   sagas?: SagaState;
-  /** What the profile tends to watch (see taste.ts). */
-  taste?: TasteProfile;
+  /** What the profile tends to watch (see taste.ts), or each person's, when several watch together. */
+  taste?: TasteProfile | TasteProfile[];
+  /** When several watch together: whose request and whose watchlist each wanted movie is, for its chips. */
+  wantedBy?: Map<number, WantedBy>;
 }
 
 /** A profile's taste, learned from what it watched. */
 export interface TasteProfile {
+  /** Whose taste it is, when several watch together; the chip says "you" without one. */
+  name?: string;
   /** How much taste counts: 0 without any history, nearing 1 with plenty. */
   confidence: number;
   /** How much a movie resembles what the profile watched, 0 to 1. */
@@ -263,13 +267,10 @@ export interface TasteProfile {
   because(m: Movie): Movie | null;
 }
 
-/**
- * Taste points per movie: its likeness compared with the other movies being ranked, so taste
- * reorders them without favouring one question's movies over another's.
- */
-export function tastePoints(pool: Movie[], taste?: TasteProfile): Map<number, number> {
+/** One person's taste points: likeness compared with the other movies being ranked. */
+function memberTastePoints(pool: Movie[], taste: TasteProfile): Map<number, number> {
   const out = new Map<number, number>();
-  if (!taste?.confidence || pool.length < 2) return out;
+  if (!taste.confidence || pool.length < 2) return out;
   const likeness = pool.map((m) => taste.affinity(m));
   const mean = likeness.reduce((a, b) => a + b, 0) / likeness.length;
   const sd = Math.sqrt(likeness.reduce((a, x) => a + (x - mean) ** 2, 0) / likeness.length);
@@ -279,6 +280,39 @@ export function tastePoints(pool: Movie[], taste?: TasteProfile): Map<number, nu
     out.set(m.id, Math.max(-TASTE_MAX, Math.min(TASTE_MAX, points)));
   });
   return out;
+}
+
+/**
+ * Taste points per movie, and whose taste each follows most. For several people, a movie gets half their
+ * average plus half the lowest, so nobody's least favourite wins. People without a history are left out.
+ */
+function blendTaste(pool: Movie[], taste?: TasteProfile | TasteProfile[]) {
+  const members = (Array.isArray(taste) ? taste : taste ? [taste] : []).filter((t) => t.confidence);
+  const points = new Map<number, number>();
+  const leader = new Map<number, TasteProfile>();
+  if (members.length === 1) {
+    for (const [id, p] of memberTastePoints(pool, members[0]!)) {
+      points.set(id, p);
+      leader.set(id, members[0]!);
+    }
+  } else if (members.length > 1) {
+    const each = members.map((t) => memberTastePoints(pool, t));
+    for (const m of pool) {
+      const own = each.map((p) => p.get(m.id) ?? 0);
+      const mean = own.reduce((a, b) => a + b, 0) / own.length;
+      points.set(m.id, (mean + Math.min(...own)) / 2);
+      leader.set(m.id, members[own.indexOf(Math.max(...own))]!);
+    }
+  }
+  return { points, leader };
+}
+
+/**
+ * Taste points per movie: its likeness compared with the other movies being ranked, so taste
+ * reorders them without favouring one question's movies over another's.
+ */
+export function tastePoints(pool: Movie[], taste?: TasteProfile | TasteProfile[]): Map<number, number> {
+  return blendTaste(pool, taste).points;
 }
 
 function sagaTotals(parts: Movie[]) {
@@ -408,11 +442,27 @@ export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOption
   return { delta, onWatchlist, requested, addedDaysAgo: added >= ADDED_CHIP_BONUS ? days : null };
 }
 
-/** Chips for movies the profile wants to watch: requested in Seerr first, then the watchlist. */
-export function wantedReasons(adj: { onWatchlist: boolean; requested: boolean }): Reason[] {
+/** Who wants a movie, when several watch together: who requested it, and whose watchlist it's on. */
+export interface WantedBy {
+  requested: string[];
+  watchlist: string[];
+}
+
+/** "Alex", "Alex and Sam", "Alex, Sam and Kids". */
+function listNames(names: string[]) {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '');
+}
+
+/** Chips for movies the profile wants to watch: requested in Seerr first, then the watchlist. Groups name who. */
+export function wantedReasons(adj: { onWatchlist: boolean; requested: boolean }, who?: WantedBy): Reason[] {
+  const requested = who?.requested.length ? `${listNames(who.requested)} requested this` : 'You requested this';
+  const lists = who?.watchlist.length ?? 0;
+  const watchlist = lists
+    ? `On ${listNames(who!.watchlist.map((name) => `${name}'s`))} ${lists > 1 ? 'watchlists' : 'watchlist'}`
+    : 'On your watchlist';
   return [
-    ...(adj.requested ? [{ kind: 'requested' as const, label: 'You requested this' }] : []),
-    ...(adj.onWatchlist ? [{ kind: 'watchlist' as const, label: 'On your watchlist' }] : []),
+    ...(adj.requested ? [{ kind: 'requested' as const, label: requested }] : []),
+    ...(adj.onWatchlist ? [{ kind: 'watchlist' as const, label: watchlist }] : []),
   ];
 }
 
@@ -498,7 +548,7 @@ export function rankMovies(
     }
   }
 
-  const taste = tastePoints(base, opts.taste);
+  const { points: taste, leader } = blendTaste(base, opts.taste);
   /** Where each pick's taste chip goes: after the personal chips, before the ones for the answers. */
   const tasteChipAt = new Map<number, number>();
 
@@ -547,7 +597,7 @@ export function rankMovies(
     // On "Just arrived" every new arrival says when it came, also once its bonus no longer would.
     const listedNew = c.shelf === JUST_ARRIVED.id && arrivedLately(m, opts.now);
     const arrived = { addedDaysAgo: adj.addedDaysAgo ?? (listedNew ? daysInLibrary(m, opts.now) : null) };
-    const personal = [...wantedReasons(adj), ...sagaReasons, ...addedReasons(arrived)];
+    const personal = [...wantedReasons(adj, opts.wantedBy?.get(m.id)), ...sagaReasons, ...addedReasons(arrived)];
     tasteChipAt.set(m.id, personal.length);
     return {
       movie: m,
@@ -562,8 +612,12 @@ export function rankMovies(
   // Explaining taste compares a pick with every watched movie, so only the picks that are shown get it.
   for (const r of top.slice(0, MAX_RESULTS)) {
     if ((taste.get(r.movie.id) ?? 0) < TASTE_CHIP) continue;
-    const like = opts.taste?.because(r.movie);
-    if (like) r.reasons.splice(tasteChipAt.get(r.movie.id)!, 0, { kind: 'taste', label: `Because you watched ${like.title}` });
+    // Watching together, the chip names the person whose taste the pick follows most.
+    const who = leader.get(r.movie.id);
+    const like = who?.because(r.movie);
+    if (!like) continue;
+    const label = `Because ${who!.name ?? 'you'} watched ${like.title}`;
+    r.reasons.splice(tasteChipAt.get(r.movie.id)!, 0, { kind: 'taste', label });
   }
   return top;
 }

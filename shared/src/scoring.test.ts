@@ -5,6 +5,7 @@ import {
   qualityScore,
   rankMovies,
   surpriseOrder,
+  tastePoints,
   wizardOptions,
   type ProfileContext,
 } from './scoring.js';
@@ -627,5 +628,68 @@ describe('seasons', () => {
     const sagas = sagaState(library, new Set());
     const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test', sagas });
     expect(ranked.map((r) => r.movie.id)).toEqual([horror.id]);
+  });
+});
+
+describe('watching together', () => {
+  /** A member's taste from fixed likenesses, liking `because` best. */
+  const taste = (name: string | undefined, likeness: Map<number, number>, because: Movie | null, confidence = 1) => ({
+    name,
+    confidence,
+    affinity: (m: Movie) => likeness.get(m.id) ?? 0,
+    because: () => because,
+  });
+  const [a, b, c] = [movie(), movie(), movie()];
+  const alex = taste('Alex', new Map([[a.id, 1], [b.id, 0.5], [c.id, 0]]), null);
+  const sam = taste('Sam', new Map([[a.id, 0], [b.id, 0.5], [c.id, 1]]), null);
+  const kids = taste('Kids', new Map(), null, 0);
+  // Over three movies one standard deviation apart, the one a person likes most gets 6 × 1.2247 points.
+  const LIKED = 7.3485;
+
+  it('blends tastes so that the movie someone likes least loses out to one both are fine with', () => {
+    const points = tastePoints([a, b, c], [alex, sam]);
+    expect(points.get(a.id)).toBeCloseTo(-LIKED / 2, 3);
+    expect(points.get(b.id)).toBeCloseTo(0, 3);
+    expect(points.get(c.id)).toBeCloseTo(-LIKED / 2, 3);
+  });
+
+  it("keeps one person's taste as it is, and leaves out a member with no history", () => {
+    for (const tastes of [[alex], [alex, kids]]) {
+      const points = tastePoints([a, b, c], tastes);
+      expect(points.get(a.id)).toBeCloseTo(LIKED, 3);
+      expect(points.get(c.id)).toBeCloseTo(-LIKED, 3);
+    }
+  });
+
+  it("says whose watchlist or request a pick comes from", () => {
+    const [requested, onOne, onBoth] = [movie(), movie(), movie()];
+    const ranked = rankMovies([requested, onOne, onBoth], {}, [], {
+      now: NOW,
+      seed: 'test',
+      requested: new Set([requested.id]),
+      watchlist: new Set([onOne.id, onBoth.id]),
+      wantedBy: new Map([
+        [requested.id, { requested: ['Sam'], watchlist: [] }],
+        [onOne.id, { requested: [], watchlist: ['Alex'] }],
+        [onBoth.id, { requested: [], watchlist: ['Alex', 'Sam'] }],
+      ]),
+    });
+    const reasons = (m: Movie) => ranked.find((r) => r.movie.id === m.id)!.reasons;
+    expect(reasons(requested)).toContainEqual({ kind: 'requested', label: 'Sam requested this' });
+    expect(reasons(onOne)).toContainEqual({ kind: 'watchlist', label: "On Alex's watchlist" });
+    expect(reasons(onBoth)).toContainEqual({ kind: 'watchlist', label: "On Alex's and Sam's watchlists" });
+  });
+
+  it('names the person whose taste a pick follows most', () => {
+    const [d, e] = [movie(), movie()];
+    const heat = movie({ title: 'Heat' });
+    const inception = movie({ title: 'Inception' });
+    // Both like a; Sam likes it even more than the rest of the pool.
+    const alexToo = taste('Alex', new Map([[a.id, 1], [b.id, 1], [d.id, 0], [e.id, 0]]), heat);
+    const samToo = taste('Sam', new Map([[a.id, 1], [b.id, 0.6], [d.id, 0], [e.id, 0]]), inception);
+    const together = rankMovies([a, b, d, e], {}, [], { now: NOW, seed: 'test', taste: [alexToo, samToo] });
+    expect(together.find((r) => r.movie.id === a.id)!.reasons).toContainEqual({ kind: 'taste', label: 'Because Sam watched Inception' });
+    const solo = rankMovies([a, b, d, e], {}, [], { now: NOW, seed: 'test', taste: { ...alexToo, name: undefined } });
+    expect(solo.find((r) => r.movie.id === a.id)!.reasons).toContainEqual({ kind: 'taste', label: 'Because you watched Heat' });
   });
 });

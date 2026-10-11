@@ -65,7 +65,7 @@ describe('picks for a restricted profile', () => {
       Date.now(),
     );
     const teen = store.profileRow(store.createLocalProfile('Teen', false, 'teen'))!;
-    const titles = (await recommendFor(store, teen, {})).picks.map((p) => p.movie.title);
+    const titles = (await recommendFor(store, [teen], {})).picks.map((p) => p.movie.title);
     expect(titles).toContain('Live Free or Die Hard');
     expect(titles).not.toContain('Die Hard');
   });
@@ -80,7 +80,7 @@ describe('Surprise me', () => {
     );
     store.replaceMovies(movies, Date.now());
     const row = store.profileRow(store.createLocalProfile('Alex', true))!;
-    const ids = async (c: Criteria) => (await recommendFor(store, row, c)).picks.map((p) => p.movie.id);
+    const ids = async (c: Criteria) => (await recommendFor(store, [row], c)).picks.map((p) => p.movie.id);
     const best = movies.map((m) => m.id);
 
     const surprise = await ids({ genre: null, theme: null, mood: null, time: null });
@@ -103,7 +103,7 @@ describe('Just arrived', () => {
     const old = movie({ arrivedAt: ago(90), ratings: { rt: 100, imdb: null, tmdb: null, metacritic: null } });
     store.replaceMovies([...fresh, old], Date.now());
     const row = store.profileRow(store.createLocalProfile('Alex', true))!;
-    const { picks } = await recommendFor(store, row, { shelf: 'new' });
+    const { picks } = await recommendFor(store, [row], { shelf: 'new' });
     expect(picks.map((p) => p.movie.id)).toEqual(fresh.map((m) => m.id));
   });
 });
@@ -143,5 +143,75 @@ describe('looking up Plex ids for picks', () => {
     expect(Object.fromEntries(store.movies().map((m) => [m.plexRatingKey, m.plexSlug]))).toEqual({ 1: null, 2: 'two' });
     await ensurePlexIds(store, store.movies());
     expect(counter.requests).toBe(3);
+  });
+});
+
+describe('watching together', () => {
+  const titles = (res: { picks: { movie: { title: string } }[] }) => res.picks.map((p) => p.movie.title).sort();
+  /** A library of five, and Alex, Sam and Kids, who may only see G and PG. */
+  function household() {
+    const store = tempStore();
+    const named = (title: string, extra: Partial<StoredMovie> = {}) => movie({ title, ...extra });
+    const library = {
+      heat: named('Heat', { certification: 'R' }),
+      up: named('Up', { certification: 'PG' }),
+      coco: named('Coco', { certification: 'PG' }),
+      jaws: named('Jaws', { certification: 'PG' }),
+      alien: named('Alien', { certification: 'R' }),
+    };
+    store.replaceMovies(Object.values(library), Date.now());
+    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
+    const kids = store.profileRow(store.createLocalProfile('Kids', false, 'older_kid'))!;
+    return { store, library, alex, sam, kids };
+  }
+
+  it("leaves out what anyone watched, or marked Seen it or Never", async () => {
+    const { store, library, alex, sam } = household();
+    store.replaceWatched(alex.id, [{ movieId: library.heat.id, viewedAt: Date.now() - 1000 }], Date.now());
+    store.addFeedback(sam.id, library.up.id, 'seen');
+    store.addFeedback(sam.id, library.coco.id, 'never');
+    expect(titles(await recommendFor(store, [alex, sam], {}))).toEqual(['Alien', 'Jaws']);
+    expect(titles(await recommendFor(store, [sam], {}))).toEqual(['Alien', 'Heat', 'Jaws']);
+  });
+
+  it("keeps to the strictest member's limits", async () => {
+    const { store, alex, kids } = household();
+    expect(titles(await recommendFor(store, [alex, kids], {}))).toEqual(['Coco', 'Jaws', 'Up']);
+  });
+
+  it('holds a sequel back until everyone has seen the part before', async () => {
+    const store = tempStore();
+    const part = (n: number) => movie({ title: `Saga ${n}`, saga: { id: 9, title: 'Saga', part: n, parts: 2 } });
+    const [p1, p2] = [part(1), part(2)];
+    store.replaceMovies([p1, p2, movie({ title: 'Other' })], Date.now());
+    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
+    store.replaceWatched(alex.id, [{ movieId: p1.id, viewedAt: Date.now() - 1000 }], Date.now());
+    expect(titles(await recommendFor(store, [alex], {}))).toEqual(['Other', 'Saga 2']);
+    expect(titles(await recommendFor(store, [alex, sam], {}))).toEqual(['Other']);
+  });
+
+  it("counts anyone's watchlist and requests, and says whose", async () => {
+    const { store, library, alex, sam } = household();
+    store.replaceWatchlist(sam.id, [library.jaws.id]);
+    store.replaceRequests([{ profileId: sam.id, movieId: library.alien.id, requestedAt: Date.now() }]);
+    const picks = (await recommendFor(store, [alex, sam], {})).picks;
+    const reasons = (title: string) => picks.find((p) => p.movie.title === title)!.reasons;
+    expect(reasons('Jaws')).toContainEqual({ kind: 'watchlist', label: "On Sam's watchlist" });
+    expect(reasons('Alien')).toContainEqual({ kind: 'requested', label: 'Sam requested this' });
+    const alone = (await recommendFor(store, [alex], {})).picks;
+    expect(alone.find((p) => p.movie.title === 'Jaws')!.reasons.some((r) => r.kind === 'watchlist')).toBe(false);
+  });
+
+  it("doesn't treat a movie only someone outside the group asked for as news", async () => {
+    const { store, library, alex, sam, kids } = household();
+    const now = Date.now();
+    store.replaceMovies([{ ...library.up, arrivedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString() }], now);
+    store.replaceRequests([{ profileId: kids.id, movieId: library.up.id, requestedAt: now }]);
+    const added = async (rows: typeof alex[]) =>
+      (await recommendFor(store, rows, {})).picks[0]!.reasons.some((r) => r.kind === 'added');
+    expect(await added([alex, sam])).toBe(false);
+    expect(await added([alex, kids])).toBe(true);
   });
 });

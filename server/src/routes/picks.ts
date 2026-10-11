@@ -32,16 +32,16 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const profile = requireProfile(req, store);
     const { step } = parse(z.object({ step: z.enum(STEP_ORDER) }), req.params);
     const criteria: Criteria = parse(criteriaSchema, req.query);
-    return optionsFor(store, profile, step, criteria);
+    return optionsFor(store, [profile], step, criteria);
   });
 
   app.get('/api/recommendations', async (req) => {
     ready();
     const profile = requireProfile(req, store);
     const { like } = parse(likeSchema, req.query);
-    if (like) return similarFor(store, profile, like);
+    if (like) return similarFor(store, [profile], like);
     const criteria: Criteria = parse(criteriaSchema, req.query);
-    return recommendFor(store, profile, criteria);
+    return recommendFor(store, [profile], criteria);
   });
 
   /** Movies to start "Something like…" from: recently watched, or a title search. */
@@ -49,7 +49,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     ready();
     const profile = requireProfile(req, store);
     const { q } = parse(z.object({ q: z.string().max(100).optional() }), req.query);
-    return likeSeeds(store, profile, q);
+    return likeSeeds(store, [profile], q);
   });
 
   app.post('/api/feedback', async (req) => {

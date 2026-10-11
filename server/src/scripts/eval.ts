@@ -116,6 +116,7 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
   const profile = profiles.find((p) => p.id === profileId)!;
   return {
     profileId,
+    name: profile.name,
     restriction: profile.restriction_profile,
     movies: movies.filter((m) => m.id === keep || arrived(m) <= at),
     watched: watched
