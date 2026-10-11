@@ -67,7 +67,7 @@ export function useProfiles() {
   return useQuery({ queryKey: ['profiles'], queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles') });
 }
 
-const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time });
+const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time, shelf: c.shelf });
 
 export function useWizardOptions(step: WizardStep, criteria: Criteria) {
   return useQuery({

@@ -239,6 +239,19 @@ describe('API (demo data)', () => {
     }
   });
 
+  it('goes straight to a pick from what just arrived, from a tile on the first question', async () => {
+    const sam = await cookieFor('Sam');
+    const genres = (await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie: sam } })).json() as WizardOptionsResponse;
+    expect(genres.shelves?.map((s) => [s.id, s.count])).toContainEqual(['new', 4]);
+    const titles = (await picksFor(sam, 'shelf=new')).picks.map((p) => p.movie.title).sort();
+    expect(titles).toEqual(['Dune: Part Two', 'Everything Everywhere All at Once', 'The Martian', 'Top Gun: Maverick']);
+  });
+
+  it("refuses a shortcut it doesn't know", async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/recommendations?shelf=nope', headers: { cookie: await cookieFor('Sam') } });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("leaves the liked movie's saga out", async () => {
     const alex = await cookieFor('Alex');
     const bttf = (await likeFor(alex, 'back to the future')).find((m) => m.title === 'Back to the Future')!;

@@ -32,7 +32,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript source (no build step).
 
 - **`shared/`**: pure, unit-tested logic used by both sides.
-  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
+  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, the first question's shortcuts (`SHELVES`, `JUST_ARRIVED`), plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods. `explainTags` keeps the evidence behind each tag.
     - Each keyword counts once per tag, through its best term, and each term counts once.
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
@@ -43,6 +43,10 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
     - For "Surprise me" (no answers, `isSurprise`), `surpriseOrder` then deals the ten best in an order drawn per profile per evening. `rankMovies` itself leaves `{}` in rank order; `recommendFor` and `npm run eval` apply the draw.
+    - **Shortcuts** (`Criteria.shelf`): `matchesShelf` keeps a shortcut's movies, ranked as usual and not shuffled.
+      - Given `now`, `wizardOptions` returns them as `shelves` on the genre step. `npm run eval` reports each as a row of its own.
+      - **Just arrived** (`'new'`) is the movies that arrived in the last `JUST_ARRIVED_DAYS` (30), by `arrivalTime`. Its tile needs at least 3 of them and at most half of the pool, so a library imported last week isn't all "new". Every pick on it says when it arrived.
+      - A new sequel still brings in its unwatched first part, as answers do.
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
   - `sagas.ts`: collection ordering.
@@ -70,7 +74,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
-  - `/pick` takes the full criteria, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick or settings.
+  - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick or settings.
   - The service worker caches the app shell and images. `/api/*` is network-only.
 
 ### Feedback model
@@ -109,6 +113,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - Copy names the server through `serverName()`, which says "Plex" when there is none, so the demo and the README screenshots are unchanged.
   - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
+  - Shortcuts (Just arrived, the season's movies) are the first tiles of the genre grid, marked with their icon, and go straight to a pick, with no more questions.
   - In a phone's browser, a "Use Curatorr like an app" tip sits above "Something like…": the Share → Add to Home Screen steps on iOS, or an Install button when Android Chrome offers one (`beforeinstallprompt`). ✕ hides it for good, and the installed app never shows it (`web/src/lib/install.ts`).
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 

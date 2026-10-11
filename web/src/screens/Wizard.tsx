@@ -25,6 +25,7 @@ export function criteriaFrom(search: URLSearchParams): Criteria {
     theme: search.get('theme'),
     mood: search.get('mood'),
     time: search.get('time'),
+    shelf: search.get('shelf'),
   };
 }
 
@@ -153,7 +154,14 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
             <div className="mt-8">
               {step === 'genre' && <InstallHint />}
               {step === 'genre' && <LikeCard />}
-              {step === 'genre' && <GenreGrid options={data.options} onChoose={choose} />}
+              {step === 'genre' && (
+                <GenreGrid
+                  shelves={data.shelves ?? []}
+                  options={data.options}
+                  onShelf={(shelf) => navigate(withQuery('/pick', { shelf }))}
+                  onChoose={choose}
+                />
+              )}
               {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}
               {step === 'mood' && <MoodGrid options={data.options} onChoose={choose} />}
               {step === 'time' && <TimeList options={data.options} onChoose={choose} />}
@@ -171,25 +179,45 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
 type OptionsProps = { options: WizardOption[]; onChoose: (id: string) => void };
 
-function GenreGrid({ options, onChoose }: OptionsProps) {
+/** The genres, led by the shortcuts (Just arrived, the season's movies), which go straight to a pick. */
+function GenreGrid({
+  shelves,
+  options,
+  onShelf,
+  onChoose,
+}: OptionsProps & { shelves: WizardOption[]; onShelf: (id: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {shelves.map((o) => (
+        <GenreTile key={`shelf-${o.id}`} option={o} onClick={() => onShelf(o.id)} icon />
+      ))}
       {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChoose(o.id)}
-          className="group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]"
-        >
-          <Img src={o.images[0]} className="absolute inset-0 size-full object-cover grayscale transition duration-500 group-hover:scale-105" />
-          <span className="absolute inset-0 mix-blend-multiply" style={{ backgroundColor: o.color }} />
-          <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-          <span className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
-            <span className="font-display text-[26px] text-white drop-shadow sm:text-3xl">{o.label}</span>
-            <span className="pb-1 text-xs font-medium text-white/70 tabular-nums">{o.count}</span>
-          </span>
-        </button>
+        <GenreTile key={o.id} option={o} onClick={() => onChoose(o.id)} />
       ))}
     </div>
+  );
+}
+
+function GenreTile({ option: o, onClick, icon = false }: { option: WizardOption; onClick: () => void; icon?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]"
+    >
+      <Img src={o.images[0]} className="absolute inset-0 size-full object-cover grayscale transition duration-500 group-hover:scale-105" />
+      <span className="absolute inset-0 mix-blend-multiply" style={{ backgroundColor: o.color }} />
+      <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+      {/* Shortcuts wear their icon, which sets them apart from the genres. */}
+      {icon && (
+        <span className="absolute top-2.5 left-3 grid size-8 place-items-center rounded-full bg-black/35 text-white ring-1 ring-white/20 backdrop-blur-sm">
+          <TagIcon name={o.icon} className="size-4" />
+        </span>
+      )}
+      <span className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
+        <span className="font-display text-[26px] text-white drop-shadow sm:text-3xl">{o.label}</span>
+        <span className="pb-1 text-xs font-medium text-white/70 tabular-nums">{o.count}</span>
+      </span>
+    </button>
   );
 }
 

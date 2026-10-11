@@ -1,4 +1,4 @@
-import type { MediaServer, Pick, WizardOptionsResponse } from '@curatorr/shared';
+import { JUST_ARRIVED, shelfById, type MediaServer, type Pick, type WizardOptionsResponse } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Inbox, Play, RotateCcw, SkipForward } from 'lucide-react';
@@ -26,6 +26,14 @@ type Decline = 'skipped' | 'later' | 'seen' | 'never';
 
 /** The profile asked for this movie in Seerr. */
 const requested = (p: Pick) => p.reasons.some((r) => r.kind === 'requested');
+
+/** How the screen names the picks of a shortcut from the first question. */
+function shelfCopy(shelf: string | null | undefined): { pick: string; more: string } | null {
+  const def = shelf ? shelfById.get(shelf) : undefined;
+  if (!def) return null;
+  if (def.id === JUST_ARRIVED.id) return { pick: 'Just arrived', more: 'More new arrivals' };
+  return { pick: `${def.label} pick`, more: `More for ${def.label}` };
+}
 
 /** Toast after a mark, depending on what happened on the media server. */
 function markMessage(kind: Decline, title: string, result: ServerSyncResult | undefined, server: MediaServer | null) {
@@ -69,6 +77,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);
   // "Something like…": picks resemble this movie instead of matching answers.
   const like = search.get('like');
+  const shelf = shelfCopy(criteria.shelf);
   const { data, isLoading, isFetching, error, refetch } = useRecommendations(criteria, like);
   const { data: status } = useStatus();
   const name = serverName(status?.server);
@@ -219,6 +228,9 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       hint = hadPicks
         ? 'You passed on all of them. Pick another movie or look again.'
         : `You've seen everything like ${likeTitle ?? 'it'}. Try another movie.`;
+    } else if (shelf) {
+      if (!hadPicks) title = 'Nothing to pick right now';
+      hint = hadPicks ? 'You passed on all of them. Look again, or answer the questions instead.' : 'Answer the questions instead.';
     }
     return (
       <Shell>
@@ -226,7 +238,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           <p className="text-muted">{hint}</p>
           <div className="mt-2 flex flex-wrap justify-center gap-3">
             <Button variant="primary" onClick={() => window.history.back()}>
-              <ChevronLeft className="size-4" /> {like ? 'Pick another movie' : 'Change answers'}
+              <ChevronLeft className="size-4" /> {like ? 'Pick another movie' : shelf ? 'Back' : 'Change answers'}
             </Button>
             {hadPicks && (
               <Button onClick={lookAgain} loading={isFetching}>
@@ -335,7 +347,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                       ? `${current.closeMatch ? 'A bit like' : 'Something like'} ${data.like.title}`
                       : current.closeMatch
                         ? 'Close match'
-                        : "Tonight's pick"}
+                        : (shelf?.pick ?? "Tonight's pick")}
                   </p>
                   {/* Long titles step down on phones so the ratings still clear the action bar. */}
                   <h1
@@ -423,7 +435,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
         {!shuffling && rest.length > 0 && (
           <section className="mt-14 mb-6" aria-labelledby="more-picks">
             <h2 id="more-picks" className="font-display text-3xl">
-              {data?.like ? `More like ${data.like.title}` : 'Other good picks'}
+              {data?.like ? `More like ${data.like.title}` : (shelf?.more ?? 'Other good picks')}
             </h2>
             {/* Scroll padding lines the first poster up with the heading; pt-1.5 leaves room for the focus ring. */}
             <ul

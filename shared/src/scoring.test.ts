@@ -490,3 +490,66 @@ describe('sagas in picks', () => {
     expect(res.options.find((o) => o.id === 'saga')).toMatchObject({ label: 'Start a saga', count: 1 });
   });
 });
+
+describe('Just arrived', () => {
+  const image = (m: Movie, kind: 'fanart' | 'poster') => (kind === 'fanart' ? m.fanartUrl : m.posterUrl);
+  const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
+  /** A movie whose file arrived `days` ago. */
+  const arrived = (days: number, extra: Partial<Movie> & { ratings?: Partial<Ratings> } = {}) =>
+    movie({ arrivedAt: ago(days), ...extra });
+  const ids = (ranked: { movie: Movie }[]) => ranked.map((r) => r.movie.id).sort((a, b) => a - b);
+
+  it('keeps the movies that arrived in the last 30 days, by their file first', () => {
+    const recent = arrived(29);
+    const older = arrived(31);
+    // In Radarr for months as a request, but its file came last week.
+    const requested = movie({ addedAt: ago(120), arrivedAt: ago(7) });
+    // Without a file date, Radarr's added date counts.
+    const undated = movie({ addedAt: ago(3) });
+    const stale = movie({ addedAt: ago(90) });
+    expect(ids(rank([recent, older, requested, undated, stale], { shelf: 'new' }))).toEqual(
+      [recent.id, requested.id, undated.id].sort((a, b) => a - b),
+    );
+  });
+
+  it('says when each one arrived, also after the new-arrival chip has gone', () => {
+    const [late] = rank([arrived(25)], { shelf: 'new' });
+    expect(late!.reasons).toContainEqual({ kind: 'added', label: 'Added 25 days ago' });
+    const [early] = rank([arrived(2)], { shelf: 'new' });
+    expect(early!.reasons.filter((r) => r.kind === 'added')).toEqual([{ kind: 'added', label: 'Added 2 days ago' }]);
+  });
+
+  it('brings in the first part of a saga whose sequel just arrived', () => {
+    const saga = (part: number, days: number) => arrived(days, { saga: { id: 60, title: 'Dune', part, parts: 2 } });
+    const [p1, p2] = [saga(1, 400), saga(2, 2)];
+    const oldie = arrived(300);
+    const library = [p1, p2, oldie, arrived(3), arrived(4)];
+    const sagas = sagaState(library, new Set());
+    const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { shelf: 'new' }, [], { now: NOW, seed: 'test', sagas });
+    const first = ranked.find((r) => r.movie.id === p1.id);
+    expect(first?.reasons).toContainEqual({ kind: 'saga', label: 'Start of Dune' });
+    expect(first?.reasons.some((r) => r.kind === 'added')).toBe(false);
+    expect(ranked.some((r) => r.movie.id === p2.id)).toBe(false);
+    // Only the first part comes along: other old movies stay out.
+    expect(ranked.some((r) => r.movie.id === oldie.id)).toBe(false);
+  });
+
+  it('is offered on the first question once three movies arrived lately', () => {
+    const movies = [arrived(1), arrived(2), arrived(3), ...Array.from({ length: 5 }, () => arrived(200))];
+    const res = wizardOptions(movies, 'genre', {}, { image, now: NOW });
+    expect(res.shelves).toEqual([expect.objectContaining({ id: 'new', label: 'Just arrived', count: 3 })]);
+    // The genre cards feature other movies than the shortcut does.
+    expect(res.options.map((o) => o.images[0])).not.toContain(res.shelves![0]!.images[0]);
+  });
+
+  it("isn't offered for fewer than three, or when most of the library just arrived", () => {
+    const few = [arrived(1), arrived(2), ...Array.from({ length: 5 }, () => arrived(200))];
+    expect(wizardOptions(few, 'genre', {}, { image, now: NOW }).shelves).toEqual([]);
+    // A library imported last week isn't news.
+    const fresh = [...Array.from({ length: 5 }, () => arrived(3)), ...Array.from({ length: 4 }, () => arrived(200))];
+    expect(wizardOptions(fresh, 'genre', {}, { image, now: NOW }).shelves).toEqual([]);
+    // Half of it is.
+    const half = [...Array.from({ length: 4 }, () => arrived(3)), ...Array.from({ length: 4 }, () => arrived(200))];
+    expect(wizardOptions(half, 'genre', {}, { image, now: NOW }).shelves).toHaveLength(1);
+  });
+});

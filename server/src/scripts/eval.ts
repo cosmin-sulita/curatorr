@@ -24,8 +24,10 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import {
+  JUST_ARRIVED,
   arrivalTime,
   isSurprise,
+  matchesShelf,
   qualityScore,
   rankMovies,
   surpriseOrder,
@@ -214,7 +216,7 @@ const rank = (p: Picking, c: Criteria, limit?: number) => {
 // Would it have suggested what the profile watched?
 // ---------------------------------------------------------------------------
 
-const FAMILIES = ['Surprise me', 'genre', 'genre + theme', 'genre + mood'] as const;
+const FAMILIES = ['Surprise me', 'genre', 'genre + theme', 'genre + mood', 'Just arrived'] as const;
 type Family = (typeof FAMILIES)[number];
 
 /** How one watch fared for one kind of question (averaged over the questions of that kind). */
@@ -237,11 +239,17 @@ interface Watch {
   results: Partial<Record<Family, Result>>;
 }
 
-/** The questions the wizard offered that evening that the watched movie answers. */
+/** The questions the wizard offered that evening that the watched movie answers, and its shortcuts. */
 function questions(p: Picking, m: Movie): { family: Family; c: Criteria }[] {
   const facet = { image: noImage, sagaStarters: p.ctx.sagas?.starters };
   const out: { family: Family; c: Criteria }[] = [{ family: 'Surprise me', c: {} }];
-  const genres = new Set(wizardOptions(p.eligible, 'genre', {}, facet).options.map((o) => o.id));
+  const first = wizardOptions(p.eligible, 'genre', {}, { ...facet, now: p.opts.now });
+  for (const shelf of first.shelves ?? []) {
+    if (shelf.id === JUST_ARRIVED.id && matchesShelf(m, shelf.id, p.opts.now)) {
+      out.push({ family: 'Just arrived', c: { shelf: shelf.id } });
+    }
+  }
+  const genres = new Set(first.options.map((o) => o.id));
   for (const genre of m.genres.filter((g) => genres.has(g))) {
     out.push({ family: 'genre', c: { genre } });
     const themes = wizardOptions(p.eligible, 'theme', { genre }, facet);

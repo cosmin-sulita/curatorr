@@ -443,6 +443,19 @@ export const TIME_OPTIONS: TimeOption[] = [
   { id: 'saga', label: 'Start a saga', description: 'Part 1 tonight, the rest another night', icon: 'Library', maxRuntime: null },
 ];
 
+/** A shortcut on the first question that goes straight to a pick instead of asking the questions. */
+export interface ShelfDef {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+}
+
+/** The movies that arrived in the library lately. */
+export const JUST_ARRIVED: ShelfDef = { id: 'new', label: 'Just arrived', icon: 'Sparkles', color: '#0f766e' };
+
+export const SHELVES: ShelfDef[] = [JUST_ARRIVED];
+
 /** Certifications allowed per Plex Home restriction profile (US, UK and DE ratings). */
 export const RESTRICTION_CERTS: Record<'little_kid' | 'older_kid' | 'teen', string[]> = {
   little_kid: ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'U', '0'],
@@ -459,3 +472,4 @@ export const themeById = new Map(THEMES.map((t) => [t.id, t]));
 export const moodById = new Map(MOODS.map((m) => [m.id, m]));
 export const genreById = new Map(GENRES.map((g) => [g.id, g]));
 export const timeById = new Map(TIME_OPTIONS.map((t) => [t.id, t]));
+export const shelfById = new Map(SHELVES.map((s) => [s.id, s]));

@@ -92,6 +92,22 @@ describe('Surprise me', () => {
   });
 });
 
+describe('Just arrived', () => {
+  it('picks from what arrived lately, best first rather than shuffled', async () => {
+    const store = tempStore();
+    const ago = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    // Twelve new arrivals five points apart, listed best first, and an older movie rated above them all.
+    const fresh = Array.from({ length: 12 }, (_, i) =>
+      movie({ arrivedAt: ago(10), ratings: { rt: 98 - i * 5, imdb: null, tmdb: null, metacritic: null } }),
+    );
+    const old = movie({ arrivedAt: ago(90), ratings: { rt: 100, imdb: null, tmdb: null, metacritic: null } });
+    store.replaceMovies([...fresh, old], Date.now());
+    const row = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const { picks } = await recommendFor(store, row, { shelf: 'new' });
+    expect(picks.map((p) => p.movie.id)).toEqual(fresh.map((m) => m.id));
+  });
+});
+
 describe('looking up Plex ids for picks', () => {
   /** A Plex server answering with `handler`, and how many requests it got. */
   async function plexServer(handler: RequestListener) {

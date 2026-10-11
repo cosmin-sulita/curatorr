@@ -197,10 +197,12 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
 }
 
 export function optionsFor(store: Store, row: ProfileRow, step: WizardStep, criteria: Criteria): WizardOptionsResponse {
-  const { ctx, eligible } = picking(profileData(store, row), Date.now());
+  const now = Date.now();
+  const { ctx, eligible } = picking(profileData(store, row), now);
   return wizardOptions(eligible, step, criteria, {
     image: (m, kind) => (kind === 'fanart' ? (m.fanartUrl ?? m.posterUrl) : (m.posterUrl ?? m.fanartUrl)),
     sagaStarters: ctx.sagas?.starters,
+    now,
   });
 }
 

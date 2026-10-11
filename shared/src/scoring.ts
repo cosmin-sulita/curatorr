@@ -1,5 +1,6 @@
 import {
   GENRES,
+  JUST_ARRIVED,
   MIN_OPTION_COUNT,
   MOODS,
   THEMES,
@@ -8,6 +9,7 @@ import {
   moodById,
   themeById,
   timeById,
+  type ShelfDef,
 } from './taxonomy.js';
 import { emptySagaState, type SagaState } from './sagas.js';
 import type {
@@ -344,6 +346,21 @@ function daysInLibrary(m: Movie, now: number): number | null {
   return at == null ? null : Math.max(0, (now - at) / DAY);
 }
 
+/** "Just arrived" offers the movies that arrived this recently. */
+export const JUST_ARRIVED_DAYS = 30;
+
+/** Whether the movie is among those "Just arrived" offers at `now`. */
+export function arrivedLately(m: Movie, now: number) {
+  const days = daysInLibrary(m, now);
+  return days != null && days <= JUST_ARRIVED_DAYS;
+}
+
+/** Whether the movie belongs on the shortcut's shelf; without one, every movie does. */
+export function matchesShelf(m: Movie, shelf: string | null | undefined, now: number) {
+  if (!shelf) return true;
+  return shelf === JUST_ARRIVED.id && arrivedLately(m, now);
+}
+
 /** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */
 export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
   let delta = 0;
@@ -388,9 +405,9 @@ export function topRanked(ranked: RankedMovie[], limit = MAX_RESULTS): RankedMov
 /** "Surprise me" deals this many of the best picks in a drawn order. */
 const SURPRISE_POOL = 10;
 
-/** "Surprise me" answers none of the questions. */
+/** "Surprise me" answers none of the questions, and isn't a shortcut. */
 export function isSurprise(c: Criteria) {
-  return !c.genre && !c.theme && !c.mood && !c.time;
+  return !c.genre && !c.theme && !c.mood && !c.time && !c.shelf;
 }
 
 /**
@@ -422,11 +439,15 @@ export function rankMovies(
 
   // "Start a saga" only offers first parts of sagas the profile hasn't started.
   const base = eligible.filter(
-    (m) => matchesGenre(m, c.genre) && matchesTime(m, c.time) && (!startingSaga || sagas.starters.has(m.id)),
+    (m) =>
+      matchesGenre(m, c.genre) &&
+      matchesTime(m, c.time) &&
+      matchesShelf(m, c.shelf, opts.now) &&
+      (!startingSaga || sagas.starters.has(m.id)),
   );
 
   // A matching sequel whose earlier part is unwatched brings in that part instead,
-  // as long as it fits the genre and time answers.
+  // as long as it fits the genre and time answers. On "Just arrived" it needn't be new itself.
   const startsFor = new Set<number>();
   if (!startingSaga) {
     const eligibleById = new Map(eligible.map((m) => [m.id, m]));
@@ -434,7 +455,8 @@ export function rankMovies(
     for (const parts of sagas.owned.values()) {
       for (const sequel of parts) {
         const first = eligibleById.get(sagas.blockedBy.get(sequel.id)?.id ?? -1);
-        if (!first || !matchesCriteria(sequel, c) || !matchesGenre(first, c.genre) || !matchesTime(first, c.time)) continue;
+        if (!first || !matchesCriteria(sequel, c) || !matchesShelf(sequel, c.shelf, opts.now)) continue;
+        if (!matchesGenre(first, c.genre) || !matchesTime(first, c.time)) continue;
         startsFor.add(first.id);
         if (!inBase.has(first.id)) {
           base.push(first);
@@ -489,7 +511,10 @@ export function rankMovies(
     const adj = personalAdjustment(m, signals, opts);
     score += adj.delta;
 
-    const personal = [...wantedReasons(adj), ...sagaReasons, ...addedReasons(adj)];
+    // On "Just arrived" every new arrival says when it came, also once its bonus no longer would.
+    const listedNew = c.shelf === JUST_ARRIVED.id && arrivedLately(m, opts.now);
+    const arrived = { addedDaysAgo: adj.addedDaysAgo ?? (listedNew ? daysInLibrary(m, opts.now) : null) };
+    const personal = [...wantedReasons(adj), ...sagaReasons, ...addedReasons(arrived)];
     tasteChipAt.set(m.id, personal.length);
     return {
       movie: m,
@@ -519,6 +544,8 @@ export interface FacetOptions {
   image: (m: Movie, kind: 'fanart' | 'poster') => string | null;
   /** First parts of sagas the profile hasn't started, for the "Start a saga" answer. */
   sagaStarters?: Set<number>;
+  /** The moment the first question's shortcuts are for. Without it, they're left out. */
+  now?: number;
 }
 
 function byQuality(a: Movie, b: Movie) {
@@ -546,6 +573,23 @@ function topImages(
   return out;
 }
 
+/** A shortcut's card on the first question, featuring the best of its movies. */
+function shelfOption(def: ShelfDef, movies: Movie[], opts: FacetOptions, used: Set<number>): WizardOption {
+  const { id, label, icon, color } = def;
+  return { id, label, icon, color, count: movies.length, images: topImages(movies, 'fanart', 1, opts, used) };
+}
+
+/** The first question's shortcuts that have enough movies behind them at `now`. */
+function shelfOptions(pool: Movie[], now: number, opts: FacetOptions, used: Set<number>): WizardOption[] {
+  const out: WizardOption[] = [];
+  const fresh = pool.filter((m) => arrivedLately(m, now));
+  // A library imported last week isn't all news: only offered while it's at most half of what's left to watch.
+  if (fresh.length >= MIN_OPTION_COUNT && fresh.length <= pool.length / 2) {
+    out.push(shelfOption(JUST_ARRIVED, fresh, opts, used));
+  }
+  return out;
+}
+
 /** Movies matching every answer given before `step`. */
 export function candidatesBefore(eligible: Movie[], step: WizardStep, c: Criteria): Movie[] {
   return eligible.filter((m) => {
@@ -567,9 +611,12 @@ export function wizardOptions(
   const pool = candidatesBefore(eligible, step, c);
   const total = pool.length;
   let options: WizardOption[] = [];
+  let shelves: WizardOption[] | undefined;
 
   if (step === 'genre') {
     const used = new Set<number>();
+    // The shortcuts come first on screen, so they get the first pick of images.
+    if (opts.now != null) shelves = shelfOptions(pool, opts.now, opts, used);
     const counted = GENRES.map((g) => ({ g, movies: pool.filter((m) => m.genres.includes(g.id)) }))
       .filter(({ movies }) => movies.length >= MIN_OPTION_COUNT)
       .sort((a, b) => b.movies.length - a.movies.length);
@@ -631,5 +678,5 @@ export function wizardOptions(
   const minChoices = step === 'time' ? 1 : 2;
   const skip = step !== 'genre' && (total <= MIN_OPTION_COUNT || narrowing.length < minChoices);
 
-  return { step, total, options, skip };
+  return shelves ? { step, total, options, skip, shelves } : { step, total, options, skip };
 }

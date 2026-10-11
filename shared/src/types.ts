@@ -84,6 +84,8 @@ export interface Criteria {
   theme?: string | null;
   mood?: string | null;
   time?: string | null;
+  /** A shortcut on the first question instead of the answers: what just arrived, or the season's movies. */
+  shelf?: string | null;
 }
 
 export type WizardStep = 'genre' | 'theme' | 'mood' | 'time';
@@ -106,6 +108,8 @@ export interface WizardOptionsResponse {
   options: WizardOption[];
   /** True when the step would not narrow anything down and should be skipped. */
   skip: boolean;
+  /** The first question's shortcuts, which go straight to a pick. */
+  shelves?: WizardOption[];
 }
 
 export interface Reason {

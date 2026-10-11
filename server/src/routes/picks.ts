@@ -1,4 +1,4 @@
-import { STEP_ORDER, type Criteria } from '@curatorr/shared';
+import { STEP_ORDER, shelfById, type Criteria } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
@@ -11,7 +11,14 @@ const optional = z
   .optional()
   .transform((v) => (v && v !== 'any' ? v : null));
 
-const criteriaSchema = z.object({ genre: optional, theme: optional, mood: optional, time: optional });
+/** A shortcut from the first question: one Curatorr knows, or none. */
+const shelf = z
+  .string()
+  .optional()
+  .refine((v) => !v || shelfById.has(v), 'unknown shortcut')
+  .transform((v) => v || null);
+
+const criteriaSchema = z.object({ genre: optional, theme: optional, mood: optional, time: optional, shelf });
 /** "Something like…": the movie the picks should resemble. */
 const likeSchema = z.object({ like: z.coerce.number().int().positive().optional() });
 
