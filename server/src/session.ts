@@ -75,6 +75,8 @@ export function currentProfile(req: FastifyRequest, store: Store): ProfileRow | 
   // A Plex user whose tokens Plex stopped accepting would silently stop syncing: picking the
   // profile again links it anew (with the PIN, if it has one), as it did the first time.
   if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) return null;
+  // A PIN added in Plex since this device picked the profile: it asks, as for a new device.
+  if (pinNeededHere(req, store, row)) return null;
   return row;
 }
 
@@ -107,8 +109,9 @@ function togetherIds(req: FastifyRequest): number[] {
 }
 
 /**
- * This device's profile, then whoever is watching with it tonight. Members who were removed, hidden or
- * whose Plex sign-in stopped working drop out, which leaves the profile on its own.
+ * This device's profile, then whoever is watching with it tonight. Members who were removed, hidden,
+ * whose Plex sign-in stopped working or who got a PIN this device hasn't entered drop out, which leaves
+ * the profile on its own.
  */
 export function currentGroup(req: FastifyRequest, store: Store): ProfileRow[] {
   const profile = currentProfile(req, store);
@@ -116,6 +119,7 @@ export function currentGroup(req: FastifyRequest, store: Store): ProfileRow[] {
   const others = togetherIds(req).flatMap((id) => {
     const row = id === profile.id ? undefined : store.profileRow(id);
     if (!row || row.hidden || (store.plexConfigured() && row.plex_user_id != null && !row.server_token)) return [];
+    if (pinNeededHere(req, store, row)) return [];
     return [row];
   });
   return [profile, ...others];

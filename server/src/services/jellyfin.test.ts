@@ -422,6 +422,21 @@ describe('Curatorr with Jellyfin, over the API', () => {
     fake.state.usersStatus = 200;
   });
 
+  it("takes settings away from an administrator Jellyfin demoted, at the next library sync", async () => {
+    const mum: FakeUser = { id: '4'.repeat(32), name: 'Mum', password: 'mum-pass', admin: true, libraries: ['lib-movies'] };
+    fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, mum];
+    await post(app, '/api/setup/jellyfin/users', {}, admin);
+    const signedIn = cookiesOf(await post(app, '/api/jellyfin/login', { username: 'Mum', password: 'mum-pass' }));
+    expect((await settings(signedIn)).statusCode).toBe(200);
+
+    fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, { ...mum, admin: false }];
+    await library.run();
+    expect((await settings(signedIn)).statusCode).toBe(403);
+    fake.state.users = [DAD_USER, KID_USER, RETIRED_USER];
+    await library.run();
+    expect(store.profileRows(true).map((p) => p.name)).toEqual(['Dad', 'Kid']);
+  });
+
   it("lets any Jellyfin administrator sign in to settings, without replacing Curatorr's own sign-in", async () => {
     const { token, deviceId } = store.get('jellyfin')!;
     const logouts = fake.state.logouts.length;

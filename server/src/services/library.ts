@@ -4,6 +4,7 @@ import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js
 import { JellyfinClient } from '../integrations/jellyfin.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
+import { refreshProfiles } from './mediaServer.js';
 import { syncRequests } from './requests.js';
 
 interface Ids {
@@ -113,6 +114,8 @@ export class LibrarySync {
       this.store.replaceMovies(movies, startedAt);
       this.store.set('sync', { at: startedAt, movies: movies.length, matched, error: null });
       this.log.info({ movies: movies.length, matched, ms: Date.now() - startedAt }, 'library synced');
+      // A PIN, a parental limit or an administrator's rights may have changed on the media server since.
+      await refreshProfiles(this.store, this.log).catch((err) => this.log.warn({ err }, 'could not refresh profiles'));
       // Requested movies only show up once they're in the library, so read requests after it.
       await syncRequests(this.store, this.log);
     } catch (err) {

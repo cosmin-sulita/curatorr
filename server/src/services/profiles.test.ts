@@ -29,6 +29,8 @@ describe('Plex Home profiles', () => {
   let switches = 0;
   /** Server tokens the Plex server no longer accepts. */
   const revoked = new Set<string>();
+  /** What Plex Home says about the Kid; changed in Plex after setup by some tests. */
+  let kidInPlex: Record<string, unknown> = {};
   const cleanups: (() => Promise<void>)[] = [];
 
   beforeAll(async () => {
@@ -45,7 +47,7 @@ describe('Plex Home profiles', () => {
           users: [
             { id: OWNER, title: 'Owner', admin: true },
             { id: MEMBER, title: 'Member', protected: true },
-            { id: KID, title: 'Kid' },
+            { id: KID, title: 'Kid', ...kidInPlex },
           ],
         });
       }
@@ -62,6 +64,8 @@ describe('Plex Home profiles', () => {
       }
       // Plex Discover and the Plex Media Server, read when a profile is picked.
       if (url.pathname === '/library/sections/watchlist/all') return json(200, { MediaContainer: { totalSize: 0 } });
+      // Radarr, for a library sync.
+      if (url.pathname === '/api/v3/movie' || url.pathname === '/api/v3/collection') return json(200, []);
       if (url.pathname === '/library/sections/1/all') {
         const token = req.headers['x-plex-token'] as string;
         return revoked.has(token) ? json(401, {}) : json(200, { MediaContainer: { Metadata: [] } });
@@ -78,6 +82,7 @@ describe('Plex Home profiles', () => {
     homeUsersStatus = 200;
     pins = { [MEMBER]: '1234' };
     revoked.clear();
+    kidInPlex = {};
     for (const cleanup of cleanups.splice(0)) await cleanup();
   });
 
@@ -104,8 +109,9 @@ describe('Plex Home profiles', () => {
       serverUrl: base,
       sectionIds: ['1'],
     });
+    store.set('radarr', { url: base, apiKey: 'radarr-key' });
     store.set('setupComplete', true);
-    return { app, store };
+    return { app, store, library: ctx.library };
   }
 
   const names = (store: Store) => store.profileRows(true).map((p) => p.name);
@@ -166,6 +172,18 @@ describe('Plex Home profiles', () => {
     expect((await select(app, kid, { cookie })).statusCode).toBe(200);
     expect(store.profileRow(kid)!.server_token).not.toBeNull();
     expect((await status()).profile).toMatchObject({ name: 'Kid' });
+  });
+
+  it('picks up a PIN or a restriction added in Plex at the next library sync', async () => {
+    const { app, store, library } = await plexInstance();
+    await importHomeUsers(store, silent);
+    const kid = idOf(store, 'Kid');
+
+    kidInPlex = { protected: true, restricted: true, restrictionProfile: 'little_kid' };
+    pins[KID] = '4321';
+    await library.run();
+    expect(store.profileRow(kid)).toMatchObject({ pin_protected: 1, restriction_profile: 'little_kid' });
+    expect((await select(app, kid)).json()).toMatchObject({ needPin: true });
   });
 
   describe('a PIN-protected profile', () => {
@@ -237,6 +255,24 @@ describe('Plex Home profiles', () => {
       expect(status.together.map((p: { name: string }) => p.name)).toEqual(['Member']);
       // Remembered on this device, as for picking the profile alone.
       expect((await together({ ids: [owner, member] }, cookiesOf(phone))).statusCode).toBe(200);
+    });
+
+    it('asks again on a device that picked the profile before it had a PIN', async () => {
+      const { app, store, library } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const kid = idOf(store, 'Kid');
+      const tablet = cookiesOf(await select(app, kid));
+      const wizard = () => app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie: tablet } });
+      expect((await wizard()).statusCode).toBe(200);
+
+      kidInPlex = { protected: true };
+      pins[KID] = '4321';
+      await library.run();
+      expect((await wizard()).json()).toMatchObject({ needProfile: true });
+      const unlocked = await select(app, kid, { pin: '4321', cookie: tablet });
+      expect(unlocked.statusCode).toBe(200);
+      const both = [tablet, cookiesOf(unlocked)].filter(Boolean).join('; ');
+      expect((await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie: both } })).statusCode).toBe(200);
     });
 
     it('pauses PIN entry after five wrong tries in a row, without asking plex.tv', async () => {

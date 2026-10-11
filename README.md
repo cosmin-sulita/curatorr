@@ -17,7 +17,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 ## Features
 
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
-- **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions carry over, and with Jellyfin, so does which libraries each person can open.
+- **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions and Plex PINs carry over, and with Jellyfin, so does which libraries each person can open. Changes made there apply at the next library sync.
 - **Watching together.** Tap **Watching together** on Who's watching? and tick two or more people for one pick that none of you has seen. It keeps to everyone's parental limits and blends your tastes, so nobody gets their least favourite. The group lasts the evening.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get one of the ten best picks, drawn again each evening.
 - **Just arrived.** A tile on the first question goes straight to the best of what arrived in your library this past month, each pick saying when it came.
@@ -155,6 +155,7 @@ Everything is set in the web UI. A few environment variables exist for special c
 ## Troubleshooting
 
 - **A movie never comes up.** It has to be downloaded in Radarr and, with Plex or Jellyfin, found in one of the libraries you picked. It's left out for anyone who watched it there (unless Settings → Include movies already watched is on), marked it "Seen it" or "Never", or isn't allowed it by their parental restrictions (with Jellyfin, also by which libraries they can open). With Radarr's webhook (step 4 of the install), new downloads show up a couple of minutes after Radarr imports them, once Plex or Jellyfin has added them too. Without it they show up after the next sync, or straight away with Settings → Sync now.
+- **A new PIN or parental limit doesn't apply yet.** Curatorr reads them from Plex or Jellyfin at each library sync, or straight away with Settings → Refresh profiles. A device that picked the profile before it had a PIN asks for it then.
 - **Watch on Plex opens the Plex app, but not the movie.** Links on phones need the movie's library to use the **Plex Movie** agent. Libraries on an older agent get a link that the redesigned Plex apps ignore.
 - **Watch on Jellyfin goes to the wrong address.** It uses the address Curatorr reaches Jellyfin at, unless you enter the one people open it at: Settings → Jellyfin → Change connection or libraries.
 - **Settings ask you to sign in.** Only the Plex account that owns the server, or with Jellyfin one of its administrators, can change settings, so sign in with that one.

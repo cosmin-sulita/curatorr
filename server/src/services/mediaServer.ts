@@ -1,8 +1,8 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
-import { applyToJellyfin, revertInJellyfin, syncJellyfinState } from './jellyfin.js';
+import { applyToJellyfin, importJellyfinUsers, revertInJellyfin, syncJellyfinState } from './jellyfin.js';
 import { applyToPlex, revertInPlex } from './plexSync.js';
-import { syncPlexState } from './profiles.js';
+import { importHomeUsers, syncPlexState } from './profiles.js';
 
 /**
  * What happened on the media server after a mark:
@@ -17,6 +17,16 @@ export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
 export type ServerMark = 'seen' | 'later';
 
 export const isServerMark = (kind: string): kind is ServerMark => kind === 'seen' || kind === 'later';
+
+/**
+ * Reads the media server's users again: who has a PIN, their parental limits, who is an administrator.
+ * A read that fails changes nobody's profile.
+ */
+export async function refreshProfiles(store: Store, log: FastifyBaseLogger) {
+  const server = store.mediaServer();
+  if (server === 'plex' && store.plexConfigured()) await importHomeUsers(store, log);
+  if (server === 'jellyfin') await importJellyfinUsers(store);
+}
 
 /** Refreshes a profile's watch history and watchlist from the media server, if they are stale. */
 export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
