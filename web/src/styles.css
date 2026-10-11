@@ -25,6 +25,8 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     font-stretch: 100%;
+    /* Desktop scrollbars take up width: keep room for one on every screen, so short and long screens line up. */
+    scrollbar-gutter: stable;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;

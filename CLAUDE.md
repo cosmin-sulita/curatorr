@@ -99,6 +99,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Stacking:** Shell's `<main>` is a stacking context below the header. Fixed overlays (dialogs, the PIN pad, `BottomBar`) must render outside `<Shell>`, as `Settings.tsx`, `Profiles.tsx`, `Pick.tsx` and `Wizard.tsx` do.
 - **Decided with the maintainer; keep these unless asked:**
   - The header uses `pt-safe` (safe area + 1rem) to clear the iOS status-bar blur.
+  - On desktop the header keeps one width (`max-w-6xl`) on every screen, so the logo never moves. Shell's `wide` only widens `<main>`, for the pick. `html` reserves the scrollbar's gutter (`scrollbar-gutter: stable`), so screens with and without a scrollbar line up.
   - On phones, actions sit in a sticky `BottomBar`: Watch on Plex (or Jellyfin) plus Not tonight / Watchlist / Seen it / Never on the pick screen, and the "no preference" answer in the wizard. Swiping the poster left means Not tonight.
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`watchLink` in `web/src/lib/format.ts`). Desktop opens Plex Web. "Watch on Jellyfin" opens Jellyfin's web app everywhere: its apps take no links.
@@ -113,6 +114,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 Build, run the demo server, and drive it with Playwright at 390×844 (`isMobile`, `hasTouch`, with an iPhone user agent so the phone paths run) and at 1440×900.
 - **What's new:** set `localStorage['curatorr:lastSeenVersion']` to the current version to keep the popup out of the way.
 - **Safe areas:** headless browsers report zero safe-area insets. To see real iPhone spacing, override `.pt-safe` and `.pb-safe` with about 59px top and 34px bottom.
+- **Scrollbars:** Playwright's headless Chromium hides scrollbars (`--hide-scrollbars`), so a layout shift caused by a desktop scrollbar doesn't show. Launch with `ignoreDefaultArgs: ['--hide-scrollbars']` to see it.
 - **Stubbing requests:** once the service worker controls the page, `page.route` no longer sees `/api` requests. Use `context.route`, or create the context with `serviceWorkers: 'block'`.
 - **Installed app:** headless browsers run as a browser tab. An init script that defines `navigator.standalone` as true makes the page act as the installed app (no install tip). Dispatch a synthetic `beforeinstallprompt` to see the Android tip.
 - **README screenshots:** `docs/screenshots/*.webp` show the demo as the installed app (Alex) at 390×844, device scale 2, converted with `sharp`. Retake them when those screens change.

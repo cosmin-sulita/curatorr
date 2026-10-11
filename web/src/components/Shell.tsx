@@ -16,7 +16,10 @@ export function Wordmark({ className }: { className?: string }) {
   );
 }
 
-/** Top bar with the logo, the active profile and (for the owner) settings. */
+/**
+ * Top bar with the logo, the active profile and (for the owner) settings. The bar has the same width on every
+ * screen, so the logo never moves; `wide` only widens the page below it.
+ */
 export function Shell({ children, wide = false, bare = false }: { children: ReactNode; wide?: boolean; bare?: boolean }) {
   const { data: status } = useStatus();
   const profile = status?.profile;
@@ -25,12 +28,7 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
   return (
     // Nothing may widen the page sideways: phones zoom the whole screen out to fit it.
     <div className="min-h-dvh overflow-x-clip">
-      <header
-        className={clsx(
-          'relative z-20 mx-auto flex items-center justify-between px-4 pt-safe pb-3 sm:px-6',
-          wide ? 'max-w-6xl' : 'max-w-3xl',
-        )}
-      >
+      <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-4 pt-safe pb-3 sm:px-6">
         <Link to="/" aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
           <Wordmark />
         </Link>
