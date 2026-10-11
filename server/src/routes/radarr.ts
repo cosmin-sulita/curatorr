@@ -14,10 +14,10 @@ function sameToken(given: string, expected: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** What Curatorr reads of Radarr's webhook payload; the rest is left out. */
+/** What Curatorr reads of Radarr's webhook payload; the rest is left out. Health checks name no movie. */
 const webhookSchema = z.object({
   eventType: z.string().max(100),
-  movie: z.object({ title: z.string().optional() }).optional(),
+  movie: z.object({ title: z.string().nullish() }).nullish(),
 });
 
 export const radarrRoutes: RouteModule = (app, { store, library }) => {

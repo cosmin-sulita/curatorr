@@ -61,6 +61,16 @@ describe("Radarr's webhook", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('takes events without a movie, as Radarr sends for its health checks', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/radarr/webhook?token=${encodeURIComponent(ctx.store.get('radarrWebhook').token)}`,
+      payload: { eventType: 'Health', movie: null, level: 'warning', message: 'Indexers unavailable', type: 'IndexerStatusCheck' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(ctx.store.get('radarrWebhook')).toMatchObject({ event: 'Health', title: null });
+  });
+
   it('stops answering to the old address once a new one is made', async () => {
     const old = ctx.store.get('radarrWebhook').token;
     // Nobody has connected Plex or Jellyfin, so everyone may change the settings.
