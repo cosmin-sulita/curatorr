@@ -268,7 +268,7 @@ export function likeSeeds(store: Store, row: ProfileRow, q = ''): LikeSeed[] {
     .flatMap((m) => {
       const title = fold(m.title);
       if (!title.includes(query)) return [];
-      return [{ m, watched: watchedAt.has(m.id), prefix: title.startsWith(query), quality: qualityScore(m.ratings).value }];
+      return [{ m, watched: watchedAt.has(m.id), prefix: title.startsWith(query), quality: qualityScore(m.ratings) }];
     })
     .sort(
       (a, b) =>

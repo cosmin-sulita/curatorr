@@ -282,7 +282,7 @@ function replay(profileId: number): Watch[] {
       const exact = rank(p, c, Infinity).filter((r) => r.tier === 0);
       const n = exact.length;
       const pos = exact.findIndex((r) => r.movie.id === m.id);
-      const rated = [...exact].sort((a, b) => qualityScore(b.movie.ratings).value - qualityScore(a.movie.ratings).value);
+      const rated = [...exact].sort((a, b) => qualityScore(b.movie.ratings) - qualityScore(a.movie.ratings));
       const posRated = rated.findIndex((r) => r.movie.id === m.id);
       const result: Result =
         pos < 0
@@ -391,13 +391,13 @@ function tonight(profileId: number) {
     if (!top) continue;
     weight += path.weight;
     const sameTier = ranked.filter((r) => r.tier === top.tier);
-    const best = Math.max(...sameTier.map((r) => qualityScore(r.movie.ratings).value));
-    if (qualityScore(top.movie.ratings).value >= best) bestRated += path.weight;
+    const best = Math.max(...sameTier.map((r) => qualityScore(r.movie.ratings)));
+    if (qualityScore(top.movie.ratings) >= best) bestRated += path.weight;
     if (top.reasons.some((r: RankedMovie['reasons'][number]) => !['genre', 'theme', 'mood', 'time', 'rating'].includes(r.kind))) {
       personalChip += path.weight;
     }
     if (ranked.filter((r) => r.tier === 0).length < 6) padded += path.weight;
-    if (qualityScore(top.movie.ratings).value < 60) poor += path.weight;
+    if (qualityScore(top.movie.ratings) < 60) poor += path.weight;
     for (const s of path.skipped) skipped.set(s, (skipped.get(s) ?? 0) + path.weight);
     firstWeight.set(top.movie.id, (firstWeight.get(top.movie.id) ?? 0) + path.weight);
     ranked.slice(0, 3).forEach((r) => inTop3.add(r.movie.id));

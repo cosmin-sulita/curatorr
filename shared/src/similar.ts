@@ -147,7 +147,7 @@ export function rankSimilar(
     };
     const quality = qualityScore(m.ratings);
     const adj = personalAdjustment(m, signals, opts);
-    let score = SIMILARITY_POINTS * sim + QUALITY_SHARE * quality.value + adj.delta;
+    let score = SIMILARITY_POINTS * sim + QUALITY_SHARE * quality + adj.delta;
 
     const sagaReasons: Reason[] = [];
     if (sagas.next.has(m.id) && m.saga) {
@@ -160,8 +160,7 @@ export function rankSimilar(
     return {
       movie: m,
       score: Math.round(score * 10) / 10,
-      quality: quality.value,
-      qualitySource: quality.source,
+      quality,
       tier: strong ? 0 : 1,
       reasons: [
         ...wantedReasons(adj),

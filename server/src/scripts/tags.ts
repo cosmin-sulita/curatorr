@@ -73,7 +73,7 @@ const label = (id: string) => themeById.get(id)?.label ?? moodById.get(id)?.labe
 const name = (m: StoredMovie) => (m.year ? `${m.title} (${m.year})` : m.title);
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 const percent = (n: number) => `${Math.round((n / Math.max(rows.length, 1)) * 100)}%`;
-const byQuality = (a: Row, b: Row) => qualityScore(b.movie.ratings).value - qualityScore(a.movie.ratings).value;
+const byQuality = (a: Row, b: Row) => qualityScore(b.movie.ratings) - qualityScore(a.movie.ratings);
 const byCount = (a: [string, number], b: [string, number]) => b[1] - a[1] || a[0].localeCompare(b[0]);
 const summary = (m: StoredMovie) => `${name(m)} · ${m.genres.join(', ') || 'no genres'} · ${m.keywords.length} keywords`;
 /** Lowercase without accents, so "amelie" finds "Amélie". */

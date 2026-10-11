@@ -10,7 +10,7 @@
 
 <p align="center"><b>What should we watch tonight?</b><br>A few quick questions, then the best movie you already own.</p>
 
-Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh the Rotten Tomatoes score with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
+Curatorr asks a few quick questions (genre, theme, mood, how much time you have) and then suggests the best movie *you already own*, using your Radarr library. Picks weigh what critics and audiences thought of each movie with what just arrived and what each person tends to watch. Turn one down and the next is already waiting.
 
 It's a self-hosted, installable PWA built for the *arr stack, with a look borrowed from Seerr.
 
@@ -20,7 +20,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 - **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions carry over, and with Jellyfin, so does which libraries each person can open.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library, and skips questions that wouldn't narrow anything down. Or tap **Surprise me** to skip the questions and get one of the ten best picks, drawn again each evening.
 - **Something like…** Start from a movie you loved (what you watched lately is listed first, or search the library) and get the unwatched movies that share the most keywords and themes with it.
-- **Ranked by the Tomatometer, and by you.** IMDb and TMDB scores stand in when there's no RT score. Movies that just arrived rank higher for a few weeks, and each person's picks lean toward what they watched lately, saying "Because you watched …" when that made the difference.
+- **Ranked by critics, audiences and you.** The Rotten Tomatoes critics' score counts as much as the IMDb audience rating, so a crowd-pleaser the critics panned still gets its chance. Movies that just arrived rank higher for a few weeks, and each person's picks lean toward what they watched lately, saying "Because you watched …" when that made the difference.
 - **Not tonight / Watchlist / Seen it / Never.** Swipe or tap, and undo any of them. "Not tonight" lowers a movie for two weeks, and longer each time you pass on it again. "Watchlist" saves it and ranks it higher next time. "Seen it" and "Never" hide it until you restore it in Settings. A pick you're shown but don't play slips a little each evening, so the same few movies don't come back every night.
 - **Sagas in order.** A sequel only comes up once its earlier part is watched; until then Curatorr suggests part 1 instead. Once a saga is started, the next part ranks higher. On a long night, "Start a saga" suggests part 1 of the best collections you haven't started. Only parts you own count, and big franchises (over 10 films, like James Bond) count as standalone movies.
 - **Stays in sync with Plex or Jellyfin.** "Seen it" marks the movie watched for that person, and "Watchlist" adds it to their Plex Watchlist or their Jellyfin favourites. Undo puts things back. Movies on someone's Plex Watchlist or in their Jellyfin favourites, even ones added in another app, rank higher for them. The server owner can turn this off in Settings.
@@ -115,7 +115,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 
 1. **Eligible movies**: downloaded in Radarr, found in Plex or Jellyfin (with Jellyfin, in a library this person can open), not watched by this profile, not marked "Seen it"/"Never", and allowed by the profile's parental restrictions.
 2. **Tags**: each movie gets *themes* (Superheroes, Heists & Cons, Time Travel, Prison & Escape, Family Ties… 43 in all) and *moods* (Light & Fun, Feel-Good, Edge of Your Seat, Dark & Heavy, Mind-Bending, Something Epic, Moving). They come from its genres and TMDB keywords, with the plot as a fallback when keywords are sparse or match nothing. Generic keywords (*army*, *computer*) and TMDB's tone words (*amused*, *hopeful*) only back up a stronger signal, and idioms don't count, in keywords or in the plot (*cat and mouse* isn't about cats, and *haunted by his past* isn't a ghost story). Tags are refreshed on every sync and whenever Curatorr starts. The vocabulary lives in [`shared/src/taxonomy.ts`](shared/src/taxonomy.ts).
-3. **Score**: Rotten Tomatoes % (IMDb ×10 − 5 or TMDB ×10 − 8 when RT is missing), then:
+3. **Score**: half the Rotten Tomatoes critics' score, half the IMDb audience rating as a percentage: (IMDb − 3) × 20, so 7.0 counts as 80% (TMDB's rating less 0.3 stands in when there's no IMDb one). A missing score counts as 50. Then:
    - up to + 8 for how strongly the theme/mood matches;
    - up to ± 12 for taste (see below);
    - up to + 12 for a movie that just arrived in the library, fading over a few weeks. It counts from when the file arrived, so a movie requested before its release is new when it lands. A movie only someone else requested doesn't get it;

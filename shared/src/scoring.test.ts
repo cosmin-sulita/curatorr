@@ -60,14 +60,18 @@ const rank = (movies: Movie[], c = {}, feedback: FeedbackEvent[] = []) =>
   rankMovies(movies, c, feedback, { now: NOW, seed: 'test' });
 
 describe('qualityScore', () => {
-  it('prefers Rotten Tomatoes', () => {
-    expect(qualityScore({ ...noRatings, rt: 91, imdb: 6 })).toEqual({ value: 91, source: 'rt' });
+  it('averages what critics and audiences think', () => {
+    // IMDb 6.0 counts as 60%.
+    expect(qualityScore({ ...noRatings, rt: 91, imdb: 6 })).toBe(75.5);
+    // An audience score is a percentage, so it stops at 100.
+    expect(qualityScore({ ...noRatings, rt: 80, imdb: 9 })).toBe(90);
   });
 
-  it('falls back to IMDb, then TMDB, with a penalty', () => {
-    expect(qualityScore({ ...noRatings, imdb: 8 })).toEqual({ value: 75, source: 'imdb' });
-    expect(qualityScore({ ...noRatings, tmdb: 8 })).toEqual({ value: 72, source: 'tmdb' });
-    expect(qualityScore(noRatings)).toEqual({ value: 50, source: 'none' });
+  it('counts a missing score as 50, which keeps the old IMDb and TMDB fallbacks', () => {
+    expect(qualityScore({ ...noRatings, imdb: 8 })).toBe(75);
+    expect(qualityScore({ ...noRatings, tmdb: 8 })).toBeCloseTo(72, 9);
+    expect(qualityScore({ ...noRatings, rt: 90 })).toBe(70);
+    expect(qualityScore(noRatings)).toBe(50);
   });
 });
 
@@ -110,11 +114,18 @@ describe('eligibleMovies', () => {
 });
 
 describe('rankMovies', () => {
-  it('ranks by Rotten Tomatoes score', () => {
+  it('ranks by rating', () => {
     const low = movie({ ratings: { rt: 60 } });
     const high = movie({ ratings: { rt: 95 } });
     const mid = movie({ ratings: { rt: 80 } });
     expect(rank([low, high, mid]).map((r) => r.movie.id)).toEqual([high.id, mid.id, low.id]);
+  });
+
+  it('lets audiences lift a movie critics were cool on', () => {
+    // (60% + IMDb 7.7 as 94%) / 2 = 77 beats (97% + IMDb 5.4 as 48%) / 2 = 72.5.
+    const crowdPleaser = movie({ ratings: { rt: 60, imdb: 7.7 } });
+    const criticsDarling = movie({ ratings: { rt: 97, imdb: 5.4 } });
+    expect(rank([criticsDarling, crowdPleaser]).map((r) => r.movie.id)).toEqual([crowdPleaser.id, criticsDarling.id]);
   });
 
   it('penalises movies skipped recently', () => {
@@ -289,6 +300,11 @@ describe('rankMovies', () => {
     const labels = rank([m], { genre: 'Action', theme: 'heist' })[0]!.reasons.map((r) => r.label);
     expect(labels).toEqual(['Action', 'Heists & Cons', '92% on Rotten Tomatoes']);
   });
+
+  it('says when audiences rate a pick highly', () => {
+    const m = movie({ ratings: { rt: 60, imdb: 7.7 } });
+    expect(rank([m])[0]!.reasons).toContainEqual({ kind: 'rating', label: '7.7 on IMDb' });
+  });
 });
 
 describe('the daily shuffle', () => {
@@ -314,8 +330,8 @@ describe('the daily shuffle', () => {
 
 describe('Surprise me', () => {
   afterEach(() => vi.unstubAllEnvs());
-  // Far enough apart that the daily jitter can't reorder them, listed best first.
-  const library = Array.from({ length: 20 }, (_, i) => movie({ ratings: { rt: 99 - i * 4 } }));
+  // Four points apart, far enough that the daily jitter can't reorder them, listed best first.
+  const library = Array.from({ length: 20 }, (_, i) => movie({ ratings: { rt: 99 - i * 4, imdb: 8 - i / 5 } }));
   const best = library.map((m) => m.id);
   const surprise = (seed: string, iso = '2026-10-08T20:00:00Z') => {
     const opts = { now: Date.parse(iso), seed };
@@ -447,7 +463,8 @@ describe('sagas in picks', () => {
   });
 
   it('favours the next part of a started saga', () => {
-    const [p1, p2] = [part(53, 1, 2), part(53, 2, 2, { ratings: { rt: 80 } })];
+    // Critics and audiences both at 80%.
+    const [p1, p2] = [part(53, 1, 2), part(53, 2, 2, { ratings: { rt: 80, imdb: 7 } })];
     const sagas = sagaState([p1, p2], new Set([p1.id]));
     const [ranked] = rankMovies([p2], {}, [], opts(sagas));
     expect(ranked!.reasons[0]).toEqual({ kind: 'saga', label: 'Next in Back to the Future' });

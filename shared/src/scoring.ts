@@ -23,16 +23,30 @@ import type {
 } from './types.js';
 
 // ---------------------------------------------------------------------------
-// Quality: Rotten Tomatoes first, other sources as penalised fallbacks.
+// Quality: half what critics think, half what audiences think.
 // ---------------------------------------------------------------------------
 
-export type QualitySource = 'rt' | 'imdb' | 'tmdb' | 'none';
+/** A missing critics' or audience score counts as this, pulling a movie with only one toward the middle. */
+const MISSING_SCORE = 50;
 
-export function qualityScore(r: Ratings): { value: number; source: QualitySource } {
-  if (r.rt != null && r.rt > 0) return { value: r.rt, source: 'rt' };
-  if (r.imdb != null && r.imdb > 0) return { value: r.imdb * 10 - 5, source: 'imdb' };
-  if (r.tmdb != null && r.tmdb > 0) return { value: r.tmdb * 10 - 8, source: 'tmdb' };
-  return { value: 50, source: 'none' };
+/** An audience rating out of 10 as a percentage, roughly the share who liked it: 5.0 is 40%, 7.0 is 80%. */
+function audiencePercent(rating: number) {
+  return Math.min(100, Math.max(0, (rating - 3) * 20));
+}
+
+/**
+ * The Rotten Tomatoes critics' score averaged with the audience's IMDb rating (TMDB's, which runs
+ * about 0.3 higher, when there's none), so a crowd-pleaser the critics panned still gets its chance.
+ */
+export function qualityScore(r: Ratings): number {
+  const critics = r.rt != null && r.rt > 0 ? r.rt : MISSING_SCORE;
+  const audience =
+    r.imdb != null && r.imdb > 0
+      ? audiencePercent(r.imdb)
+      : r.tmdb != null && r.tmdb > 0
+        ? audiencePercent(r.tmdb - 0.3)
+        : MISSING_SCORE;
+  return (critics + audience) / 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +171,6 @@ export interface RankedMovie {
   movie: Movie;
   score: number;
   quality: number;
-  qualitySource: QualitySource;
   /** 0 = matches everything, 1 = matches theme or mood, 2 = genre/time only. */
   tier: number;
   reasons: Reason[];
@@ -187,7 +200,7 @@ export function tagStrength(score: number | undefined) {
   return Math.min(score ?? 0, TAG_SATURATION) / TAG_SATURATION;
 }
 
-function reasonsFor(m: Movie, c: Criteria, quality: { value: number; source: QualitySource }): Reason[] {
+function reasonsFor(m: Movie, c: Criteria): Reason[] {
   const reasons: Reason[] = [];
   if (c.genre && m.genres.includes(c.genre)) {
     reasons.push({ kind: 'genre', label: genreById.get(c.genre)?.label ?? c.genre });
@@ -202,10 +215,11 @@ function reasonsFor(m: Movie, c: Criteria, quality: { value: number; source: Qua
   if (time?.maxRuntime && m.runtime && m.runtime <= time.maxRuntime) {
     reasons.push({ kind: 'time', label: `Only ${formatRuntime(m.runtime)}` });
   }
-  if (quality.source === 'rt' && quality.value >= 75) {
-    reasons.push({ kind: 'rating', label: `${Math.round(m.ratings.rt!)}% on Rotten Tomatoes` });
-  } else if (quality.source === 'imdb' && m.ratings.imdb! >= 7.5) {
-    reasons.push({ kind: 'rating', label: `${m.ratings.imdb!.toFixed(1)} on IMDb` });
+  const { rt, imdb } = m.ratings;
+  if (rt != null && rt >= 75) {
+    reasons.push({ kind: 'rating', label: `${Math.round(rt)}% on Rotten Tomatoes` });
+  } else if (imdb != null && imdb >= 7.5) {
+    reasons.push({ kind: 'rating', label: `${imdb.toFixed(1)} on IMDb` });
   }
   return reasons;
 }
@@ -260,7 +274,7 @@ export function tastePoints(pool: Movie[], taste?: TasteProfile): Map<number, nu
 }
 
 function sagaTotals(parts: Movie[]) {
-  const quality = parts.reduce((sum, m) => sum + qualityScore(m.ratings).value, 0) / parts.length;
+  const quality = parts.reduce((sum, m) => sum + qualityScore(m.ratings), 0) / parts.length;
   const runtime = parts.reduce((sum, m) => sum + (m.runtime ?? 0), 0);
   return { quality, runtime };
 }
@@ -446,7 +460,7 @@ export function rankMovies(
   const ranked = base.map((m): RankedMovie => {
     const quality = qualityScore(m.ratings);
     const sagaReasons: Reason[] = [];
-    let score = quality.value;
+    let score = quality;
 
     const parts = m.saga ? sagas.owned.get(m.saga.id) : undefined;
     if (startingSaga && parts && m.saga) {
@@ -480,10 +494,9 @@ export function rankMovies(
     return {
       movie: m,
       score: Math.round(score * 10) / 10,
-      quality: quality.value,
-      qualitySource: quality.source,
+      quality,
       tier: tierOf(m),
-      reasons: [...personal, ...reasonsFor(m, c, quality)],
+      reasons: [...personal, ...reasonsFor(m, c)],
     };
   });
 
@@ -509,7 +522,7 @@ export interface FacetOptions {
 }
 
 function byQuality(a: Movie, b: Movie) {
-  return qualityScore(b.ratings).value - qualityScore(a.ratings).value;
+  return qualityScore(b.ratings) - qualityScore(a.ratings);
 }
 
 function topImages(
