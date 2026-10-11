@@ -141,8 +141,8 @@ const RESTRICTIONS = new Set(['little_kid', 'older_kid', 'teen']);
 function toRestriction(user: any): RestrictionProfile {
   const value = user.restrictionProfile ?? user.restriction_profile;
   if (RESTRICTIONS.has(value)) return value;
-  // Restricted users without an explicit profile get the most cautious "teen" ceiling.
-  return bool(user.restricted) ? 'teen' : null;
+  // Custom restrictions (a rating limit or labels set by hand) aren't readable here: assume the strictest.
+  return bool(user.restricted) ? 'little_kid' : null;
 }
 
 export async function getHomeUsers(clientId: string, token: string): Promise<PlexHomeUser[]> {

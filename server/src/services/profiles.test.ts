@@ -174,6 +174,13 @@ describe('Plex Home profiles', () => {
     expect((await status()).profile).toMatchObject({ name: 'Kid' });
   });
 
+  it('gives a user with custom Plex restrictions the strictest limit, since Curatorr can\'t read them', async () => {
+    const { store } = await plexInstance();
+    kidInPlex = { restricted: true, restrictionProfile: '' };
+    await importHomeUsers(store, silent);
+    expect(store.profileRow(idOf(store, 'Kid'))!.restriction_profile).toBe('little_kid');
+  });
+
   it('picks up a PIN or a restriction added in Plex at the next library sync', async () => {
     const { app, store, library } = await plexInstance();
     await importHomeUsers(store, silent);
