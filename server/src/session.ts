@@ -1,3 +1,4 @@
+import { dayStart } from '@curatorr/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { HttpError } from './http.js';
 import type { ProfileRow, Store } from './store.js';
@@ -6,6 +7,8 @@ const PROFILE_COOKIE = 'curatorr_profile';
 const ADMIN_COOKIE = 'curatorr_admin';
 /** PIN-protected profiles whose PIN was entered on this device. */
 const UNLOCKED_COOKIE = 'curatorr_unlocked';
+/** The others watching with this device's profile tonight, and when the group ends. */
+const TOGETHER_COOKIE = 'curatorr_together';
 const YEAR_S = 365 * 24 * 60 * 60;
 const ADMIN_TTL_S = 30 * 24 * 60 * 60;
 
@@ -79,6 +82,49 @@ export function requireProfile(req: FastifyRequest, store: Store): ProfileRow {
   const row = currentProfile(req, store);
   if (!row) throw new HttpError(401, 'Pick a profile first', { needProfile: true });
   return row;
+}
+
+/** A group watching together lasts the evening: until the 4 am turnover that also reshuffles the picks. */
+export function togetherUntil(now: number) {
+  // Thirty hours on is the next day whichever way the clocks change; its turnover is the one after tonight's.
+  return dayStart(dayStart(now) + 30 * 60 * 60 * 1000);
+}
+
+/** Starts watching together: `memberIds` join this device's profile until the evening is over. */
+export function setTogetherCookie(reply: FastifyReply, memberIds: number[], now = Date.now()) {
+  const until = togetherUntil(now);
+  reply.setCookie(TOGETHER_COOKIE, `${memberIds.join(',')}|${until}`, cookieOptions(Math.ceil((until - now) / 1000)));
+}
+
+export function clearTogetherCookie(reply: FastifyReply) {
+  reply.clearCookie(TOGETHER_COOKIE, { path: '/' });
+}
+
+function togetherIds(req: FastifyRequest): number[] {
+  const [ids, until] = readSigned(req, TOGETHER_COOKIE)?.split('|') ?? [];
+  if (!ids || !(Number(until) > Date.now())) return [];
+  return ids.split(',').map(Number).filter(Number.isInteger);
+}
+
+/**
+ * This device's profile, then whoever is watching with it tonight. Members who were removed, hidden or
+ * whose Plex sign-in stopped working drop out, which leaves the profile on its own.
+ */
+export function currentGroup(req: FastifyRequest, store: Store): ProfileRow[] {
+  const profile = currentProfile(req, store);
+  if (!profile) return [];
+  const others = togetherIds(req).flatMap((id) => {
+    const row = id === profile.id ? undefined : store.profileRow(id);
+    if (!row || row.hidden || (store.plexConfigured() && row.plex_user_id != null && !row.server_token)) return [];
+    return [row];
+  });
+  return [profile, ...others];
+}
+
+export function requireGroup(req: FastifyRequest, store: Store): ProfileRow[] {
+  const group = currentGroup(req, store);
+  if (!group.length) throw new HttpError(401, 'Pick a profile first', { needProfile: true });
+  return group;
 }
 
 /**

@@ -128,19 +128,31 @@ export function useHidden() {
   return useQuery({ queryKey: ['hidden'], queryFn: () => api<HiddenMovie[]>('/api/hidden') });
 }
 
+/** Everything below depends on who is watching. */
+function newViewers(qc: ReturnType<typeof useQueryClient>) {
+  qc.removeQueries({ queryKey: ['wizard'] });
+  qc.removeQueries({ queryKey: ['recommendations'] });
+  qc.removeQueries({ queryKey: ['like'] });
+  qc.removeQueries({ queryKey: ['hidden'] });
+  return qc.invalidateQueries({ queryKey: ['status'] });
+}
+
 export function useSelectProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, pin }: { id: number; pin?: string }) =>
       api<Profile>(`/api/profiles/${id}/select`, { json: pin ? { pin } : {} }),
-    onSuccess: () => {
-      // Everything below depends on who is watching.
-      qc.removeQueries({ queryKey: ['wizard'] });
-      qc.removeQueries({ queryKey: ['recommendations'] });
-      qc.removeQueries({ queryKey: ['like'] });
-      qc.removeQueries({ queryKey: ['hidden'] });
-      return qc.invalidateQueries({ queryKey: ['status'] });
-    },
+    onSuccess: () => newViewers(qc),
+  });
+}
+
+/** Watching together tonight. A protected profile answers 403 `needPin` with its `profileId`; retry with its PIN. */
+export function useSelectTogether() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, pin }: { ids: number[]; pin?: { id: number; pin: string } }) =>
+      api<Profile[]>('/api/profiles/together', { json: pin ? { ids, pin } : { ids } }),
+    onSuccess: () => newViewers(qc),
   });
 }
 

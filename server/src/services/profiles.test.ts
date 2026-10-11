@@ -220,6 +220,25 @@ describe('Plex Home profiles', () => {
       expect((await select(app, owner, { cookie: signedIn })).statusCode).toBe(200);
     });
 
+    it("asks for each protected member's PIN once when watching together", async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const [owner, member] = [idOf(store, 'Owner'), idOf(store, 'Member')];
+      const together = (payload: object, cookie = '') =>
+        app.inject({ method: 'POST', url: '/api/profiles/together', headers: { cookie }, payload });
+
+      expect((await together({ ids: [owner, member] })).json()).toMatchObject({ needPin: true, profileId: member });
+      const wrong = await together({ ids: [owner, member], pin: { id: member, pin: '9999' } });
+      expect(wrong.json()).toMatchObject({ error: 'Wrong PIN, try again', needPin: true, profileId: member });
+      const phone = await together({ ids: [owner, member], pin: { id: member, pin: '1234' } });
+      expect(phone.statusCode).toBe(200);
+      const status = (await app.inject({ method: 'GET', url: '/api/status', headers: { cookie: cookiesOf(phone) } })).json();
+      expect(status.profile).toMatchObject({ name: 'Owner' });
+      expect(status.together.map((p: { name: string }) => p.name)).toEqual(['Member']);
+      // Remembered on this device, as for picking the profile alone.
+      expect((await together({ ids: [owner, member] }, cookiesOf(phone))).statusCode).toBe(200);
+    });
+
     it('pauses PIN entry after five wrong tries in a row, without asking plex.tv', async () => {
       const { app, store } = await plexInstance();
       await importHomeUsers(store, silent);

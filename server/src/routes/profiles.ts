@@ -1,17 +1,50 @@
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parse, within, type RouteModule } from '../context.js';
 import { Guesses } from '../guesses.js';
 import { HttpError } from '../http.js';
 import { syncServerState } from '../services/mediaServer.js';
 import { linkProfile, verifyPin } from '../services/profiles.js';
-import { clearProfileCookie, pinNeededHere, rememberPin, requireAdmin, setProfileCookie } from '../session.js';
-import { toProfile } from '../store.js';
+import {
+  clearProfileCookie,
+  clearTogetherCookie,
+  currentProfile,
+  pinNeededHere,
+  rememberPin,
+  requireAdmin,
+  setProfileCookie,
+  setTogetherCookie,
+} from '../session.js';
+import { toProfile, type ProfileRow } from '../store.js';
 
 /** How long selecting a profile waits for its watch history before moving on. */
 const WATCHED_WAIT_MS = 8_000;
 
 export const profileRoutes: RouteModule = (app, { store }) => {
   const wrongPins = new Guesses();
+
+  /**
+   * Readies a profile on this device: a protected one needs its PIN once on each device, also after it's
+   * linked, and a Plex profile without a sign-in gets one. Five wrong PINs in a row pause PIN entry.
+   */
+  async function unlock(req: FastifyRequest, reply: FastifyReply, row: ProfileRow, pin?: string): Promise<ProfileRow> {
+    const wait = pin ? wrongPins.wait(row.id) : null;
+    if (wait) throw new HttpError(429, `Too many wrong PINs. Try again in ${wait}`, { needPin: true, profileId: row.id });
+    try {
+      if (pinNeededHere(req, store, row)) {
+        await verifyPin(store, row, pin);
+        rememberPin(req, reply, row.id);
+      }
+      if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
+        row = await linkProfile(store, row, pin);
+      }
+    } catch (err) {
+      if (pin && err instanceof HttpError && err.details?.needPin) wrongPins.miss(row.id);
+      throw err;
+    }
+    if (pin) wrongPins.hit(row.id);
+    return row;
+  }
 
   app.get('/api/profiles', async (req) =>
     store.profileRows().map((r) => ({ ...toProfile(r), locked: pinNeededHere(req, store, r) })),
@@ -21,29 +54,45 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
     const { pin } = parse(z.object({ pin: z.string().max(8).optional() }).default({}), req.body ?? {});
 
-    let row = store.profileRow(id);
-    if (!row || row.hidden) throw new HttpError(404, 'Profile not found');
-
-    const wait = pin ? wrongPins.wait(id) : null;
-    if (wait) throw new HttpError(429, `Too many wrong PINs. Try again in ${wait}`, { needPin: true });
-    try {
-      // A protected profile needs its PIN once on each device, also after it's linked.
-      if (pinNeededHere(req, store, row)) {
-        await verifyPin(store, row, pin);
-        rememberPin(req, reply, row.id);
-      }
-      if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
-        row = await linkProfile(store, row, pin);
-      }
-    } catch (err) {
-      if (pin && err instanceof HttpError && err.details?.needPin) wrongPins.miss(id);
-      throw err;
-    }
-    if (pin) wrongPins.hit(id);
+    const found = store.profileRow(id);
+    if (!found || found.hidden) throw new HttpError(404, 'Profile not found');
+    const row = await unlock(req, reply, found, pin);
 
     setProfileCookie(reply, row.id);
+    // One profile on its own ends watching together.
+    clearTogetherCookie(reply);
     await within(syncServerState(store, row, req.log), WATCHED_WAIT_MS);
     return toProfile(row);
+  });
+
+  /**
+   * Watching together: these profiles pick as one until the evening is over. Protected ones ask for their
+   * PIN once on each device, one at a time: the 403 says whose, and the next try brings it along.
+   */
+  app.post('/api/profiles/together', async (req, reply) => {
+    const body = parse(
+      z.object({
+        ids: z.array(z.number().int()).max(20),
+        pin: z.object({ id: z.number().int(), pin: z.string().max(8) }).optional(),
+      }),
+      req.body,
+    );
+    const ids = [...new Set(body.ids)];
+    if (ids.length < 2) throw new HttpError(400, 'Pick two or more people');
+    const rows = ids.map((id) => store.profileRow(id));
+    if (rows.some((r) => !r || r.hidden)) throw new HttpError(404, 'Profile not found');
+
+    const members: ProfileRow[] = [];
+    for (const row of rows) members.push(await unlock(req, reply, row!, body.pin?.id === row!.id ? body.pin.pin : undefined));
+    // This device's profile leads when it's one of them, so Settings' lists stay its own.
+    const current = currentProfile(req, store);
+    const lead = members.find((m) => m.id === current?.id) ?? members[0]!;
+    const others = members.filter((m) => m !== lead);
+
+    setProfileCookie(reply, lead.id);
+    setTogetherCookie(reply, others.map((m) => m.id));
+    await within(Promise.all(members.map((m) => syncServerState(store, m, req.log))), WATCHED_WAIT_MS);
+    return [lead, ...others].map(toProfile);
   });
 
   app.post('/api/profiles/logout', async (_req, reply) => {

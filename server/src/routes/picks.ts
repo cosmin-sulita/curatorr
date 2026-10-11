@@ -4,7 +4,7 @@ import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
 import { applyMark, isServerMark, revertMark } from '../services/mediaServer.js';
 import { likeSeeds, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
-import { requireProfile } from '../session.js';
+import { requireGroup, requireProfile } from '../session.js';
 
 const optional = z
   .string()
@@ -29,27 +29,28 @@ export const pickRoutes: RouteModule = (app, { store }) => {
 
   app.get('/api/wizard/:step', async (req) => {
     ready();
-    const profile = requireProfile(req, store);
+    // Picks are for the device's profile and anyone watching with it.
+    const group = requireGroup(req, store);
     const { step } = parse(z.object({ step: z.enum(STEP_ORDER) }), req.params);
     const criteria: Criteria = parse(criteriaSchema, req.query);
-    return optionsFor(store, [profile], step, criteria);
+    return optionsFor(store, group, step, criteria);
   });
 
   app.get('/api/recommendations', async (req) => {
     ready();
-    const profile = requireProfile(req, store);
+    const group = requireGroup(req, store);
     const { like } = parse(likeSchema, req.query);
-    if (like) return similarFor(store, [profile], like);
+    if (like) return similarFor(store, group, like);
     const criteria: Criteria = parse(criteriaSchema, req.query);
-    return recommendFor(store, [profile], criteria);
+    return recommendFor(store, group, criteria);
   });
 
   /** Movies to start "Something like…" from: recently watched, or a title search. */
   app.get('/api/like', async (req) => {
     ready();
-    const profile = requireProfile(req, store);
+    const group = requireGroup(req, store);
     const { q } = parse(z.object({ q: z.string().max(100).optional() }), req.query);
-    return likeSeeds(store, [profile], q);
+    return likeSeeds(store, group, q);
   });
 
   app.post('/api/feedback', async (req) => {

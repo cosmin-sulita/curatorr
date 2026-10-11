@@ -68,6 +68,12 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against `npm run tags` (coverage, unmatched keywords, idiom candidates), not the demo.
     - `npm run eval` replays each watch with that evening's library, history and wizard questions, and reports MRR and hit@k for new arrivals and the backlog, plus a staleness simulation. It never reads `settings`. Measure ranking changes with `--save` and `--compare` rather than by feel.
   - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
+    - **Watching together:** `picking` takes one profile or several; a profile on its own is a group of one, and `npm run eval -- --compare` must stay at +0.000 when this changes. Together:
+      - a movie is out if anyone watched it or marked it Seen it or Never;
+      - limits and Jellyfin's `available` are intersections, and sagas use what everyone has seen;
+      - watchlists and requests are unions, with `wantedBy` naming whose for the chips;
+      - each member's taste blends in `tastePoints` (half the mean plus half the lowest, without members who have no history);
+      - feedback is the union, deduplicated by movie, kind and time, so a group's skip saved for each member counts once.
   - **Media server:** Plex or Jellyfin, one at a time (`store.mediaServer()`). Setup asks which; connecting one lets the other go, and once setup is complete the other is refused (409). Settings can't switch.
     - `services/mediaServer.ts` dispatches the profile sync (`syncServerState`) and the marks (`applyMark`/`revertMark`, behind `app.syncToServer`) to the Plex or Jellyfin version. Picks' `watchUrl`/`watchAppUrl` come from `watchLinks()` in `recommend.ts`.
     - `services/plexSync.ts` mirrors "Seen it" to Plex watched and the Watchlist mark to the Plex Watchlist. `services/profiles.ts` is the Plex Home side: import, PIN linking, history.
@@ -76,6 +82,10 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - With Jellyfin, the Watchlist is the person's favourites, every non-disabled user becomes a profile with no PIN, `MaxParentalRating` (an age) maps to the nearest restriction at or below it, and any administrator can manage Settings. One `/Items?userId=` read per profile gives watched, favourites and `available`: the movies that person can open (library access, parental controls), stored as `tmdb:`/`imdb:` keys and checked by `eligibleMovies` once matching works. Pictures go through `/api/avatar/:userId`, since phones may not reach Jellyfin's address; Watch on Jellyfin opens `<publicUrl>/web/#/details?id=…&serverId=…`.
   - `integrations/seerr.ts` + `services/requests.ts` read Seerr movie requests after each library sync and store them per profile, matched by Plex account id (`plexId` = `plex_user_id`) or Jellyfin user id (`jellyfinUserId` = `jellyfin_user_id`, compared without dashes) and TMDB id. Seerr is optional: setup offers it after the media server (not without one) and Settings changes it. Setup only checks the key, since the library is still empty; the first sync reads the requests. A failed read keeps the last ones.
   - `session.ts`: signed cookies. The profile cookie lasts a year. Admin means the Plex server owner, or a Jellyfin administrator, signed in on this device, or demo mode, or nobody has connected Plex or Jellyfin yet.
+    - **Groups:** `curatorr_together` holds the others watching with the device's profile, until the next 4 am (`togetherUntil`).
+    - **`currentGroup`** returns `[device profile, ...members]`, dropping members who are gone, hidden or no longer linked.
+    - **Who reads it:** the wizard, picks and "Something like…" use `requireGroup`; Settings stays the device profile's.
+    - **Endpoints:** `POST /api/profiles/together` starts a group. A protected member answers 403 `needPin` with its `profileId`, one at a time. Selecting one profile ends the group.
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
@@ -117,6 +127,9 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`watchLink` in `web/src/lib/format.ts`). Desktop opens Plex Web. "Watch on Jellyfin" opens Jellyfin's web app everywhere: its apps take no links.
   - Copy names the server through `serverName()`, which says "Plex" when there is none, so the demo and the README screenshots are unchanged.
   - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
+  - **Watching together:**
+    - It starts from a **Watching together** button on "Who's watching?", where the device's profile starts ticked, and lasts until 4 am.
+    - In the header, the group shows as stacked avatars.
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
   - Shortcuts (Just arrived, the season's movies) are the first tiles of the genre grid, marked with their icon, and go straight to a pick, with no more questions.
   - In a phone's browser, a "Use Curatorr like an app" tip sits above "Something like…": the Share → Add to Home Screen steps on iOS, or an Install button when Android Chrome offers one (`beforeinstallprompt`). ✕ hides it for good, and the installed app never shows it (`web/src/lib/install.ts`).

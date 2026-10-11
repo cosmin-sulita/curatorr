@@ -77,7 +77,7 @@ async function switchToUser(store: Store, row: ProfileRow, pin?: string) {
     return await switchHomeUser(plex.clientId, plex.adminToken!, row.plex_user_id!, pin);
   } catch (err) {
     if (err instanceof UpstreamError && (err.status === 401 || err.status === 403)) {
-      throw new HttpError(403, pin ? 'Wrong PIN, try again' : 'PIN required', { needPin: true });
+      throw new HttpError(403, pin ? 'Wrong PIN, try again' : 'PIN required', { needPin: true, profileId: row.id });
     }
     throw err;
   }
@@ -85,7 +85,7 @@ async function switchToUser(store: Store, row: ProfileRow, pin?: string) {
 
 /** Checks a protected profile's PIN with plex.tv, the way Plex does when switching to that user. */
 export async function verifyPin(store: Store, row: ProfileRow, pin?: string) {
-  if (!pin) throw new HttpError(403, 'PIN required', { needPin: true });
+  if (!pin) throw new HttpError(403, 'PIN required', { needPin: true, profileId: row.id });
   await switchToUser(store, row, pin);
 }
 

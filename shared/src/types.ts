@@ -182,5 +182,7 @@ export interface AppStatus {
   server: MediaServer | null;
   isAdmin: boolean;
   profile: Profile | null;
+  /** Who is watching with `profile` tonight; empty when it's on its own. */
+  together: Profile[];
   library: { movies: number; lastSync: number | null; syncing: boolean; lastError: string | null };
 }

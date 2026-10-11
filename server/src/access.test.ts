@@ -46,6 +46,7 @@ const PUBLIC_ROUTES: [Method, string][] = [
   ['GET', '/api/status'],
   ['GET', '/api/profiles'],
   ['POST', '/api/profiles/logout'],
+  ['POST', '/api/profiles/together'],
   ['POST', '/api/admin/logout'],
   ['GET', '/api/image/1/poster'],
   ['GET', '/api/avatar/x'],

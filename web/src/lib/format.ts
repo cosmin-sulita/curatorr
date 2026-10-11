@@ -20,6 +20,11 @@ export function relativeTime(epochMs: number | null) {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** "Alex", "Alex and Sam", "Alex, Sam and Kids"; `last` joins the final two. */
+export function listNames(names: string[], last = ' and ') {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${last}${names.at(-1)}` : (names[0] ?? '');
+}
+
 /** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
 export const serverName = (server: MediaServer | null | undefined) => (server === 'jellyfin' ? 'Jellyfin' : 'Plex');
 

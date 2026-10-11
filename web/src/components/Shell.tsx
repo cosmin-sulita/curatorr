@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { useStatus } from '../lib/api';
 import { applyUpdate, useUpdateReady } from '../lib/appUpdate';
+import { listNames } from '../lib/format';
 import { Link } from '../lib/router';
 import { Avatar } from './ui';
 
@@ -23,6 +24,9 @@ export function Wordmark({ className }: { className?: string }) {
 export function Shell({ children, wide = false, bare = false }: { children: ReactNode; wide?: boolean; bare?: boolean }) {
   const { data: status } = useStatus();
   const profile = status?.profile;
+  // Watching together: the device's profile, then the others.
+  const people = profile ? [profile, ...(status?.together ?? [])] : [];
+  const names = people.map((p) => p.name);
   const updateReady = useUpdateReady();
 
   return (
@@ -47,10 +51,23 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
                 <Link
                   to="/profiles"
                   className="flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
-                  aria-label={`Watching as ${profile.name}. Switch profile`}
+                  aria-label={
+                    people.length > 1
+                      ? `Watching together: ${listNames(names)}. Change who's watching`
+                      : `Watching as ${profile.name}. Switch profile`
+                  }
                 >
-                  <span className="hidden sm:inline">{profile.name}</span>
-                  <Avatar name={profile.name} src={profile.avatarUrl} className="size-8 ring-2 ring-white/10" />
+                  <span className="hidden sm:inline">{listNames(names, ' & ')}</span>
+                  <span className="flex">
+                    {people.map((p, i) => (
+                      <Avatar
+                        key={p.id}
+                        name={p.name}
+                        src={p.avatarUrl}
+                        className={clsx('size-8', people.length > 1 ? 'ring-2 ring-ink' : 'ring-2 ring-white/10', i > 0 && '-ml-3')}
+                      />
+                    ))}
+                  </span>
                 </Link>
               )}
             </>
