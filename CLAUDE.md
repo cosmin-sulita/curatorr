@@ -6,7 +6,7 @@ Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from 
 
 ## Commands
 
-Requires Node 22.13+, for the built-in `node:sqlite`.
+Requires Node 22.13+, for the built-in `node:sqlite`. Docker and CI use Node 26. Keep `engines`, esbuild's `node22` target and the docs at 22.13 unless the floor is raised on purpose.
 
 ```sh
 npm install
@@ -23,6 +23,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
 - **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few files arrive days before each start (Alex's two requests reached Radarr a month earlier), and seeded watches are a week apart. In demo mode everyone counts as admin and no profile has a PIN.
+- **Install scripts:** npm skips dependencies' install scripts unless `allowScripts` in the root `package.json` allows them. esbuild's is denied on purpose (it works without it). Approve a new one only after reviewing it, with `npm install-scripts approve <pkg>`.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
 - **CI** (`.github/workflows/ci.yml`) runs typecheck and tests on pushes to `main` and `develop` and on pull requests. On `main` it also publishes releases (see below).
 

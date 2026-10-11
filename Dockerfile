@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION=24
+ARG NODE_VERSION=26
 
 # ---- build ------------------------------------------------------------------
 # Runs on the build machine's own platform: everything it produces is plain

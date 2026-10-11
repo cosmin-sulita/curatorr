@@ -12,6 +12,8 @@ npm run dev:demo   # API on :7979 with a demo library, UI on http://localhost:51
 npm run dev        # the same against your real Radarr and Plex or Jellyfin; setup runs on first start
 ```
 
+Docker and CI use Node 26. Newer npm versions skip dependencies' install scripts unless `allowScripts` in `package.json` allows them. esbuild's is denied on purpose, since esbuild works without it. If a new dependency needs its script, review it and run `npm install-scripts approve <package>`.
+
 The demo library has about 95 movies and three profiles (Alex, Sam and Kids). In demo mode everyone counts as the admin and no profile has a PIN. `npm run dev` keeps its database in `config/`, which git ignores.
 
 ```sh
