@@ -307,9 +307,10 @@ describe('re-tagging the stored library', () => {
 });
 
 describe('a database from an older version', () => {
-  /** Takes a new database back to version 6: v7 only renamed settings, and v8 added Jellyfin. */
+  /** Takes a new database back to version 6: v7 only renamed settings, v8 added Jellyfin and v9 watching together. */
   const backToVersion6 = (db: DB) =>
     db.exec(`
+      DROP TABLE together;
       DROP TABLE available;
       DROP INDEX profiles_jellyfin_user;
       ALTER TABLE profiles DROP COLUMN jellyfin_user_id;

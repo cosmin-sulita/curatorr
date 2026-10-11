@@ -82,6 +82,8 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (!targets.length || targets.length < wanted.length) throw new HttpError(400, 'Mark it for someone watching');
     const at = Date.now();
     const ids = targets.map((row) => store.addFeedback(row.id, movie.id, body.kind, at));
+    // Played on one account, so the others get it marked watched once that account shows it (together.ts).
+    if (body.kind === 'accepted' && group.length > 1) store.recordTogether(movie.id, targets.map((r) => r.id), at);
 
     // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for each of them.
     if (!isServerMark(body.kind)) return { id: ids[0], ids };

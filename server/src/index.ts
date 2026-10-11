@@ -1,9 +1,13 @@
 import { buildApp } from './app.js';
 import { config } from './config.js';
+import { scheduleTogether } from './services/together.js';
 
 const { app, ctx } = await buildApp();
 
-if (!config.demo) ctx.library.schedule();
+if (!config.demo) {
+  ctx.library.schedule();
+  scheduleTogether(ctx.store, app.log);
+}
 
 await app.listen({ port: config.port, host: config.host });
 app.log.info(

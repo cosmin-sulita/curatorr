@@ -179,6 +179,8 @@ export interface StoredMovie extends Movie {
 }
 
 const FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+/** Watch tapped again on the same movie, by the same group, this soon is the same evening's play. */
+const TOGETHER_AGAIN_MS = 6 * 60 * 60 * 1000;
 
 export class Store {
   private movieCache: StoredMovie[] | null = null;
@@ -605,6 +607,39 @@ export class Store {
         ORDER BY createdAt DESC
       `)
       .all(profileId) as { id: number; movieId: number; kind: 'seen' | 'never' | 'later'; createdAt: number }[];
+  }
+
+  // ---- watching together --------------------------------------------------
+
+  /**
+   * Remembers that these profiles started playing a movie together. Tapping Watch again on it within a
+   * few hours, for the same people, is the same evening.
+   */
+  recordTogether(movieId: number, profileIds: number[], at = Date.now()) {
+    const members = JSON.stringify([...profileIds].sort((a, b) => a - b));
+    const again = this.db
+      .prepare('SELECT id FROM together WHERE movie_id = ? AND profile_ids = ? AND done_at IS NULL AND started_at > ?')
+      .get(movieId, members, at - TOGETHER_AGAIN_MS);
+    if (!again) {
+      this.db.prepare('INSERT INTO together (movie_id, profile_ids, started_at) VALUES (?, ?, ?)').run(movieId, members, at);
+    }
+  }
+
+  /** Movies played together that nobody's account has shown watched yet. */
+  pendingTogether(): { id: number; movieId: number; profileIds: number[]; startedAt: number }[] {
+    const rows = this.db
+      .prepare('SELECT id, movie_id, profile_ids, started_at FROM together WHERE done_at IS NULL ORDER BY started_at')
+      .all() as { id: number; movie_id: number; profile_ids: string; started_at: number }[];
+    return rows.map((r) => ({
+      id: r.id,
+      movieId: r.movie_id,
+      profileIds: JSON.parse(r.profile_ids) as number[],
+      startedAt: r.started_at,
+    }));
+  }
+
+  closeTogether(id: number, at = Date.now()) {
+    this.db.prepare('UPDATE together SET done_at = ? WHERE id = ?').run(at, id);
   }
 
   /** Shows and skips only matter for a while. Plays started from Curatorr are kept: they're part of a profile's taste. */

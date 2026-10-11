@@ -129,6 +129,18 @@ describe('watching together (demo data)', () => {
     ctx.store.deleteFeedback(ids.Kids!, kidsOwn);
   });
 
+  it('remembers a movie a group starts playing, once however often Watch is tapped', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const shrek = movieId('Shrek');
+    for (let i = 0; i < 2; i++) await feedback(cookie, { movieId: shrek, kind: 'accepted' });
+    const pending = ctx.store.pendingTogether().filter((t) => t.movieId === shrek);
+    expect(pending.map((t) => [...t.profileIds].sort((a, b) => a - b))).toEqual([[ids.Alex, ids.Sam].sort((a, b) => a! - b!)]);
+    expect([kinds('Alex', shrek), kinds('Sam', shrek)]).toEqual([['accepted', 'accepted'], ['accepted', 'accepted']]);
+    // On their own, a play is just the profile's.
+    await feedback(cookiesOf(await select('Alex')), { movieId: movieId('Elf'), kind: 'accepted' });
+    expect(ctx.store.pendingTogether().some((t) => t.movieId === movieId('Elf'))).toBe(false);
+  });
+
   it("is back to one profile once the evening's over", async () => {
     const alex = cookiesOf(await select('Alex'));
     const ended = `curatorr_together=${encodeURIComponent(app.signCookie(`${ids.Sam}|${Date.now() - 1000}`))}`;

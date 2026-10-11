@@ -135,6 +135,18 @@ const migrations: string[] = [
     PRIMARY KEY (profile_id, key)
   );
   `,
+  // v9: movies a group started playing together, so the others get it marked watched once one of
+  // their accounts shows it watched.
+  `
+  CREATE TABLE together (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    movie_id INTEGER NOT NULL,
+    profile_ids TEXT NOT NULL,          -- JSON array of the members
+    started_at INTEGER NOT NULL,
+    done_at INTEGER
+  );
+  CREATE INDEX together_pending ON together (done_at);
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {
