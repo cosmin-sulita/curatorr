@@ -2,6 +2,11 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.2.2 (2026-10-12)
+
+- fix(profiles): read each profile's watch history from the libraries shared with them ([cf1fa45](https://github.com/cosmin-sulita/curatorr/commit/cf1fa45))
+- fix(wizard): show the "Something like…" card with its posters from the start ([1964fc2](https://github.com/cosmin-sulita/curatorr/commit/1964fc2))
+
 ## 1.2.1 (2026-10-11)
 
 - fix(settings): line up the Radarr section and show its whole address ([636627b](https://github.com/cosmin-sulita/curatorr/commit/636627b))
