@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.2.3 (2026-10-12)
+
+- fix(header): keep the profile photo from blinking when a pick opens ([1e15535](https://github.com/cosmin-sulita/curatorr/commit/1e15535))
+
 ## 1.2.2 (2026-10-12)
 
 - fix(profiles): read each profile's watch history from the libraries shared with them ([cf1fa45](https://github.com/cosmin-sulita/curatorr/commit/cf1fa45))
