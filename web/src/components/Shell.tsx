@@ -18,10 +18,11 @@ export function Wordmark({ className }: { className?: string }) {
 }
 
 /**
- * Top bar with the logo, the active profile and (for the owner) settings. The bar has the same width on every
- * screen, so the logo never moves; `wide` only widens the page below it.
+ * The page: a top bar with the logo, the active profile and (for the owner) settings, over the screen. App renders
+ * it once for every screen, so the bar stays put between them: the logo never moves and the profile's photo doesn't
+ * load again. `bare` leaves out Settings and the profile, for setup and "Who's watching?".
  */
-export function Shell({ children, wide = false, bare = false }: { children: ReactNode; wide?: boolean; bare?: boolean }) {
+export function Frame({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
   const { data: status } = useStatus();
   const profile = status?.profile;
   // Watching together: the device's profile, then the others.
@@ -74,8 +75,18 @@ export function Shell({ children, wide = false, bare = false }: { children: Reac
           )}
         </nav>
       </header>
-      <main className={clsx('relative z-10 mx-auto px-4 pb-safe sm:px-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>{children}</main>
+      {children}
     </div>
+  );
+}
+
+/**
+ * A screen's content, under the top bar. The bar has the same width on every screen; `wide` only widens this.
+ * `<main>` is a stacking context below the bar, so fixed overlays render outside it.
+ */
+export function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <main className={clsx('relative z-10 mx-auto px-4 pb-safe sm:px-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>{children}</main>
   );
 }
 

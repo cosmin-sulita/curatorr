@@ -86,7 +86,7 @@ export function ProfilesScreen() {
 
   return (
     <>
-      <Shell bare>
+      <Shell>
         <div className="flex flex-col items-center pt-10 sm:pt-20">
           <h1 className="font-display text-5xl sm:text-6xl">{picked ? "Who's watching together?" : "Who's watching?"}</h1>
           <p className="mt-3 max-w-sm text-center text-muted">

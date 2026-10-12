@@ -131,6 +131,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 
 - **Design language:** a dark, Seerr-inspired theme. Tokens are in `web/src/styles.css`. The indigo→violet `bg-accent-gradient` is reserved for primary actions. The only font is Archivo, with the `font-display` utility (condensed 68%, weight 800) for titles and questions. The "Tonight's pick" reveal is the one bold moment.
 - **Contrast:** `--color-faint` and `--color-accent-2` are tuned to keep text at WCAG AA. Re-check contrast if you change them.
+- **Header:** `App.tsx` renders the header once, in `Frame`, above whichever screen shows, and decides `bare` (setup, "Who's watching?") in `screenFor`. Screens render only `<Shell>`, their `<main>`. A header inside a screen would be rebuilt with it, and the profile's photo blinks while it loads again (Plex's avatar URLs are `no-cache`).
 - **Stacking:** Shell's `<main>` is a stacking context below the header. Fixed overlays (dialogs, the PIN pad, `BottomBar`) must render outside `<Shell>`, as `Settings.tsx`, `Profiles.tsx`, `Pick.tsx` and `Wizard.tsx` do.
 - **Decided with the maintainer; keep these unless asked:**
   - The header uses `pt-safe` (safe area + 1rem) to clear the iOS status-bar blur.

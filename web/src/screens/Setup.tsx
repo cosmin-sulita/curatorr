@@ -37,7 +37,7 @@ export function SetupScreen() {
   useDeferUpdates();
 
   return (
-    <Shell bare>
+    <Shell>
       <div className="mx-auto max-w-xl pt-8 sm:pt-14">
         <h1 className="font-display text-5xl sm:text-6xl">Set up Curatorr</h1>
         <p className="mt-3 text-muted">Connect your library once. After that it's just a few taps to tonight's movie.</p>

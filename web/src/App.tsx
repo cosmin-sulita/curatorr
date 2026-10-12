@@ -1,5 +1,6 @@
 import { STEP_ORDER, type AppStatus, type WizardStep } from '@curatorr/shared';
-import { CenteredState, Shell, Wordmark } from './components/Shell';
+import type { ReactNode } from 'react';
+import { CenteredState, Frame, Shell, Wordmark } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, isNetworkError, useStatus } from './lib/api';
@@ -32,35 +33,39 @@ export function App() {
   // Wi-Fi reconnects) leaves the screen as it is, and its own requests say what went wrong.
   if (!status.data) {
     return (
-      <Shell bare>
-        <CenteredState title="Can't reach Curatorr">
-          {/* A server error adds something; a network error would only repeat the title. */}
-          {status.error && !isNetworkError(status.error) && <Notice>{errorMessage(status.error)}</Notice>}
-          <p className="text-muted">Check that the Curatorr container is running and your device is on the right network.</p>
-          <Button onClick={() => status.refetch()} loading={status.isFetching}>
-            Try again
-          </Button>
-        </CenteredState>
-      </Shell>
+      <Frame bare>
+        <Shell>
+          <CenteredState title="Can't reach Curatorr">
+            {/* A server error adds something; a network error would only repeat the title. */}
+            {status.error && !isNetworkError(status.error) && <Notice>{errorMessage(status.error)}</Notice>}
+            <p className="text-muted">Check that the Curatorr container is running and your device is on the right network.</p>
+            <Button onClick={() => status.refetch()} loading={status.isFetching}>
+              Try again
+            </Button>
+          </CenteredState>
+        </Shell>
+      </Frame>
     );
   }
 
+  const { screen, bare } = screenFor(path, search, status.data);
   return (
     <>
-      <Screen path={path} search={search} status={status.data} />
+      <Frame bare={bare}>{screen}</Frame>
       <WhatsNew setupComplete={status.data.setupComplete} />
     </>
   );
 }
 
-function Screen({ path, search, status: s }: { path: string; search: URLSearchParams; status: AppStatus }) {
-  if (!s.setupComplete) return <SetupScreen />;
-  if (path === '/settings') return <SettingsScreen />;
-  if (!s.profile || path === '/profiles') return <ProfilesScreen />;
-  if (path === '/pick') return <PickScreen search={search} />;
-  if (path === '/like') return <LikeScreen search={search} />;
+/** The screen for this address, and whether the top bar leaves out Settings and the profile. */
+function screenFor(path: string, search: URLSearchParams, s: AppStatus): { screen: ReactNode; bare?: boolean } {
+  if (!s.setupComplete) return { screen: <SetupScreen />, bare: true };
+  if (path === '/settings') return { screen: <SettingsScreen /> };
+  if (!s.profile || path === '/profiles') return { screen: <ProfilesScreen />, bare: true };
+  if (path === '/pick') return { screen: <PickScreen search={search} /> };
+  if (path === '/like') return { screen: <LikeScreen search={search} /> };
 
   const step = /^\/ask\/([a-z]+)$/.exec(path)?.[1];
-  if (isStep(step)) return <WizardScreen step={step} search={search} />;
-  return <WizardScreen step="genre" search={new URLSearchParams()} />;
+  if (isStep(step)) return { screen: <WizardScreen step={step} search={search} /> };
+  return { screen: <WizardScreen step="genre" search={new URLSearchParams()} /> };
 }
