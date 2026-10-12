@@ -131,6 +131,12 @@ describe('library sync against fake Radarr and Plex servers', () => {
         libraryFetches++;
         return json(200, { MediaContainer: { Metadata: plexItems(token) } });
       }
+      // A library the owner keeps to themselves: Plex refuses it to the others at home.
+      if (url.pathname === '/library/sections/2/all') {
+        const token = req.headers['x-plex-token'] as string | undefined;
+        if (token === OWNER_TOKEN) return json(200, { MediaContainer: { Metadata: [] } });
+        return json(token === MEMBER_TOKEN ? 403 : 401, {});
+      }
       if (url.pathname.startsWith('/api/v1/')) {
         if (req.headers['x-api-key'] !== SEERR_KEY) return json(401, { message: 'Unauthorized' });
         const page = (all: unknown[]) => {
@@ -225,6 +231,21 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
     expect([...store.watchedIds(owner.id)]).toEqual([2]);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
+  });
+
+  it('reads a member’s history from the libraries shared with them', async () => {
+    const member = store.profileRow(store.createLocalProfile('Not shared', false))!;
+    store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
+    store.update('plex', { sectionIds: ['1', '2'] });
+    try {
+      await syncPlexState(store, store.profileRow(member.id)!, silent);
+      expect([...store.watchedIds(member.id)]).toEqual([1]);
+      // The owner sees every library, so a refusal there is a real failure.
+      await new LibrarySync(store, silent).run();
+      expect(store.get('sync').error).toBeNull();
+    } finally {
+      store.update('plex', { sectionIds: ['1'] });
+    }
   });
 
   it('shares one Plex fetch between overlapping syncs, then waits until the history is stale', async () => {

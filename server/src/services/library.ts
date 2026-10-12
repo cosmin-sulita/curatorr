@@ -1,5 +1,6 @@
 import { onServer, tagMovie } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
+import { UpstreamError } from '../http.js';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { JellyfinClient } from '../integrations/jellyfin.js';
 import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
@@ -32,12 +33,22 @@ export function findByIds<T>(index: IdIndex<T>, m: Ids): T | undefined {
   return (m.tmdbId != null ? index.byTmdb.get(m.tmdbId) : undefined) ?? (m.imdbId ? index.byImdb.get(m.imdbId) : undefined);
 }
 
-export async function fetchPlexItems(store: Store, token: string): Promise<PlexItem[]> {
+/**
+ * The movies in Curatorr's Plex libraries, as the token's user sees them. With `sharedOnly`, libraries Plex
+ * refuses that user are left out: the owner needn't share every library with everyone at home.
+ */
+export async function fetchPlexItems(store: Store, token: string, { sharedOnly = false } = {}): Promise<PlexItem[]> {
   const plex = store.get('plex');
   if (!plex.serverUrl) return [];
   const client = new PlexServerClient(plex.serverUrl, plex.clientId, token);
   const all: PlexItem[] = [];
-  for (const section of plex.sectionIds) all.push(...(await client.movies(section)));
+  for (const section of plex.sectionIds) {
+    try {
+      all.push(...(await client.movies(section)));
+    } catch (err) {
+      if (!(sharedOnly && err instanceof UpstreamError && err.status === 403)) throw err;
+    }
+  }
   return all;
 }
 

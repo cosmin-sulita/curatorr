@@ -142,7 +142,7 @@ async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogg
 
 async function syncWatched(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
   try {
-    const items = await fetchPlexItems(store, row.server_token!);
+    const items = await fetchPlexItems(store, row.server_token!, { sharedOnly: true });
     const index = indexByIds(items.filter((i) => i.viewCount > 0));
     const entries = [];
     for (const movie of store.movies()) {
