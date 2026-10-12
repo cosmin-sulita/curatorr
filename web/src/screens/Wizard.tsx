@@ -1,4 +1,4 @@
-import { STEP_ORDER, genreById, type Criteria, type WizardOption, type WizardStep } from '@curatorr/shared';
+import { STEP_ORDER, genreById, type Criteria, type LikeSeed, type WizardOption, type WizardStep } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -49,6 +49,10 @@ function nextUrl(step: WizardStep, c: Criteria, value: string) {
 export function WizardScreen({ step, search }: { step: WizardStep; search: URLSearchParams }) {
   const criteria = answersBefore(step, criteriaFrom(search));
   const { data, isLoading, error, refetch } = useWizardOptions(step, criteria);
+  // Fetched alongside the genres, and waited for, so the "Something like…" card appears with its posters
+  // rather than growing under the thumb when they arrive. A failure only leaves the posters out.
+  const seeds = useLikeSeeds('', step === 'genre');
+  const seedsPending = step === 'genre' && seeds.isPending;
   const { data: status } = useStatus();
   const index = STEP_ORDER.indexOf(step);
 
@@ -101,7 +105,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     );
   }
 
-  const ready = Boolean(data && !data.skip);
+  const ready = Boolean(data && !data.skip && !seedsPending);
   const anyLabel = COPY[step].any;
   const anyButton = (className?: string) => (
     <Button variant={step === 'genre' ? 'primary' : 'secondary'} size="lg" className={className} onClick={chooseAny}>
@@ -144,7 +148,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
             </>
           )}
 
-          {(isLoading || data?.skip) && (
+          {(isLoading || data?.skip || seedsPending) && (
             <div className="grid place-items-center py-24">
               <Spinner className="size-8" />
             </div>
@@ -153,7 +157,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
           {data && ready && (
             <div className="mt-8">
               {step === 'genre' && <InstallHint />}
-              {step === 'genre' && <LikeCard />}
+              {step === 'genre' && <LikeCard seeds={seeds.data} />}
               {step === 'genre' && (
                 <GenreGrid
                   shelves={data.shelves ?? []}
@@ -240,9 +244,8 @@ function PosterFan({ images }: { images: string[] }) {
 }
 
 /** "Something like…": start from a movie you loved instead of answering the questions. */
-function LikeCard() {
-  const { data: recent } = useLikeSeeds('');
-  const posters = recent?.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3) ?? [];
+function LikeCard({ seeds }: { seeds: LikeSeed[] | undefined }) {
+  const posters = seeds?.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3) ?? [];
   return (
     <Link
       to="/like"

@@ -89,13 +89,14 @@ export function useRecommendations(criteria: Criteria, like?: string | null) {
 }
 
 /** Movies to start "Something like…" from: recently watched, or titles matching `q`. */
-export function useLikeSeeds(q: string) {
+export function useLikeSeeds(q: string, enabled = true) {
   return useQuery({
     queryKey: ['like', q],
     queryFn: () => api<LikeSeed[]>(withQuery('/api/like', { q })),
     staleTime: 60_000,
     // Keep the last results on screen while the next search loads.
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
