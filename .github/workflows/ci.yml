@@ -49,35 +49,55 @@ jobs:
   # (server/build.mjs). Once it reaches main, push its image, then tag it and publish its notes as a
   # GitHub Release, so a release never lacks its image: if the image fails, nothing is published and a
   # re-run starts over. Running the workflow by hand on main rebuilds the current release's image,
-  # e.g. for a newer base image.
+  # e.g. for a newer base image. Every run checks the changelog, so a mistake in it fails on develop
+  # rather than halfway through a release.
   version:
-    needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       new: ${{ steps.version.outputs.new }}
-      publish: ${{ steps.version.outputs.new == 'true' || github.event_name == 'workflow_dispatch' }}
+      publish: >-
+        ${{ github.ref == 'refs/heads/main'
+          && (steps.version.outputs.new == 'true' || github.event_name == 'workflow_dispatch') }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
       - id: version
         run: |
-          version=$(sed -n -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CHANGELOG.md | head -n 1)
+          # The first section must be the version: the release notes below are the first section,
+          # while server/build.mjs and the app read the first version heading.
+          heading=$(grep -m 1 '^## ' CHANGELOG.md || true)
+          version=$(printf '%s\n' "$heading" | sed -n -E 's/^## ([0-9]+\.[0-9]+\.[0-9]+)( .*)?$/\1/p')
           if [ -z "$version" ]; then
-            echo "::error file=CHANGELOG.md::No '## x.y.z' heading found"
+            echo "::error file=CHANGELOG.md::The first '## ' heading must be '## x.y.z (date)', not '$heading'"
+            exit 1
+          fi
+          if ! awk '/^## /{n++; next} n==1 && NF{found=1} END{exit !found}' CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::The $version section is empty"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+
+          # Between releases the top version is the latest release. A new one must be newer: latest
+          # follows it, and an older build would run on a database migrated by a newer one.
+          if ! latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName | ltrimstr("v")' 2>&1); then
+            case "$latest" in
+              *'release not found'*) latest= ;;
+              *) echo "::error::Couldn't read the latest release: $latest"; exit 1 ;;
+            esac
+          fi
+          if [ "$version" = "$latest" ]; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-          else
+          elif [ -z "$latest" ] || [ "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -n 1)" = "$version" ]; then
             echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error file=CHANGELOG.md::$version is older than the latest release, $latest"
+            exit 1
           fi
 
   image:
-    needs: version
+    needs: [test, version]
     if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -114,7 +134,8 @@ jobs:
 
   release:
     needs: [version, image]
-    if: needs.version.outputs.new == 'true'
+    # A release commit is new on develop too, before main reaches it: only main releases it.
+    if: github.ref == 'refs/heads/main' && needs.version.outputs.new == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
