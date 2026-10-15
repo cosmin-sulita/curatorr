@@ -46,4 +46,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" >/dev/null || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["node", "--disable-warning=ExperimentalWarning", "server/dist/index.js"]
+# Source maps make the stack traces in people's logs point at server/src rather than the bundle.
+CMD ["node", "--enable-source-maps", "--disable-warning=ExperimentalWarning", "server/dist/index.js"]

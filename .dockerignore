@@ -4,6 +4,9 @@
 config
 .git
 .github
+.claude
+**/.env
+**/.env.*
 *.log
 *.db
 coverage
