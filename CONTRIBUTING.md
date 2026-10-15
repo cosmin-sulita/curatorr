@@ -1,6 +1,6 @@
 # Contributing to Curatorr
 
-Bug reports, ideas and pull requests are welcome. For anything bigger than a small fix, please open an issue first, so we can agree on the approach before you spend time on it.
+Bug reports, ideas and pull requests are welcome. For anything bigger than a small fix, please open an issue first, so we can agree on the approach before you spend time on it. Security problems are the exception: report them privately, as [SECURITY.md](SECURITY.md) explains.
 
 ## Development setup
 

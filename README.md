@@ -166,7 +166,7 @@ Everything is set in the web UI. A few environment variables exist for special c
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup, the conventions and how to tune tags and ranking against your own library. To try it from source (Node 22.13+):
+Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup, the conventions and how to tune tags and ranking against your own library. Please report security problems privately, as [SECURITY.md](SECURITY.md) explains. To try it from source (Node 22.13+):
 
 ```sh
 npm install
