@@ -18,11 +18,11 @@ import { MARK_LISTS } from './Marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 import { ServiceForm } from './Setup';
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+function Section({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-3xl bg-surface p-5 ring-1 ring-line sm:p-6">
       <h2 className="text-lg font-semibold">{title}</h2>
-      {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+      {description && <div className="mt-1 text-sm text-muted">{description}</div>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -217,17 +217,20 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
   };
 
   return (
-    <div className="mt-6 border-t border-line pt-5">
-      <h3 className="font-medium">New downloads within minutes</h3>
-      {/* Whether it works comes first: once it's set up, that's what someone comes here to check. The status
-          dot and the step numbers share one gutter, so their lines start together. */}
-      <p className="mt-1.5 flex gap-2 text-sm text-muted" role="status">
-        <span className="flex h-5 w-4 shrink-0 items-center" aria-hidden>
-          <span className={clsx('size-2 rounded-full', called ? 'bg-emerald-400' : 'bg-faint')} />
-        </span>
-        <span>{called ?? "Radarr hasn't called yet."}</span>
-      </p>
-      <ol className="mt-4 space-y-1 text-sm text-muted">
+    <Section
+      title="New downloads within minutes"
+      // Whether it works comes first: once it's set up, that's what someone comes here to check. The status dot
+      // and the step numbers share one gutter, so their lines start together.
+      description={
+        <p className="flex gap-2" role="status">
+          <span className="flex h-5 w-4 shrink-0 items-center" aria-hidden>
+            <span className={clsx('size-2 rounded-full', called ? 'bg-emerald-400' : 'bg-faint')} />
+          </span>
+          <span>{called ?? "Radarr hasn't called yet."}</span>
+        </p>
+      }
+    >
+      <ol className="space-y-1 text-sm text-muted">
         {WEBHOOK_STEPS.map((step, i) => (
           <li key={step} className="flex gap-2">
             <span className="w-4 shrink-0 text-faint tabular-nums">{i + 1}.</span>
@@ -266,16 +269,47 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
           </Button>
         </div>
       )}
-    </div>
+    </Section>
   );
 }
+
+/**
+ * A service Curatorr connects to: its name, where it is, and a quiet button to change it (these change rarely).
+ * `children` go under it: the form while it's being changed, or a notice.
+ */
+function Connection({
+  name,
+  detail,
+  action,
+  children,
+}: {
+  name: string;
+  detail: ReactNode;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <li className="py-4 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="font-medium">{name}</h3>
+          <div className="mt-0.5 text-sm text-muted wrap-anywhere">{detail}</div>
+        </div>
+        {/* Centred on the name, with the ghost button's padding hanging out, so its label ends where switches do. */}
+        {action && <div className="-mt-2.5 -mr-4 shrink-0">{action}</div>}
+      </div>
+      {children && <div className="mt-4">{children}</div>}
+    </li>
+  );
+}
+
+/** Which connection is being changed. One at a time. */
+type Editing = 'radarr' | 'seerr' | MediaServer;
 
 function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [editRadarr, setEditRadarr] = useState(false);
-  const [editSeerr, setEditSeerr] = useState(false);
-  const [editServer, setEditServer] = useState<MediaServer | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = () => {
@@ -324,6 +358,30 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
     await run(() => api(`/api/setup/${server}/users`, { json: {} }), `Profiles updated from ${home}`);
     qc.invalidateQueries({ queryKey: ['profiles'] });
     setRefreshing(false);
+  };
+
+  const change = (what: Editing, service: string, label = 'Change') => (
+    <Button variant="ghost" onClick={() => setEditing(what)} aria-label={`${label} ${service}`}>
+      {label}
+    </Button>
+  );
+  // Closes the form. Whatever a Plex or Jellyfin change already saved stays saved, as when leaving the page.
+  const cancel = (
+    <Button
+      variant="ghost"
+      size="lg"
+      type="button"
+      onClick={() => {
+        setEditing(null);
+        refresh();
+      }}
+    >
+      Cancel
+    </Button>
+  );
+  const syncAfter = (message: string) => {
+    setEditing(null);
+    run(() => api('/api/sync', { json: {} }), message);
   };
 
   return (
@@ -377,6 +435,8 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
         </div>
       </Section>
 
+      {!demo && data.radarr && <RadarrWebhook webhook={data.webhook} onRenewed={refresh} />}
+
       <Section title="Picks">
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -427,104 +487,116 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
       </Section>
 
       {!demo && (
-        <Section title="Radarr" description={data.radarr?.url ?? 'Not connected'}>
-          {editRadarr ? (
-            <ServiceForm
-              service="Radarr"
-              initialUrl={data.radarr?.url ?? ''}
-              hasKey={Boolean(data.radarr?.hasApiKey)}
-              onSaved={() => {
-                setEditRadarr(false);
-                refresh();
-                toast({ message: 'Radarr connected. Syncing your library.' });
-              }}
-            />
-          ) : (
-            <Button onClick={() => setEditRadarr(true)}>Change connection</Button>
-          )}
-          {data.radarr && !editRadarr && <RadarrWebhook webhook={data.webhook} onRenewed={refresh} />}
-        </Section>
-      )}
+        <Section title="Connections">
+          <ul className="divide-y divide-line">
+            <Connection
+              name="Radarr"
+              detail={data.radarr?.url ?? 'Not connected'}
+              action={editing !== 'radarr' && change('radarr', 'Radarr', data.radarr ? 'Change' : 'Connect')}
+            >
+              {editing === 'radarr' && (
+                <ServiceForm
+                  service="Radarr"
+                  heading={false}
+                  initialUrl={data.radarr?.url ?? ''}
+                  hasKey={Boolean(data.radarr?.hasApiKey)}
+                  actions={cancel}
+                  onSaved={() => {
+                    setEditing(null);
+                    refresh();
+                    toast({ message: 'Radarr connected. Syncing your library.' });
+                  }}
+                />
+              )}
+            </Connection>
 
-      {!demo && (
-        <Section title={data.server ? name : 'Media server'} description={serverDescription(data)}>
-          {editServer === 'plex' ? (
-            <PlexConnect
-              signedIn={data.plex.signedIn}
-              onDone={() => {
-                setEditServer(null);
-                run(() => api('/api/sync', { json: {} }), 'Plex connected');
-              }}
-            />
-          ) : editServer === 'jellyfin' ? (
-            <JellyfinConnect
-              saved={data.jellyfin}
-              onDone={() => {
-                setEditServer(null);
-                run(() => api('/api/sync', { json: {} }), 'Jellyfin connected');
-              }}
-            />
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {/* Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here. */}
-              {data.server === 'jellyfin' ? (
-                <Button onClick={() => setEditServer('jellyfin')}>Change connection or libraries</Button>
-              ) : data.server === 'plex' ? (
-                <Button onClick={() => setEditServer('plex')}>
-                  {data.plex.machineId ? 'Change server or libraries' : 'Connect Plex'}
-                </Button>
-              ) : (
+            <Connection
+              name={data.server ? name : 'Media server'}
+              detail={serverDescription(data)}
+              action={
+                // Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here.
+                editing !== data.server &&
+                (data.server === 'jellyfin'
+                  ? change('jellyfin', 'Jellyfin')
+                  : data.server === 'plex' && change('plex', 'Plex', data.plex.machineId ? 'Change' : 'Connect'))
+              }
+            >
+              {editing === 'plex' ? (
                 <>
-                  <Button onClick={() => setEditServer('plex')}>Connect Plex</Button>
-                  <Button onClick={() => setEditServer('jellyfin')}>Connect Jellyfin</Button>
+                  <PlexConnect signedIn={data.plex.signedIn} onDone={() => syncAfter('Plex connected')} />
+                  <div className="mt-3">{cancel}</div>
                 </>
+              ) : editing === 'jellyfin' ? (
+                <>
+                  <JellyfinConnect saved={data.jellyfin} onDone={() => syncAfter('Jellyfin connected')} />
+                  <div className="mt-3">{cancel}</div>
+                </>
+              ) : (
+                !data.server && (
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={() => setEditing('plex')}>Connect Plex</Button>
+                    <Button onClick={() => setEditing('jellyfin')}>Connect Jellyfin</Button>
+                  </div>
+                )
               )}
-            </div>
-          )}
-        </Section>
-      )}
+            </Connection>
 
-      {!demo && (
-        <Section title="Seerr" description={seerr?.url ?? 'Optional. Picks favour movies each person requested in Seerr.'}>
-          {seerr && !editSeerr && (
-            <div className="mb-4 space-y-3">
-              <p className="text-sm text-muted">
-                {plural(seerr.requests, 'requested movie')} in your library, for {plural(seerr.profiles, 'profile')}
-                {seerr.at && ` · read ${relativeTime(seerr.at)}`}
-              </p>
-              {seerr.error && <Notice>Last read failed: {seerr.error}</Notice>}
-            </div>
-          )}
-          {editSeerr ? (
-            <ServiceForm
-              service="Seerr"
-              initialUrl={seerr?.url ?? ''}
-              hasKey={Boolean(seerr?.hasApiKey)}
-              onSaved={() => {
-                setEditSeerr(false);
-                clearPicks();
-                refresh();
-                toast({ message: 'Seerr connected' });
-              }}
-            />
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setEditSeerr(true)}>{seerr ? 'Change connection' : 'Connect Seerr'}</Button>
-              {seerr && (
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    run(async () => {
-                      await api('/api/settings/seerr', { method: 'DELETE' });
-                      clearPicks();
-                    }, 'Seerr disconnected')
+            <Connection
+              name="Seerr"
+              detail={
+                seerr ? (
+                  <>
+                    <span className="block">{seerr.url}</span>
+                    <span className="block">
+                      {plural(seerr.requests, 'requested movie')} in your library, for {plural(seerr.profiles, 'profile')}
+                      {seerr.at && `, read ${relativeTime(seerr.at)}`}
+                    </span>
+                  </>
+                ) : (
+                  'Optional. Picks favour movies each person requested in Seerr.'
+                )
+              }
+              action={editing !== 'seerr' && change('seerr', 'Seerr', seerr ? 'Change' : 'Connect')}
+            >
+              {editing === 'seerr' ? (
+                <ServiceForm
+                  service="Seerr"
+                  heading={false}
+                  initialUrl={seerr?.url ?? ''}
+                  hasKey={Boolean(seerr?.hasApiKey)}
+                  actions={
+                    <>
+                      {cancel}
+                      {seerr && (
+                        <Button
+                          variant="ghost"
+                          size="lg"
+                          type="button"
+                          onClick={() => {
+                            setEditing(null);
+                            run(async () => {
+                              await api('/api/settings/seerr', { method: 'DELETE' });
+                              clearPicks();
+                            }, 'Seerr disconnected');
+                          }}
+                        >
+                          Disconnect
+                        </Button>
+                      )}
+                    </>
                   }
-                >
-                  Disconnect
-                </Button>
+                  onSaved={() => {
+                    setEditing(null);
+                    clearPicks();
+                    refresh();
+                    toast({ message: 'Seerr connected' });
+                  }}
+                />
+              ) : (
+                seerr?.error && <Notice>Last read failed: {seerr.error}</Notice>
               )}
-            </div>
-          )}
+            </Connection>
+          </ul>
         </Section>
       )}
 

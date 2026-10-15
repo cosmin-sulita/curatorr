@@ -231,6 +231,8 @@ export function ServiceForm({
   initialUrl,
   hasKey,
   intro,
+  heading = true,
+  actions,
   onSaved,
   onSkip,
 }: {
@@ -238,6 +240,10 @@ export function ServiceForm({
   initialUrl: string;
   hasKey: boolean;
   intro?: ReactNode;
+  /** Off where the service is already named above the form (Settings). */
+  heading?: boolean;
+  /** More buttons after Connect, like Cancel. */
+  actions?: ReactNode;
   onSaved: () => void;
   /** Offers to go on without this service. */
   onSkip?: () => void;
@@ -267,8 +273,8 @@ export function ServiceForm({
     }
   };
 
-  return (
-    <Panel title={`Connect ${service}`}>
+  const form = (
+    <>
       {intro && <p className="mb-4 text-muted">{intro}</p>}
       <form onSubmit={submit} className="space-y-4">
         <Field label={`${service} address`} hint="Include the port, and the URL base if you set one.">
@@ -304,6 +310,7 @@ export function ServiceForm({
               Skip, I don't use {service}
             </Button>
           )}
+          {actions}
           {saved && (
             <span className="inline-flex items-center gap-1 text-sm text-emerald-300">
               <Check className="size-4" /> Connected
@@ -311,8 +318,9 @@ export function ServiceForm({
           )}
         </div>
       </form>
-    </Panel>
+    </>
   );
+  return heading ? <Panel title={`Connect ${service}`}>{form}</Panel> : form;
 }
 
 function Finish() {

@@ -160,6 +160,8 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
       - Each card opens a page of its own (`Marks.tsx`): a poster grid with Remove or Restore and Undo, a search field past 12 movies, and 30 at a time.
       - An empty list's card only says how to add to it.
       - The Watchlist's Remove calls `DELETE /api/watchlist/:movieId`, as "On watchlist" does on a pick.
+    - **Connections:** Radarr, Plex or Jellyfin, and Seerr are rows in one card, each with a quiet Change that opens its form in place, with Cancel.
+    - **Webhook:** Radarr's webhook is a card of its own, after Library.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 
 ## Checking UI changes
