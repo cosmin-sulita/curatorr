@@ -36,7 +36,7 @@ export async function applyToPlex(
   }
 }
 
-/** Undoes what `applyToPlex` did. Only call it for marks that came back `synced`. */
+/** Undoes what `applyToPlex` did, or takes a movie off the Plex Watchlist (see `revertMark`). */
 export async function revertInPlex(
   store: Store,
   profile: ProfileRow,

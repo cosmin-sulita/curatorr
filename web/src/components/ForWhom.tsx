@@ -9,15 +9,20 @@ import { Avatar, Button } from './ui';
 
 export type PersonalMark = 'seen' | 'later' | 'never';
 
-const COPY: Record<PersonalMark, { title: string; hint: string }> = {
+/** What the sheet asks about: a mark, or taking a movie off watchlists. */
+export type ForWhomKind = PersonalMark | 'unwatchlist';
+
+const COPY: Record<ForWhomKind, { title: string; hint: string }> = {
   seen: { title: 'Who has seen it?', hint: "It's marked as seen for them, and left out while you watch together." },
   later: { title: 'Whose watchlist?', hint: 'It goes on their watchlist.' },
   never: { title: 'Never suggest it to…', hint: "It won't come up for them again." },
+  unwatchlist: { title: 'Take it off whose watchlist?', hint: 'It comes off their watchlist.' },
 };
 
 /**
- * Watching together, Seen it, Watchlist and Never ask who they're for. Seen it starts with nobody ticked
- * (usually one person has); Watchlist and Never with everyone. Render it outside Shell, like every overlay.
+ * Watching together, Seen it, Watchlist and Never ask who they're for, and so does taking a movie off watchlists.
+ * Seen it starts with nobody ticked (usually one person has), and so does taking it off, which is someone's own
+ * call; Watchlist and Never start with everyone. Render it outside Shell, like every overlay.
  */
 export function ForWhom({
   kind,
@@ -25,12 +30,14 @@ export function ForWhom({
   onDone,
   onCancel,
 }: {
-  kind: PersonalMark;
+  kind: ForWhomKind;
   people: Profile[];
   onDone: (profileIds: number[]) => void;
   onCancel: () => void;
 }) {
-  const [ticked, setTicked] = useState<number[]>(() => (kind === 'seen' ? [] : people.map((p) => p.id)));
+  const [ticked, setTicked] = useState<number[]>(() =>
+    kind === 'seen' || kind === 'unwatchlist' ? [] : people.map((p) => p.id),
+  );
   const dialog = useRef<HTMLDivElement>(null);
   useScrollLock();
   useDialogFocus(dialog);

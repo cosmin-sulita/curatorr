@@ -369,6 +369,17 @@ describe('Curatorr with Jellyfin, over the API', () => {
       expect(fake.state.marks[1]).toEqual({ route: 'UserFavoriteItems', method: 'DELETE', item: 'jf-alien', user: DAD });
     });
 
+    it('takes a movie out of Jellyfin favourites, also one made a favourite in Jellyfin', async () => {
+      // The Matrix is one of Dad's favourites in Jellyfin.
+      const res = await app.inject({ method: 'DELETE', url: '/api/watchlist/1', headers: { cookie: profiles.Dad! } });
+      expect(res.json()).toEqual({ server: 'synced', onWatchlistOf: [] });
+      expect(fake.state.marks).toEqual([{ route: 'UserFavoriteItems', method: 'DELETE', item: 'jf-matrix', user: DAD }]);
+      expect(store.watchlistIds(profileId('Dad')).has(1)).toBe(false);
+
+      expect((await mark('Dad', 1, 'later')).server).toBe('synced');
+      expect(fake.state.marks[1]).toEqual({ route: 'UserFavoriteItems', method: 'POST', item: 'jf-matrix', user: DAD });
+    });
+
     it('sends nothing to Jellyfin when the owner turned syncing off', async () => {
       store.update('app', { syncToServer: false });
       const seen = await mark('Dad', 6, 'seen');

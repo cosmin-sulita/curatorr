@@ -129,6 +129,23 @@ describe('watching together (demo data)', () => {
     ctx.store.deleteFeedback(ids.Kids!, kidsOwn);
   });
 
+  it('takes a movie off the watchlists of the people named, and only theirs', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Sam']));
+    const bride = movieId('The Princess Bride');
+    expect((await feedback(cookie, { movieId: bride, kind: 'later', profileIds: [ids.Alex, ids.Sam] })).statusCode).toBe(200);
+    const pick = async () =>
+      (await get<RecommendationsResponse>('/api/recommendations?genre=Family', cookie)).picks.find((p) => p.movie.id === bride)!;
+    expect((await pick()).onWatchlistOf).toEqual([ids.Alex, ids.Sam]);
+
+    const unlist = (profileIds: number[]) =>
+      app.inject({ method: 'DELETE', url: `/api/watchlist/${bride}`, headers: { cookie }, payload: { profileIds } });
+    expect((await unlist([ids.Kids!])).statusCode).toBe(400);
+    expect((await unlist([ids.Sam!])).json()).toEqual({ server: 'skipped', onWatchlistOf: [ids.Alex] });
+    expect([kinds('Alex', bride), kinds('Sam', bride)]).toEqual([['later'], []]);
+    expect((await pick()).onWatchlistOf).toEqual([ids.Alex]);
+    await unlist([ids.Alex!]);
+  });
+
   it("only undoes a member's marks from tonight, not ones they made before", async () => {
     const cookie = cookiesOf(await together(['Alex', 'Sam']));
     const coco = movieId('Coco');

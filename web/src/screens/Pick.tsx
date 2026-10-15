@@ -1,17 +1,38 @@
-import { JUST_ARRIVED, shelfById, type MediaServer, type Pick, type WizardOptionsResponse } from '@curatorr/shared';
+import {
+  JUST_ARRIVED,
+  shelfById,
+  wantedReasons,
+  type MediaServer,
+  type Pick,
+  type Profile,
+  type WizardOptionsResponse,
+} from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Ban, BookmarkPlus, ChevronLeft, Clapperboard, Eye, Inbox, Play, RotateCcw, SkipForward } from 'lucide-react';
+import {
+  Ban,
+  BookmarkCheck,
+  BookmarkPlus,
+  ChevronLeft,
+  Clapperboard,
+  Eye,
+  Inbox,
+  Play,
+  RotateCcw,
+  SkipForward,
+  type LucideIcon,
+} from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotionConfig, type PanInfo } from 'motion/react';
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { PosterShuffle } from '../components/PosterShuffle';
 import { RatingBadges } from '../components/Ratings';
-import { ForWhom, type PersonalMark } from '../components/ForWhom';
+import { ForWhom, type ForWhomKind } from '../components/ForWhom';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
 import {
   errorMessage,
+  removeFromWatchlist,
   sendFeedback,
   undoAll,
   useRecommendations,
@@ -68,6 +89,41 @@ function markMessage(
   return `Marked ${title} as seen`;
 }
 
+/** The pick once it's on these people's watchlists only: its chip names who's left, or goes. */
+function withWatchlist(pick: Pick, profileIds: number[], people: Profile[]): Pick {
+  const names = people.filter((p) => profileIds.includes(p.id)).map((p) => p.name);
+  const who = people.length > 1 ? { requested: [], watchlist: names } : undefined;
+  const [chip] = profileIds.length ? wantedReasons({ onWatchlist: true, requested: false }, who) : [];
+  const reasons = pick.reasons.flatMap((r) => (r.kind !== 'watchlist' ? [r] : chip ? [chip] : []));
+  return { ...pick, onWatchlistOf: profileIds, reasons };
+}
+
+/**
+ * Toast after taking a movie off watchlists: `off` names whose it came off, `kept` whose it's still on (the
+ * server couldn't be reached, or the owner keeps Curatorr from changing an entry made there).
+ */
+function unwatchlistMessage(
+  title: string,
+  result: ServerSyncResult,
+  server: MediaServer | null,
+  { off, kept, together }: { off: string[]; kept: string[]; together: boolean },
+) {
+  const name = serverName(server);
+  const unreachable = result === 'failed' ? `Couldn't reach ${name}, so ` : '';
+  if (together) {
+    const lists = (names: string[]) =>
+      `${listNames(names.map((n) => `${n}'s`))} ${names.length > 1 ? 'watchlists' : 'watchlist'}`;
+    if (!off.length) return `${unreachable}${title} is still on ${lists(kept)}`;
+    return `Removed ${title} from ${lists(off)}${kept.length ? `, but it's still on ${lists(kept)}` : ''}`;
+  }
+  const serverList = server === 'jellyfin' ? 'Jellyfin favourites' : 'Plex Watchlist';
+  if (!off.length) {
+    if (unreachable) return `${unreachable}${title} is still on your watchlist`;
+    return `${title} is still ${server === 'jellyfin' ? 'in' : 'on'} your ${serverList}`;
+  }
+  return `Removed ${title} from your ${result === 'synced' ? serverList : 'watchlist'}`;
+}
+
 // Once someone has swiped a pick away, the hint under the poster has done its job.
 const SWIPED_KEY = 'curatorr:swiped';
 
@@ -97,10 +153,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const name = serverName(status?.server);
   const toast = useToast();
   const qc = useQueryClient();
-  // Watching together: Seen it, Watchlist and Never first ask who they're for.
+  // Watching together: Seen it, Watchlist and Never first ask who they're for, and so does taking a movie off.
   const people = status?.profile ? [status.profile, ...status.together] : [];
   const together = people.length > 1;
-  const [asking, setAsking] = useState<PersonalMark | null>(null);
+  const [asking, setAsking] = useState<ForWhomKind | null>(null);
 
   const [queue, setQueue] = useState<Pick[] | null>(null);
   const shown = useRef(new Set<number>());
@@ -203,6 +259,57 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       });
   };
 
+  // Takes the pick off the watchlist (watching together, off the watchlists the sheet names). It stays on screen.
+  const unwatchlist = (profileIds?: number[]) => {
+    if (!current) return;
+    if (together && !profileIds) {
+      setAsking('unwatchlist');
+      return;
+    }
+    const pick = current;
+    const targets = profileIds ?? people.map((p) => p.id);
+    const names = (ids: number[]) => people.filter((p) => ids.includes(p.id)).map((p) => p.name);
+    const show = (p: Pick) => setQueue((q) => q && q.map((x) => (x.movie.id === p.movie.id ? p : x)));
+    vibrate();
+    show(withWatchlist(pick, pick.onWatchlistOf.filter((id) => !targets.includes(id)), people));
+    removeFromWatchlist(pick.movie.id, profileIds)
+      .then(({ server, onWatchlistOf }) => {
+        const after = withWatchlist(pick, onWatchlistOf, people);
+        show(after);
+        const off = targets.filter((id) => !onWatchlistOf.includes(id));
+        const kept = targets.filter((id) => onWatchlistOf.includes(id));
+        toast({
+          message: unwatchlistMessage(pick.movie.title, server, status?.server ?? null, {
+            off: names(off),
+            kept: names(kept),
+            together,
+          }),
+          // Nothing to undo when it stayed on.
+          action: off.length
+            ? {
+                label: 'Undo',
+                run: () => {
+                  show(pick);
+                  sendFeedback(pick.movie.id, 'later', together ? { profileIds: off } : {})
+                    .then((res) => {
+                      if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
+                    })
+                    .catch((err) => {
+                      show(after);
+                      toast({ message: errorMessage(err) });
+                    });
+                },
+              }
+            : undefined,
+        });
+      })
+      .catch((err) => {
+        // Nothing changed, so the pick is as it was.
+        show(pick);
+        toast({ message: errorMessage(err) });
+      });
+  };
+
   const bringForward = (pick: Pick) =>
     setQueue((q) => (q && q[0] ? [pick, ...q.slice(1).filter((p) => p !== pick), q[0]] : q));
 
@@ -291,11 +398,23 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   // Genre and rating are already shown above; chips explain the theme/mood/time match.
   const reasons = current.reasons.filter((r) => r.kind !== 'genre' && r.kind !== 'rating');
 
-  const declines = [
-    { kind: 'skipped' as const, label: 'Not tonight', Icon: SkipForward },
-    { kind: 'later' as const, label: 'Watchlist', Icon: BookmarkPlus },
-    { kind: 'seen' as const, label: 'Seen it', Icon: Eye },
-    { kind: 'never' as const, label: 'Never', Icon: Ban },
+  // Once the pick is on everyone's watchlist, the Watchlist button says so, and takes it off. Watching together,
+  // taking it off offers those who have it, and adding those who don't.
+  const listed = people.length > 0 && people.every((p) => current.onWatchlistOf.includes(p.id));
+  const sheetPeople =
+    asking === 'later'
+      ? people.filter((p) => !current.onWatchlistOf.includes(p.id))
+      : asking === 'unwatchlist'
+        ? people.filter((p) => current.onWatchlistOf.includes(p.id))
+        : people;
+  // The Watchlist button keeps its key when it flips, so it keeps keyboard focus.
+  const actions: { key: string; label: string; Icon: LucideIcon; run: () => void; on?: boolean }[] = [
+    { key: 'skipped', label: 'Not tonight', Icon: SkipForward, run: () => decline('skipped') },
+    listed
+      ? { key: 'later', label: 'On watchlist', Icon: BookmarkCheck, run: () => unwatchlist(), on: true }
+      : { key: 'later', label: 'Watchlist', Icon: BookmarkPlus, run: () => decline('later') },
+    { key: 'seen', label: 'Seen it', Icon: Eye, run: () => decline('seen') },
+    { key: 'never', label: 'Never', Icon: Ban, run: () => decline('never') },
   ];
 
   const watchClass = 'w-full md:w-auto md:min-w-52';
@@ -432,8 +551,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 <div className="mt-7 hidden md:block">
                   {watchButton}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {declines.map(({ kind, label, Icon }) => (
-                      <Button key={kind} variant={kind === 'never' ? 'ghost' : 'secondary'} onClick={() => decline(kind)}>
+                    {actions.map(({ key, label, Icon, run, on }) => (
+                      <Button key={key} variant={on ? 'selected' : key === 'never' ? 'ghost' : 'secondary'} onClick={run}>
                         <Icon className="size-4" /> {label}
                       </Button>
                     ))}
@@ -520,13 +639,16 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           <BottomBar>
             {watchButton}
             <div className="mt-2 grid grid-cols-4 gap-2">
-              {declines.map(({ kind, label, Icon }) => (
+              {actions.map(({ key, label, Icon, run, on }) => (
                 <button
-                  key={kind}
-                  onClick={() => decline(kind)}
-                  className="flex h-14 flex-col items-center justify-center gap-1 rounded-xl bg-raised/80 text-[13px] font-medium text-fg ring-1 ring-line active:scale-[0.97]"
+                  key={key}
+                  onClick={run}
+                  className={clsx(
+                    'flex h-14 flex-col items-center justify-center gap-1 rounded-xl text-[13px] font-medium ring-1 active:scale-[0.97]',
+                    on ? 'bg-indigo-500/15 text-indigo-100 ring-indigo-400/40' : 'bg-raised/80 text-fg ring-line',
+                  )}
                 >
-                  <Icon className="size-5 text-muted" aria-hidden />
+                  <Icon className={clsx('size-5', on ? 'text-indigo-300' : 'text-muted')} aria-hidden />
                   {label}
                 </button>
               ))}
@@ -541,11 +663,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           <ForWhom
             key={asking}
             kind={asking}
-            people={people}
+            people={sheetPeople}
             onCancel={() => setAsking(null)}
             onDone={(profileIds) => {
               setAsking(null);
-              decline(asking, profileIds);
+              if (asking === 'unwatchlist') unwatchlist(profileIds);
+              else decline(asking, profileIds);
             }}
           />
         )}

@@ -97,6 +97,10 @@ export interface Picking {
 
 const union = <T>(sets: Iterable<T>[]) => new Set(sets.flatMap((s) => [...s]));
 
+/** The movies a profile wants to watch: on its media server's watchlist, or saved with "Watchlist" in Curatorr. */
+const wantedIds = (d: { watchlist: Set<number>; feedback: FeedbackEvent[] }) =>
+  union([d.watchlist, d.feedback.filter((e) => e.kind === 'later').map((e) => e.movieId)]);
+
 /** What every non-null set holds; null when none limits anything. */
 function intersection<T>(sets: (Set<T> | null)[]): Set<T> | null {
   const limits = sets.filter((s): s is Set<T> => s != null);
@@ -133,9 +137,7 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
     const seen = new Set([...watched, ...m.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
     // Only requests still waiting to be watched get the boost and the label.
     const requested = new Set(d.boostRequests ? [...m.requested].filter((id) => !seen.has(id)) : []);
-    // Movies saved with "Watchlist" count as the watchlist too.
-    const wanted = union([m.watchlist, m.feedback.filter((e) => e.kind === 'later').map((e) => e.movieId)]);
-    return { m, watched, seen, requested, wanted };
+    return { m, watched, seen, requested, wanted: wantedIds(m) };
   });
   const watched = union(views.map((v) => v.watched));
   const certs = intersection(members.map((m) => allowedCerts(m.restriction)));
@@ -193,6 +195,13 @@ function wantedBy(views: { m: ProfileData; requested: Set<number>; wanted: Set<n
     for (const id of wanted) entry(id).watchlist.push(m.name);
   }
   return out;
+}
+
+/** Who among `rows` has the movie on their watchlist, in their order. */
+export function onWatchlistOf(store: Store, rows: ProfileRow[], movieId: number): number[] {
+  return rows.flatMap((row) =>
+    wantedIds({ watchlist: store.watchlistIds(row.id), feedback: store.feedback(row.id) }).has(movieId) ? [row.id] : [],
+  );
 }
 
 /** Links that open a movie on the media server: `web` in a browser, `app` in its phone apps. */
@@ -269,8 +278,9 @@ export function optionsFor(store: Store, rows: ProfileRow[], step: WizardStep, c
   });
 }
 
-async function toResponse(store: Store, ranked: RankedMovie[]): Promise<RecommendationsResponse> {
+async function toResponse(store: Store, group: ProfileData[], ranked: RankedMovie[]): Promise<RecommendationsResponse> {
   await ensurePlexIds(store, ranked.map((r) => r.movie as StoredMovie));
+  const wanted = group.map((d) => ({ profileId: d.profileId, movies: wantedIds(d) }));
   return {
     total: ranked.filter((r) => r.tier === 0).length,
     picks: ranked.map((r) => ({
@@ -278,23 +288,26 @@ async function toResponse(store: Store, ranked: RankedMovie[]): Promise<Recommen
       score: r.score,
       closeMatch: r.tier > 0,
       reasons: r.reasons,
+      onWatchlistOf: wanted.flatMap((w) => (w.movies.has(r.movie.id) ? [w.profileId] : [])),
     })),
   };
 }
 
 export async function recommendFor(store: Store, rows: ProfileRow[], criteria: Criteria): Promise<RecommendationsResponse> {
-  const { ctx, eligible, opts } = picking(groupData(store, rows), Date.now(), { taste: true });
+  const group = groupData(store, rows);
+  const { ctx, eligible, opts } = picking(group, Date.now(), { taste: true });
   const ranked = rankMovies(eligible, criteria, ctx.feedback, opts);
-  return toResponse(store, isSurprise(criteria) ? surpriseOrder(ranked, opts) : ranked);
+  return toResponse(store, group, isSurprise(criteria) ? surpriseOrder(ranked, opts) : ranked);
 }
 
 /** "Something like…": the eligible movies that share the most with one the profile loved. */
 export async function similarFor(store: Store, rows: ProfileRow[], likedId: number): Promise<RecommendationsResponse> {
-  const { ctx, eligible, opts } = picking(groupData(store, rows), Date.now());
+  const group = groupData(store, rows);
+  const { ctx, eligible, opts } = picking(group, Date.now());
   const liked = store.movie(likedId);
   if (!liked || !allowedFor(liked, ctx)) throw new HttpError(404, 'Movie not found');
   const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, opts);
-  return { ...(await toResponse(store, ranked)), like: { id: liked.id, title: liked.title } };
+  return { ...(await toResponse(store, group, ranked)), like: { id: liked.id, title: liked.title } };
 }
 
 /** Lowercase without accents, so "amelie" finds "Amélie". */

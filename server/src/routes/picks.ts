@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
 import { applyMark, isServerMark, revertMark, type ServerSyncResult } from '../services/mediaServer.js';
-import { likeSeeds, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
+import { likeSeeds, onWatchlistOf, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
 import { requireGroup, requireProfile } from '../session.js';
+import type { ProfileRow } from '../store.js';
 
 const optional = z
   .string()
@@ -25,6 +26,15 @@ function overall(results: ServerSyncResult[]): ServerSyncResult {
   for (const r of ['failed', 'synced', 'already'] as const) if (results.includes(r)) return r;
   return 'skipped';
 }
+
+/** Whom a personal mark is for: those `profileIds` names among the people watching, or the device's profile. */
+function markedFor(group: ProfileRow[], profileIds?: number[]): ProfileRow[] {
+  const wanted = [...new Set(profileIds ?? [group[0]!.id])];
+  const targets = wanted.flatMap((id) => group.find((r) => r.id === id) ?? []);
+  if (!targets.length || targets.length < wanted.length) throw new HttpError(400, 'Mark it for someone watching');
+  return targets;
+}
+
 /** "Something like…": the movie the picks should resemble. */
 const likeSchema = z.object({ like: z.coerce.number().int().positive().optional() });
 
@@ -77,9 +87,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const movie = store.movie(body.movieId);
     if (!movie) throw new HttpError(404, 'Movie not found');
     const personal = body.kind === 'seen' || body.kind === 'never' || body.kind === 'later';
-    const wanted = personal ? [...new Set(body.profileIds ?? [group[0]!.id])] : group.map((r) => r.id);
-    const targets = wanted.flatMap((id) => group.find((r) => r.id === id) ?? []);
-    if (!targets.length || targets.length < wanted.length) throw new HttpError(400, 'Mark it for someone watching');
+    const targets = personal ? markedFor(group, body.profileIds) : group;
     const at = Date.now();
     const ids = targets.map((row) => store.addFeedback(row.id, movie.id, body.kind, at));
     // Played on one account, so the others get it marked watched once that account shows it (together.ts).
@@ -120,6 +128,29 @@ export const pickRoutes: RouteModule = (app, { store }) => {
         ? await revertMark(store, profile, movie, entry.kind, req.log)
         : 'skipped';
     return { ok: true, server };
+  });
+
+  /**
+   * Takes a movie off the watchlist of those `profileIds` names (the device's profile when it's on its own):
+   * their "Watchlist" marks, and the media server's watchlist. Curatorr takes back what it put there itself, but
+   * an entry made in Plex or Jellyfin only while the owner lets marks update the server. Answers who among those
+   * watching still has it there, e.g. when the server couldn't be reached.
+   */
+  app.delete('/api/watchlist/:movieId', async (req) => {
+    const group = requireGroup(req, store);
+    const { movieId } = parse(z.object({ movieId: z.coerce.number().int() }), req.params);
+    const body = parse(z.object({ profileIds: z.array(z.number().int()).max(20).optional() }), req.body ?? {});
+    const movie = store.movie(movieId);
+    if (!movie) throw new HttpError(404, 'Movie not found');
+    const results = await Promise.all(
+      markedFor(group, body.profileIds).map(async (row): Promise<ServerSyncResult> => {
+        const { serverSynced } = store.deleteMarks(row.id, movie.id, 'later');
+        const onServer = store.watchlistIds(row.id).has(movie.id);
+        if (!onServer || !(serverSynced || store.get('app').syncToServer)) return 'skipped';
+        return revertMark(store, row, movie, 'later', req.log);
+      }),
+    );
+    return { server: overall(results), onWatchlistOf: onWatchlistOf(store, group, movie.id) };
   });
 
   /** Movies this profile marked "seen", "never" or saved for "later", so they can be restored. */

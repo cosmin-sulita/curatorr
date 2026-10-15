@@ -50,7 +50,10 @@ export async function applyMark(
   return 'skipped';
 }
 
-/** Undoes what `applyMark` did. Only call it for marks that came back `synced`. */
+/**
+ * Undoes what `applyMark` did: only call it for marks that came back `synced`. The watchlist is the exception,
+ * since someone can take a movie off it in Curatorr, whoever put it there.
+ */
 export async function revertMark(
   store: Store,
   profile: ProfileRow,

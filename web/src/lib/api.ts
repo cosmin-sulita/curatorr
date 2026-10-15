@@ -128,6 +128,17 @@ export async function undoAll(ids: number[]): Promise<{ server?: ServerSyncResul
   return { server: results.some((r) => r.server === 'failed') ? 'failed' : results[0]?.server };
 }
 
+/**
+ * Takes a movie off the watchlist, and the media server's; watching together, off the watchlists of whoever
+ * `profileIds` names. `onWatchlistOf` says who among those watching still has it there.
+ */
+export function removeFromWatchlist(movieId: number, profileIds?: number[]) {
+  return api<{ server: ServerSyncResult; onWatchlistOf: number[] }>(`/api/watchlist/${movieId}`, {
+    method: 'DELETE',
+    json: profileIds ? { profileIds } : undefined,
+  });
+}
+
 export interface HiddenMovie {
   id: number;
   kind: 'seen' | 'never' | 'later';

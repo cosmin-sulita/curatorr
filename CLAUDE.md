@@ -103,9 +103,16 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts the media server only if Curatorr changed it.
+- **On watchlist:** each pick carries `onWatchlistOf`, who among those picking has it on their watchlist (the media server's, or `later` marks). Once that's everyone, the Watchlist button reads "On watchlist", and tapping it calls `DELETE /api/watchlist/:movieId`, which:
+  - deletes the `later` marks;
+  - takes the movie off the media server's watchlist when Curatorr put it there, or when `syncToServer` is on;
+  - answers who still has it.
+
+  The pick stays on screen, and Undo marks `later` again.
 - **Watching together:**
   - `shown`, `skipped` and `accepted` are saved for every member, with one timestamp, so a group's pass also counts in each person's own picks (decided with the maintainer).
   - The marks are saved for the `profileIds` the "For whom?" sheet (`ForWhom`) returns: Seen it starts with nobody ticked, Watchlist and Never with everyone. Each mark is mirrored to that person's media server account.
+  - Watchlist's sheet only offers those who don't have it yet. Taking it off asks whose ("Take it off whose watchlist?"), starting with nobody ticked.
   - `POST /api/feedback` returns `ids`, one per row, and Undo deletes each of them. `DELETE` accepts a row of the device's profile, or of anyone in the current group when it was made tonight.
   - **Afterwards:** `accepted` in a group also records a `together` row (migration v9; a second Watch within 6 hours reuses it).
     - Every 10 minutes, outside demo mode, `services/together.ts` (`settleTogether`, started in `index.ts`) refreshes the members' histories.

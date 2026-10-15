@@ -134,11 +134,17 @@ describe('two-way Plex sync over the API', () => {
     };
   const picks = async (who: string) =>
     (await app.inject({ method: 'GET', url: '/api/recommendations', headers: { cookie: cookies[who]! } })).json() as RecommendationsResponse;
+  const unlist = async (who: string, movieId: number) =>
+    (await app.inject({ method: 'DELETE', url: `/api/watchlist/${movieId}`, headers: { cookie: cookies[who]! } })).json() as {
+      server?: string;
+      onWatchlistOf?: number[];
+    };
 
   it('reads each Watchlist, across pages, and favours those movies', async () => {
     expect([...store.watchlistIds(profileId('Owner'))]).toEqual([1]);
     const matrix = (await picks('Owner')).picks.find((p) => p.movie.id === 1)!;
     expect(matrix.reasons[0]).toEqual({ kind: 'watchlist', label: 'On your watchlist' });
+    expect(matrix.onWatchlistOf).toEqual([profileId('Owner')]);
   });
 
   it('a Watchlist error does not stop the watch history from syncing', () => {
@@ -194,6 +200,48 @@ describe('two-way Plex sync over the API', () => {
     expect(calls).toEqual([]);
     await undo('Member', seen.id);
     await undo('Member', later.id);
+  });
+
+  it('takes a movie off the Plex Watchlist, also one added in Plex, and Watchlist puts it back', async () => {
+    // The Matrix was on the owner's Plex Watchlist before Curatorr saw it.
+    expect(await unlist('Owner', 1)).toEqual({ server: 'synced', onWatchlistOf: [] });
+    expect(calls).toEqual([{ action: 'removeFromWatchlist', key: 'aaa111', token: OWNER }]);
+    const matrix = (await picks('Owner')).picks.find((p) => p.movie.id === 1)!;
+    expect(matrix.onWatchlistOf).toEqual([]);
+    expect(matrix.reasons.map((r) => r.kind)).not.toContain('watchlist');
+
+    expect((await mark('Owner', 1, 'later')).server).toBe('synced');
+    expect(calls[1]).toEqual({ action: 'addToWatchlist', key: 'aaa111', token: OWNER });
+  });
+
+  it('leaves what was added in Plex on the Plex Watchlist when the owner turned syncing off', async () => {
+    const member = profileId('Member');
+    store.addToWatchlist(member, 1); // as read from the member's Plex Watchlist
+    store.update('app', { syncToServer: false });
+    try {
+      expect(await unlist('Member', 1)).toEqual({ server: 'skipped', onWatchlistOf: [member] });
+      expect(calls).toEqual([]);
+    } finally {
+      store.removeFromWatchlist(member, 1);
+    }
+  });
+
+  it('only asks Plex to take off what is on the Plex Watchlist', async () => {
+    store.update('app', { syncToServer: false });
+    expect((await mark('Member', 1, 'later')).server).toBe('skipped'); // saved in Curatorr only
+    store.update('app', { syncToServer: true });
+    expect(await unlist('Member', 1)).toEqual({ server: 'skipped', onWatchlistOf: [] });
+    expect(calls).toEqual([]);
+  });
+
+  it('takes what Curatorr added back off the Plex Watchlist, even with syncing off', async () => {
+    expect((await mark('Member', 1, 'later')).server).toBe('synced');
+    store.update('app', { syncToServer: false });
+    expect(await unlist('Member', 1)).toEqual({ server: 'synced', onWatchlistOf: [] });
+    expect(calls).toEqual([
+      { action: 'addToWatchlist', key: 'aaa111', token: MEMBER },
+      { action: 'removeFromWatchlist', key: 'aaa111', token: MEMBER },
+    ]);
   });
 
   it('lists "Later" alongside hidden movies, once per movie', async () => {

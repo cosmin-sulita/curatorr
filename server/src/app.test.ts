@@ -124,6 +124,23 @@ describe('API (demo data)', () => {
     expect(again.indexOf(saved)).toBeLessThan(again.length - 1);
   });
 
+  it('takes a movie off the watchlist, and its pick no longer says it is on there', async () => {
+    const me = (await get<AppStatus>('/api/status')).body.profile!.id;
+    const drama = async () => (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks;
+    const movieId = (await drama())[0]!.movie.id;
+    await app.inject({ method: 'POST', url: '/api/feedback', headers: { cookie }, payload: { movieId, kind: 'later' } });
+    expect((await drama()).find((p) => p.movie.id === movieId)?.onWatchlistOf).toEqual([me]);
+
+    const res = await app.inject({ method: 'DELETE', url: `/api/watchlist/${movieId}`, headers: { cookie } });
+    expect(res.json()).toEqual({ server: 'skipped', onWatchlistOf: [] });
+    const after = (await drama()).find((p) => p.movie.id === movieId);
+    expect(after?.onWatchlistOf).toEqual([]);
+    expect(after?.reasons.map((r) => r.kind)).not.toContain('watchlist');
+
+    const unknown = await app.inject({ method: 'DELETE', url: '/api/watchlist/999999', headers: { cookie } });
+    expect(unknown.statusCode).toBe(404);
+  });
+
   const cookieFor = async (name: string) => {
     const { body: profiles } = await get<Profile[]>('/api/profiles');
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles.find((p) => p.name === name)!.id}/select` });

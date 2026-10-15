@@ -95,7 +95,7 @@ export async function applyToJellyfin(
   }
 }
 
-/** Undoes what `applyToJellyfin` did. Only call it for marks that came back `synced`. */
+/** Undoes what `applyToJellyfin` did, or takes a movie out of the favourites (see `revertMark`). */
 export async function revertInJellyfin(
   store: Store,
   profile: ProfileRow,

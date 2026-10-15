@@ -134,6 +134,8 @@ export interface Pick {
   score: number;
   closeMatch: boolean;
   reasons: Reason[];
+  /** Who among those picking has the movie on their watchlist (profile ids, in the group's order). */
+  onWatchlistOf: number[];
 }
 
 export interface RecommendationsResponse {

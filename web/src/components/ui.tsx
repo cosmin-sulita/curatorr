@@ -4,7 +4,8 @@ import clsx from 'clsx';
 import { LoaderCircle } from 'lucide-react';
 import { useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** `selected`: a toggle that's on, like the Watchlist button on a pick that's already on the watchlist. */
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'selected';
 type Size = 'sm' | 'md' | 'lg';
 
 /** Button styling, shared with links that look like buttons. */
@@ -19,6 +20,7 @@ export function buttonClass(variant: Variant = 'secondary', size: Size = 'md', c
     variant === 'secondary' && 'bg-raised text-fg ring-1 ring-line hover:bg-[#2a3150]',
     variant === 'ghost' && 'text-muted hover:bg-white/5 hover:text-fg',
     variant === 'danger' && 'bg-red-500/10 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20',
+    variant === 'selected' && 'bg-indigo-500/15 text-indigo-100 ring-1 ring-indigo-400/40 hover:bg-indigo-500/25',
     className,
   );
 }
