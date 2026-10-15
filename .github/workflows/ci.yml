@@ -20,13 +20,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      # Both finish, so a failure shows whether it's only the older Node.
+      fail-fast: false
+      matrix:
+        # 26 is what the image runs. 22.13 is the oldest Node that package.json promises, with the
+        # npm 10 it comes with, as for contributors on Node 22.
+        node: ['22.13.0', '26']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 26
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
       - run: npm run typecheck
