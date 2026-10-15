@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in Curatorr doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Found a security problem? Please report it privately instead, as [SECURITY.md](https://github.com/cosmin-sulita/curatorr/blob/main/SECURITY.md) explains.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what Curatorr did instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Pick a profile
+        2. Answer …
+  - type: input
+    id: version
+    attributes:
+      label: Curatorr version
+      description: It's at the bottom of Settings.
+      placeholder: 1.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options:
+        - Docker on amd64 (most PCs and NAS boxes)
+        - Docker on arm64 (Raspberry Pi, Apple silicon, some NAS boxes)
+        - From source
+    validations:
+      required: true
+  - type: dropdown
+    id: server
+    attributes:
+      label: Media server
+      options:
+        - Plex
+        - Jellyfin
+        - Neither yet
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      description: And whether you use Curatorr as an installed app.
+      placeholder: iPhone, installed app; Chrome on Windows
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        From `docker logs curatorr`, around the time it happened. Replace tokens, API keys and passwords with
+        `***` first. Never attach `curatorr.db`: it holds your Plex or Jellyfin sign-in and your API keys.
+      render: text

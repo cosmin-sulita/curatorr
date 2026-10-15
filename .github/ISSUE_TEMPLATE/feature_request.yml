@@ -1,0 +1,15 @@
+name: Feature request
+description: Something Curatorr could do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Curatorr to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: The evening it would help with, or what you do today instead.
