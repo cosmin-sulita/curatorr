@@ -2,6 +2,14 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.0 (2026-10-15)
+
+- fix(settings): list the connections together and let a change be cancelled ([10d68e0](https://github.com/cosmin-sulita/curatorr/commit/10d68e0))
+- fix(settings): move the sync interval to Library and Refresh profiles to Profiles ([e2bc781](https://github.com/cosmin-sulita/curatorr/commit/e2bc781))
+- feat(settings): open the watchlist, Seen it and Never on pages of their own ([bc2a31b](https://github.com/cosmin-sulita/curatorr/commit/bc2a31b))
+- fix(picks): show "On watchlist" for picks already on it, and take them off with a tap ([e83b175](https://github.com/cosmin-sulita/curatorr/commit/e83b175))
+- feat(settings): show when a new version of Curatorr is out ([d215ff6](https://github.com/cosmin-sulita/curatorr/commit/d215ff6))
+
 ## 1.2.3 (2026-10-12)
 
 - fix(header): keep the profile photo from blinking when a pick opens ([1e15535](https://github.com/cosmin-sulita/curatorr/commit/1e15535))
