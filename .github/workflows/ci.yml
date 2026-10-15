@@ -59,6 +59,46 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Then start it as people do, so the entrypoint, the healthcheck and shutting down are tested too.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: curatorr:check
+          cache-from: type=gha
+      - name: Start the image
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          # A file from before that the entrypoint must hand over to PUID:PGID.
+          config="$RUNNER_TEMP/config"
+          mkdir -p "$config" && touch "$config/older-file"
+          docker run -d --name curatorr -e CURATORR_DEMO=1 -e PUID=1234 -e PGID=1234 \
+            --health-start-interval 2s -v "$config:/config" curatorr:check
+          for _ in $(seq 60); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' curatorr)
+            [ "$status" = starting ] || break
+            sleep 2
+          done
+          [ "$status" = healthy ] || fail "The container didn't become healthy: $status"
+
+          # Curatorr runs as PUID:PGID, which owns the config folder, and keeps its database to itself.
+          uid=$(docker exec curatorr awk '/^Uid:/{print $2}' /proc/1/status)
+          [ "$uid" = 1234 ] || fail "Curatorr runs as uid $uid, not PUID 1234"
+          owner=$(stat -c %u:%g "$config/older-file")
+          [ "$owner" = 1234:1234 ] || fail "The config folder's files belong to $owner, not PUID:PGID"
+          ls "$config"/curatorr*.db > /dev/null || fail "No database in the config folder"
+          for f in "$config"/curatorr*.db*; do
+            mode=$(stat -c %u:%a "$f")
+            [ "$mode" = 1234:600 ] || fail "$(basename "$f") is $mode, not 1234:600"
+          done
+
+          # docker stop sends SIGTERM, which Curatorr answers by closing down and exiting with 0.
+          docker stop -t 20 curatorr
+          code=$(docker inspect -f '{{.State.ExitCode}}' curatorr)
+          [ "$code" = 0 ] || fail "Curatorr exited with $code after SIGTERM"
+      - name: Show its logs
+        if: failure()
+        run: docker logs curatorr
 
   # A release is a new top section in CHANGELOG.md, whose heading is also the app's version
   # (server/build.mjs). Once it reaches main, push its image, then tag it and publish its notes as a
