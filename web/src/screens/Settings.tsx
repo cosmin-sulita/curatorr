@@ -4,25 +4,17 @@ import clsx from 'clsx';
 import { CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { useRef, useState, type ReactNode } from 'react';
+import { FanCard } from '../components/FanCard';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Avatar, Button, buttonClass, Img, Notice, Spinner, Toggle } from '../components/ui';
+import { Avatar, Button, buttonClass, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
-import {
-  api,
-  errorMessage,
-  sendFeedback,
-  undoFeedback,
-  useHidden,
-  useSettings,
-  useStatus,
-  type HiddenMovie,
-  type SettingsResponse,
-} from '../lib/api';
+import { api, errorMessage, useHidden, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
+import { MARK_LISTS } from './Marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 import { ServiceForm } from './Setup';
 
@@ -52,7 +44,7 @@ export function SettingsScreen() {
 
         <div className="mt-8 space-y-5">
           {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
-          {status?.profile && <ProfileLists name={status.profile.name} server={status.server} />}
+          {status?.profile && <ProfileLists name={status.profile.name} />}
           {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
           {isAdmin && settings.isLoading && <Spinner />}
           {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
@@ -97,76 +89,40 @@ function UpdateAvailable({ release, running }: { release: NonNullable<AppStatus[
   );
 }
 
-/** The profile's own marks: movies added to the watchlist, and movies hidden from picks. */
-function ProfileLists({ name, server }: { name: string; server: MediaServer | null }) {
+/**
+ * The profile's own lists: movies on its watchlist, and movies it hid from picks. Each card shows how many and the
+ * latest posters, and opens the whole list, where they can be restored.
+ */
+function ProfileLists({ name }: { name: string }) {
   const marked = useHidden();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['hidden'] });
-    qc.invalidateQueries({ queryKey: ['wizard'] });
-    qc.invalidateQueries({ queryKey: ['like'] });
-    qc.removeQueries({ queryKey: ['recommendations'] });
-  };
-  // Like the marks on a pick: say what happened, and Undo by marking the movie again.
-  const unmark = async (h: HiddenMovie) => {
-    try {
-      const res = await undoFeedback(h.id);
-      const done = h.kind === 'later' ? `Removed ${h.movie.title} from your watchlist` : `Restored ${h.movie.title}`;
-      toast({
-        message: res.server === 'failed' ? `${done}, but couldn't update ${serverName(server)}` : done,
-        action: {
-          label: 'Undo',
-          run: () =>
-            sendFeedback(h.movie.id, h.kind)
-              .then((r) => {
-                if (r.server === 'failed') toast({ message: `Undone here, but ${serverName(server)} couldn't be updated` });
-              })
-              .catch((err) => toast({ message: errorMessage(err) }))
-              .finally(refresh),
-        },
-      });
-    } catch (err) {
-      toast({ message: errorMessage(err) });
-    }
-    refresh();
-  };
-
-  const later = marked.data?.filter((m) => m.kind === 'later') ?? [];
-  const hidden = marked.data?.filter((m) => m.kind !== 'later') ?? [];
-
-  const list = (items: HiddenMovie[], action: string) => (
-    <ul className="divide-y divide-line">
-      {items.map((h) => (
-        <li key={h.id} className="flex items-center gap-3 py-2.5">
-          <Img src={h.movie.posterUrl} className="h-14 w-10 shrink-0 rounded-md object-cover" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{h.movie.title}</span>
-            <span className="text-xs text-muted">
-              {h.kind === 'later' ? 'On your watchlist' : h.kind === 'seen' ? 'Seen' : 'Never suggest'}
-            </span>
-          </span>
-          <Button variant="ghost" onClick={() => unmark(h)} aria-label={`${action} ${h.movie.title}`}>
-            {action}
-          </Button>
-        </li>
-      ))}
-    </ul>
-  );
-
   return (
-    <>
-      {later.length > 0 && (
-        <Section title="Your watchlist" description={`Movies ${name} added from a pick. Picks favour them.`}>
-          {list(later, 'Remove')}
-        </Section>
+    <section>
+      <h2 className="text-lg font-semibold">{name}'s lists</h2>
+      <div className="mt-3 grid gap-3">
+        {MARK_LISTS.map(({ id, kind, title, Icon, hint }) => {
+          const movies = marked.data?.filter((m) => m.kind === kind) ?? [];
+          const posters = movies.flatMap((m) => (m.movie.posterUrl ? [m.movie.posterUrl] : [])).slice(0, 3);
+          return (
+            <FanCard
+              key={id}
+              // An empty list has nothing to open: its card says how to add to it instead.
+              to={movies.length ? `/settings/${id}` : undefined}
+              // As tall as a card with posters, so the sections below stay put when the lists arrive.
+              className="min-h-20 sm:min-h-22"
+              icon={<Icon className="size-5" strokeWidth={1.75} aria-hidden />}
+              title={title}
+              subtitle={!marked.data ? ' ' : movies.length ? plural(movies.length, 'movie') : hint}
+              posters={posters}
+            />
+          );
+        })}
+      </div>
+      {marked.error && (
+        <div className="mt-3">
+          <Notice>{errorMessage(marked.error)}</Notice>
+        </div>
       )}
-      <Section title={`Hidden for ${name}`} description="Movies marked as seen or never. Restore one to see it in picks again.">
-        {marked.isLoading && <Spinner className="size-5" />}
-        {marked.data && hidden.length === 0 && <p className="text-sm text-faint">Nothing hidden yet.</p>}
-        {list(hidden, 'Restore')}
-      </Section>
-    </>
+    </section>
   );
 }
 

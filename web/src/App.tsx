@@ -6,6 +6,7 @@ import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, isNetworkError, useStatus } from './lib/api';
 import { useLocation } from './lib/router';
 import { LikeScreen } from './screens/Like';
+import { isMarkList, MarksScreen } from './screens/Marks';
 import { PickScreen } from './screens/Pick';
 import { ProfilesScreen } from './screens/Profiles';
 import { SettingsScreen } from './screens/Settings';
@@ -64,6 +65,9 @@ function screenFor(path: string, search: URLSearchParams, s: AppStatus): { scree
   if (!s.profile || path === '/profiles') return { screen: <ProfilesScreen />, bare: true };
   if (path === '/pick') return { screen: <PickScreen search={search} /> };
   if (path === '/like') return { screen: <LikeScreen search={search} /> };
+  // The profile's lists, opened from Settings.
+  const list = /^\/settings\/([a-z]+)$/.exec(path)?.[1];
+  if (isMarkList(list)) return { screen: <MarksScreen list={list} /> };
 
   const step = /^\/ask\/([a-z]+)$/.exec(path)?.[1];
   if (isStep(step)) return { screen: <WizardScreen step={step} search={search} /> };

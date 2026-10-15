@@ -95,7 +95,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 - **`web/`**: React 19, TanStack Query, Tailwind v4, `motion`, `vite-plugin-pwa`.
   - `lib/router.tsx` is a tiny history router.
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
-  - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick or settings.
+  - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick, settings, or one of the profile's lists (`/settings/watchlist`, `/settings/seen` or `/settings/never`).
   - The service worker caches the app shell and images. `/api/*` is network-only.
 
 ### Feedback model
@@ -155,6 +155,11 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - "Something like…" is a card above the genres, not a bottom-bar button. It leaves out the liked movie's own saga.
   - Shortcuts (Just arrived, the season's movies) are the first tiles of the genre grid, marked with their icon, and go straight to a pick, with no more questions.
   - In a phone's browser, a "Use Curatorr like an app" tip sits above "Something like…": the Share → Add to Home Screen steps on iOS, or an Install button when Android Chrome offers one (`beforeinstallprompt`). ✕ hides it for good, and the installed app never shows it (`web/src/lib/install.ts`).
+  - **Settings:**
+    - **The profile's lists:** Watchlist, Seen it and Never are cards in the style of "Something like…" (`FanCard`), showing how many movies and the latest three posters, in the order of the pick's buttons.
+      - Each card opens a page of its own (`Marks.tsx`): a poster grid with Remove or Restore and Undo, a search field past 12 movies, and 30 at a time.
+      - An empty list's card only says how to add to it.
+      - The Watchlist's Remove calls `DELETE /api/watchlist/:movieId`, as "On watchlist" does on a pick.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 
 ## Checking UI changes

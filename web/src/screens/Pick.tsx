@@ -100,9 +100,10 @@ function withWatchlist(pick: Pick, profileIds: number[], people: Profile[]): Pic
 
 /**
  * Toast after taking a movie off watchlists: `off` names whose it came off, `kept` whose it's still on (the
- * server couldn't be reached, or the owner keeps Curatorr from changing an entry made there).
+ * server couldn't be reached, or the owner keeps Curatorr from changing an entry made there). Settings' watchlist
+ * says the same.
  */
-function unwatchlistMessage(
+export function unwatchlistMessage(
   title: string,
   result: ServerSyncResult,
   server: MediaServer | null,

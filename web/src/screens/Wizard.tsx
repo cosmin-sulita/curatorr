@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect } from 'react';
+import { FanCard, PosterFan } from '../components/FanCard';
 import { InstallHint } from '../components/InstallHint';
 import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
@@ -225,41 +226,18 @@ function GenreTile({ option: o, onClick, icon = false }: { option: WizardOption;
   );
 }
 
-function PosterFan({ images }: { images: string[] }) {
-  const tilt = ['-rotate-6 translate-x-4', 'z-10', 'rotate-6 -translate-x-4'];
-  return (
-    <span className="-mr-2 flex shrink-0 items-center" aria-hidden>
-      {images.slice(0, 3).map((src, i) => (
-        <Img
-          key={src}
-          src={src}
-          className={clsx(
-            'h-14 w-10 rounded-md object-cover shadow-lg shadow-black/50 ring-1 ring-black/40 sm:h-16 sm:w-11',
-            tilt[i],
-          )}
-        />
-      ))}
-    </span>
-  );
-}
-
 /** "Something like…": start from a movie you loved instead of answering the questions. */
 function LikeCard({ seeds }: { seeds: LikeSeed[] | undefined }) {
   const posters = seeds?.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3) ?? [];
   return (
-    <Link
+    <FanCard
       to="/like"
-      className="mb-3 flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 ring-1 ring-line transition hover:bg-raised active:scale-[0.99]"
-    >
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
-        <TagIcon name="Heart" className="size-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block leading-snug font-semibold">Something like…</span>
-        <span className="block text-sm text-muted">Start from a movie you loved</span>
-      </span>
-      {posters.length > 0 && <PosterFan images={posters} />}
-    </Link>
+      className="mb-3"
+      icon={<TagIcon name="Heart" className="size-5" />}
+      title="Something like…"
+      subtitle="Start from a movie you loved"
+      posters={posters}
+    />
   );
 }
 
