@@ -316,14 +316,12 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
   const name = serverName(data.server);
   // Connected far enough to have read movies and users from it.
   const connected = data.server === 'jellyfin' || Boolean(data.plex.machineId);
+  const home = data.server === 'jellyfin' ? 'Jellyfin' : 'Plex Home';
 
   const refreshProfiles = async () => {
     const server = data.server === 'jellyfin' ? 'jellyfin' : 'plex';
     setRefreshing(true);
-    await run(
-      () => api(`/api/setup/${server}/users`, { json: {} }),
-      `Profiles updated from ${server === 'plex' ? 'Plex Home' : 'Jellyfin'}`,
-    );
+    await run(() => api(`/api/setup/${server}/users`, { json: {} }), `Profiles updated from ${home}`);
     qc.invalidateQueries({ queryKey: ['profiles'] });
     setRefreshing(false);
   };
@@ -331,7 +329,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
   return (
     <>
       <Section title="Library">
-        <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <dt className="text-muted">Movies</dt>
             <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.movies}</dd>
@@ -342,21 +340,41 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matched}</dd>
             </div>
           )}
-          <div>
-            <dt className="text-muted">Last sync</dt>
-            <dd className="mt-0.5 text-base font-medium">{sync.syncing ? 'Syncing now…' : relativeTime(sync.at)}</dd>
-          </div>
         </dl>
         {sync.error && (
           <div className="mt-4">
             <Notice>Last sync failed: {sync.error}</Notice>
           </div>
         )}
-        {!demo && (
-          <Button className="mt-5" onClick={() => run(() => api('/api/sync', { json: {} }))} loading={sync.syncing}>
-            <RefreshCw className="size-4" /> Sync now
-          </Button>
-        )}
+        <div className="mt-5 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <span>
+              <span className="block font-medium">Last sync</span>
+              <span className="block text-sm text-muted">{sync.syncing ? 'Syncing now…' : relativeTime(sync.at)}</span>
+            </span>
+            {!demo && (
+              <Button onClick={() => run(() => api('/api/sync', { json: {} }))} loading={sync.syncing}>
+                {!sync.syncing && <RefreshCw className="size-4" />} Sync now
+              </Button>
+            )}
+          </div>
+          {!demo && (
+            <label className="flex items-center justify-between gap-4">
+              <span className="font-medium">Sync with Radarr every</span>
+              <select
+                className="h-11 rounded-xl bg-ink px-3 ring-1 ring-line"
+                value={data.app.syncIntervalHours}
+                onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
+              >
+                {SYNC_INTERVALS.map((h) => (
+                  <option key={h} value={h}>
+                    {plural(h, 'hour')}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       </Section>
 
       <Section title="Picks">
@@ -404,22 +422,6 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                 onChange={(v) => updateApp({ boostRequests: v })}
               />
             </div>
-          )}
-          {!demo && (
-            <label className="flex items-center justify-between gap-4">
-              <span className="font-medium">Sync with Radarr every</span>
-              <select
-                className="h-11 rounded-xl bg-ink px-3 ring-1 ring-line"
-                value={data.app.syncIntervalHours}
-                onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
-              >
-                {SYNC_INTERVALS.map((h) => (
-                  <option key={h} value={h}>
-                    {plural(h, 'hour')}
-                  </option>
-                ))}
-              </select>
-            </label>
           )}
         </div>
       </Section>
@@ -476,11 +478,6 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                   <Button onClick={() => setEditServer('plex')}>Connect Plex</Button>
                   <Button onClick={() => setEditServer('jellyfin')}>Connect Jellyfin</Button>
                 </>
-              )}
-              {connected && (
-                <Button variant="ghost" loading={refreshing} onClick={refreshProfiles}>
-                  Refresh profiles from {data.server === 'jellyfin' ? 'Jellyfin' : 'Plex Home'}
-                </Button>
               )}
             </div>
           )}
@@ -569,6 +566,11 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             </li>
           ))}
         </ul>
+        {connected && (
+          <Button variant="ghost" className="mt-2 -ml-4" loading={refreshing} onClick={refreshProfiles}>
+            {!refreshing && <RefreshCw className="size-4" />} Refresh profiles from {home}
+          </Button>
+        )}
       </Section>
 
       {!demo && (data.plex.ownerName || data.jellyfin) && (
