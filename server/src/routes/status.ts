@@ -2,6 +2,7 @@ import type { AppStatus } from '@curatorr/shared';
 import { config } from '../config.js';
 import type { RouteModule } from '../context.js';
 import { syncServerState } from '../services/mediaServer.js';
+import { updateFor } from '../services/updates.js';
 import { currentGroup, isAdmin } from '../session.js';
 import { toProfile } from '../store.js';
 
@@ -23,6 +24,8 @@ export const statusRoutes: RouteModule = (app, { store, library }) => {
     const lastError = sync.error && (admin ? sync.error : 'The last library sync failed');
     return {
       version: config.version,
+      // Only an admin can update the container, so only they hear about a new release.
+      update: admin ? updateFor(config.version, store.get('latestVersion')) : null,
       setupComplete: store.get('setupComplete'),
       demo: store.demo,
       server: store.mediaServer(),

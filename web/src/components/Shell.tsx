@@ -29,6 +29,8 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
   const people = profile ? [profile, ...(status?.together ?? [])] : [];
   const names = people.map((p) => p.name);
   const updateReady = useUpdateReady();
+  // A newer release on GitHub, for admins only. Not the same as updateReady, which reloads the app.
+  const release = status?.update;
 
   return (
     // Nothing may widen the page sideways: phones zoom the whole screen out to fit it.
@@ -43,10 +45,14 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
             <>
               <Link
                 to="/settings"
-                aria-label="Settings"
-                className="grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
+                aria-label={release ? `Settings. Curatorr ${release.version} is out` : 'Settings'}
+                className="relative grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
               >
                 <Settings className="size-5" />
+                {/* Settings says which version, and how to get it. */}
+                {release && (
+                  <span className="absolute top-2 right-2 size-2.5 rounded-full bg-indigo-400 ring-2 ring-ink" aria-hidden />
+                )}
               </Link>
               {profile && (
                 <Link

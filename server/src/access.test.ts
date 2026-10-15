@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { config } from './config.js';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 const OWNER = 5001;
@@ -145,6 +146,25 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     expect(await lastError(owner)).toMatch(/^Radarr: could not reach http:\/\/192\.168\.1\.10:7878/);
     store.update('sync', { error: null });
     expect(await lastError()).toBeNull();
+  });
+
+  it('tells only the owner when a newer release is out, since only they can update the container', async () => {
+    // Tests run as `dev`, which has no release to compare with.
+    const running = config.version;
+    config.version = '1.2.0';
+    store.set('latestVersion', '1.3.0');
+    try {
+      const update = async (cookie = '') => (await call(app, 'GET', '/api/status', cookie)).json().update;
+      expect(await update()).toBeNull();
+      expect(await update(profile)).toBeNull();
+      expect(await update(owner)).toEqual({
+        version: '1.3.0',
+        url: 'https://github.com/cosmin-sulita/curatorr/releases/tag/v1.3.0',
+      });
+    } finally {
+      config.version = running;
+      store.set('latestVersion', null);
+    }
   });
 
   it('keeps its media server once set up: skipping one is a step of setup only', async () => {

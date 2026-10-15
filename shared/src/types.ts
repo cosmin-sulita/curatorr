@@ -176,6 +176,8 @@ export interface MovieDTO {
 
 export interface AppStatus {
   version: string;
+  /** A newer release on GitHub. Only admins are told, since they're the ones who can update. */
+  update: { version: string; url: string } | null;
   setupComplete: boolean;
   demo: boolean;
   /** The media server Curatorr uses, or is being set up with. */

@@ -100,6 +100,8 @@ Run `docker compose pull && docker compose up -d`. Everything Curatorr stores is
 
 `latest` is always the newest release. To update on your own schedule, pin a version instead: `ghcr.io/cosmin-sulita/curatorr:0.10` gets only the fixes for 0.10, and `:0.10.0` never changes. The [releases](https://github.com/cosmin-sulita/curatorr/releases) list what changed, and so does the app, under Settings → What's new.
 
+Curatorr also tells you when a new release is out. It asks GitHub for the latest release when it starts and every 6 hours. When that's newer than the one running, the Plex server owner or a Jellyfin administrator sees a dot on the Settings button, and Settings names the new version, with a link to what changed. The request carries nothing about you or your library.
+
 ### HTTPS and installing the app
 
 Browsers only install a PWA over HTTPS. Put Curatorr behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik, Cloudflare Tunnel…) and point it at `http://<host-ip>:7979`. For Caddy:

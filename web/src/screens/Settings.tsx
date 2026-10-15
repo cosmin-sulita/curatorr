@@ -1,12 +1,12 @@
-import type { MediaServer } from '@curatorr/shared';
+import type { AppStatus, MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Copy, LogOut, RefreshCw } from 'lucide-react';
+import { CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { useRef, useState, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Avatar, Button, Img, Notice, Spinner, Toggle } from '../components/ui';
+import { Avatar, Button, buttonClass, Img, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   api,
@@ -51,6 +51,7 @@ export function SettingsScreen() {
         <h1 className="mt-3 font-display text-5xl">Settings</h1>
 
         <div className="mt-8 space-y-5">
+          {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
           {status?.profile && <ProfileLists name={status.profile.name} server={status.server} />}
           {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
           {isAdmin && settings.isLoading && <Spinner />}
@@ -74,6 +75,25 @@ export function SettingsScreen() {
         {showNews && <WhatsNewDialog releases={recentReleases} onClose={() => setShowNews(false)} />}
       </AnimatePresence>
     </>
+  );
+}
+
+/** A newer release is on GitHub (only admins are told): which one, and how to get it. */
+function UpdateAvailable({ release, running }: { release: NonNullable<AppStatus['update']>; running: string }) {
+  return (
+    <section className="flex gap-3 rounded-3xl bg-accent/10 p-5 ring-1 ring-accent/25 sm:p-6">
+      <CircleFadingArrowUp className="mt-0.5 size-6 shrink-0 text-indigo-300" aria-hidden />
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">Curatorr {release.version} is out</h2>
+        <p className="mt-1 text-sm text-muted">
+          You have {running}. Pull the new image and recreate the container, e.g. with{' '}
+          <code className="font-mono text-[13px] text-fg">{'docker compose pull && docker compose up -d'}</code>.
+        </p>
+        <a href={release.url} target="_blank" rel="noopener noreferrer" className={buttonClass('secondary', 'md', 'mt-4')}>
+          What's new in {release.version} <ExternalLink className="size-4" aria-hidden />
+        </a>
+      </div>
+    </section>
   );
 }
 

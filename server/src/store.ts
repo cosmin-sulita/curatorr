@@ -92,6 +92,8 @@ interface SettingsShape {
   seerr: SeerrSettings | null;
   seerrSync: RequestSyncInfo;
   radarrWebhook: RadarrWebhookInfo;
+  /** The newest release on GitHub when Curatorr last looked (services/updates.ts). */
+  latestVersion: string | null;
 }
 
 const defaults = (): SettingsShape => ({
@@ -114,6 +116,7 @@ const defaults = (): SettingsShape => ({
   seerr: null,
   seerrSync: { at: null, requests: 0, profiles: 0, error: null },
   radarrWebhook: { token: newWebhookToken(), at: null, event: null, title: null },
+  latestVersion: null,
 });
 
 // ---------------------------------------------------------------------------
