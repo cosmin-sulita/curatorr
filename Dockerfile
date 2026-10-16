@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION=26
+# The base images are pinned by digest: Dependabot proposes newer ones as pull
+# requests, so CI builds and starts each before it ships with a release.
 
 # ---- build ------------------------------------------------------------------
 # Runs on the build machine's own platform: everything it produces is plain
 # JavaScript, so a multi-arch build doesn't need to emulate this stage.
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+FROM --platform=$BUILDPLATFORM node:26-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -23,7 +24,7 @@ RUN mkdir /prod && cp package.json package-lock.json /prod/ \
   && cd /prod && npm ci --omit=dev --workspace=server --ignore-scripts
 
 # ---- runtime ----------------------------------------------------------------
-FROM node:${NODE_VERSION}-alpine
+FROM node:26-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5
 RUN apk add --no-cache su-exec tzdata
 
 ENV NODE_ENV=production \

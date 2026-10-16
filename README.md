@@ -98,7 +98,7 @@ Then open http://localhost:7979. The demo library has about 95 movies and three 
 
 Run `docker compose pull && docker compose up -d`. Everything Curatorr stores is in `/config`. Phones and browsers that already have the app open switch to the new version the next time it comes back to the foreground, or straight away from the **Update** button in the header.
 
-`latest` is always the newest release. To update on your own schedule, pin a version instead: `ghcr.io/cosmin-sulita/curatorr:0.10` gets only the fixes for 0.10, and `:0.10.0` never changes. The [releases](https://github.com/cosmin-sulita/curatorr/releases) list what changed, and so does the app, under Settings → What's new.
+`latest` is always the newest release. To update on your own schedule, pin a version instead: `ghcr.io/cosmin-sulita/curatorr:1.3` gets only the fixes for 1.3, and `:1.3.0` stays exactly that release. Updates to the Node and Alpine base image come with releases too. The [releases](https://github.com/cosmin-sulita/curatorr/releases) list what changed, and so does the app, under Settings → What's new.
 
 Curatorr also tells you when a new release is out. It asks GitHub for the latest release when it starts and every 6 hours. When that's newer than the one running, the Plex server owner or a Jellyfin administrator sees a dot on the Settings button, and Settings names the new version, with a link to what changed. The request carries nothing about you or your library.
 

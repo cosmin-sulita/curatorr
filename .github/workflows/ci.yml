@@ -103,9 +103,9 @@ jobs:
   # A release is a new top section in CHANGELOG.md, whose heading is also the app's version
   # (server/build.mjs). Once it reaches main, push its image, then tag it and publish its notes as a
   # GitHub Release, so a release never lacks its image: if the image fails, nothing is published and a
-  # re-run starts over. Running the workflow by hand on main rebuilds the current release's image,
-  # e.g. for a newer base image. Every run checks the changelog, so a mistake in it fails on develop
-  # rather than halfway through a release.
+  # re-run starts over. Running the workflow by hand on main pushes the current release's image again,
+  # built the same way: the Dockerfile pins its base images, so newer ones come with a release. Every
+  # run checks the changelog, so a mistake in it fails on develop rather than halfway through a release.
   version:
     runs-on: ubuntu-latest
     timeout-minutes: 5
