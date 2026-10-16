@@ -117,8 +117,9 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
   );
 }
 
+/** 16px text: iOS zooms the page in on a field with smaller text. */
 export const inputClass =
-  'h-11 w-full rounded-xl bg-ink px-3.5 text-[15px] text-fg ring-1 ring-line placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent';
+  'h-11 w-full rounded-xl bg-ink px-3.5 text-base text-fg ring-1 ring-line placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent';
 
 export function Notice({ tone = 'error', children }: { tone?: 'error' | 'info'; children: ReactNode }) {
   return (
