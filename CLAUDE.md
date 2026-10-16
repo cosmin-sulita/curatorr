@@ -6,7 +6,7 @@ Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from 
 
 ## Commands
 
-Requires Node 22.13+, for the built-in `node:sqlite`. Docker and CI use Node 26. Keep `engines`, esbuild's `node22` target and the docs at 22.13 unless the floor is raised on purpose.
+Requires Node 22.13+, for the built-in `node:sqlite`. Docker runs Node 26, and CI tests on both 26 and 22.13. Keep `engines`, esbuild's `node22` target and the docs at 22.13 unless the floor is raised on purpose.
 
 ```sh
 npm install
@@ -25,7 +25,11 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 - **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few files arrive days before each start (Alex's two requests reached Radarr a month earlier), and seeded watches are a week apart. In demo mode everyone counts as admin and no profile has a PIN.
 - **Install scripts:** npm skips dependencies' install scripts unless `allowScripts` in the root `package.json` allows them. esbuild's is denied on purpose (it works without it). Approve a new one only after reviewing it, with `npm install-scripts approve <pkg>`.
 - **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
-- **CI** (`.github/workflows/ci.yml`) runs the typecheck, the tests and the build on pushes to `main` and `develop` and on pull requests. Everywhere but `main` it also builds the Docker image for both platforms without pushing it. On `main` it publishes releases (see below).
+- **CI** (`.github/workflows/ci.yml`) runs on pushes to `main` and `develop` and on pull requests:
+  - the typecheck, the tests and the build, on Node 26 and 22.13;
+  - the changelog check, and on `main` the release (see below);
+  - everywhere but `main`, a build of the Docker image for both platforms, without pushing it. Then it starts the amd64 image in demo mode, which must become healthy, run as PUID:PGID, keep the database at mode 600 and exit with 0 on SIGTERM.
+  - Actions are pinned to commit SHAs, with the release in a comment. Change both together.
 
 ## Architecture
 
@@ -133,6 +137,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Commit subjects:** Conventional Commits, and `feat`/`fix`/`perf` subjects are shown to users as What's new notes. So write them as plain user-facing sentences: `type(component): summary`, e.g. `fix(picks): keep the desktop buttons together`. Add a short body. Don't add `Co-Authored-By` trailers or any other AI attribution to commits or pull requests.
 - **Version:** the top `## x.y.z (date)` heading of CHANGELOG.md is the app version (`server/build.mjs` injects it; the web bundles the file). Its bullets are commit subjects, each linking to its commit. The maintainer writes releases as a `Release x.y.z` commit; don't edit CHANGELOG.md or bump versions unless asked.
 - **Publishing:** when a new top version reaches `main`, CI pushes the image as `X.Y.Z`, `X.Y` and `latest`, then tags `vX.Y.Z` and publishes the section as a GitHub Release. If the image fails, nothing is tagged or released, and re-running the workflow starts over. A push to `main` without a new version publishes nothing. Don't create tags or releases by hand.
+- **Changelog check:** every run, on `develop` and pull requests too, checks that the first `## ` heading is the version, that its section isn't empty, and that it's the latest release or newer. An older one would move `latest` back, onto a database a newer build migrated.
 - **Popup:** it opens after an update only when an unseen release has a `feat` or a hand-written intro (`hasHeadlineNews`). Fix-only releases are listed under Settings → What's new.
 
 ## UI conventions and deliberate decisions

@@ -12,7 +12,7 @@ npm run dev:demo   # API on :7979 with a demo library, UI on http://localhost:51
 npm run dev        # the same against your real Radarr and Plex or Jellyfin; setup runs on first start
 ```
 
-Docker and CI use Node 26. Newer npm versions skip dependencies' install scripts unless `allowScripts` in `package.json` allows them. esbuild's is denied on purpose, since esbuild works without it. If a new dependency needs its script, review it and run `npm install-scripts approve <package>`.
+Docker runs Node 26, and CI tests on both 26 and 22.13. Newer npm versions skip dependencies' install scripts unless `allowScripts` in `package.json` allows them. esbuild's is denied on purpose, since esbuild works without it. If a new dependency needs its script, review it and run `npm install-scripts approve <package>`.
 
 The demo library has about 95 movies and three profiles (Alex, Sam and Kids). In demo mode everyone counts as the admin and no profile has a PIN. `npm run dev` keeps its database in `config/`, which git ignores.
 
@@ -33,7 +33,7 @@ The repo is an npm workspace:
 
 ## Before you open a pull request
 
-- `npm run typecheck`, `npm test` and `npm run build` pass. CI runs all three on every pull request, and builds the Docker image too.
+- `npm run typecheck`, `npm test` and `npm run build` pass. CI runs all three on Node 26 and 22.13 for every pull request, and builds and starts the Docker image too.
 - New behaviour in `shared/` or `server/` comes with tests. When you fix a mis-tagged movie, add it to `shared/src/tagger.fixtures.ts`.
 - Database changes go in a new migration at the end of the list in `server/src/db.ts`. Never edit an old one.
 - UI changes work on a phone (390×844) and on a desktop (1440×900), and touch targets stay at least 44pt. The demo library is the quickest way to check.
@@ -62,4 +62,4 @@ For maintainers:
 1. On `develop`, add a section at the top of [CHANGELOG.md](CHANGELOG.md): a `## x.y.z (YYYY-MM-DD)` heading, then one bullet per commit since the last release, newest first, in the form `- fix(picks): keep the desktop buttons together ([8f2ad71](https://github.com/cosmin-sulita/curatorr/commit/8f2ad71))`. `git log vPREV..HEAD --format='%h %s'` lists them. A paragraph under the heading is shown as the release's intro in What's new. Commit it as `Release x.y.z`.
 2. Fast-forward `main` to `develop` and push both.
 
-The heading is the app's version, and CI does the rest. It pushes the image to `ghcr.io/cosmin-sulita/curatorr` as `x.y.z`, `x.y` and `latest`, then tags `vx.y.z` and publishes the section as a GitHub Release. If the image can't be built or pushed, nothing is tagged or released; fix it and re-run the workflow. Bump the minor version when there's a new feature, and the patch version for fixes only.
+The heading is the app's version, and CI does the rest. It pushes the image to `ghcr.io/cosmin-sulita/curatorr` as `x.y.z`, `x.y` and `latest`, then tags `vx.y.z` and publishes the section as a GitHub Release. If the image can't be built or pushed, nothing is tagged or released; fix it and re-run the workflow. CI checks the heading on `develop` already: it must be the first `## ` heading, with notes under it, and newer than the last release. Bump the minor version when there's a new feature, and the patch version for fixes only.
