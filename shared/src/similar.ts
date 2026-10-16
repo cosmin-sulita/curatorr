@@ -18,7 +18,8 @@ import type { FeedbackEvent, Movie, Reason } from './types.js';
 /**
  * "Something like…": ranks movies by how much of a liked movie's signature they share.
  * A signature weighs each TMDB keyword by how rare it is in the library, plus the movie's
- * themes, moods and genres. Two signatures are compared by cosine similarity.
+ * themes, moods and genres. Two signatures are compared by cosine similarity, a short one
+ * counting as long as a typical movie's.
  */
 
 /** TMDB bookkeeping keywords that say nothing about the movie itself. */
@@ -102,6 +103,8 @@ export interface IndexEntry {
 export interface LibraryIndex {
   idf: Map<string, number>;
   entries: Map<number, IndexEntry>;
+  /** How long a typical movie's signature is: the median, leaving out movies with none. */
+  typicalNorm: number;
 }
 
 const indexes = new WeakMap<Movie[], LibraryIndex>();
@@ -117,18 +120,22 @@ export function libraryIndex(library: Movie[]): LibraryIndex {
         return [m.id, { movie: m, sig, norm: norm(sig) }] as const;
       }),
     );
-    index = { idf, entries };
+    const norms = [...entries.values()].map((e) => e.norm).filter((n) => n > 0).sort((a, b) => a - b);
+    index = { idf, entries, typicalNorm: norms[Math.floor(norms.length / 2)] ?? 0 };
     indexes.set(library, index);
   }
   return index;
 }
 
-/** Cosine similarity, 0 (nothing in common) to 1 (the same signature). */
-export function similarity(a: Signature, b: Signature): number {
+/**
+ * Cosine similarity, 0 (nothing in common) to 1 (the same signature). A signature shorter than `minNorm`
+ * counts as that long: a movie TMDB knows little about isn't all about the one thing it shares.
+ */
+export function similarity(a: Signature, b: Signature, minNorm = 0): number {
   const [small, large] = a.size <= b.size ? [a, b] : [b, a];
   let dot = 0;
   for (const [feature, w] of small) dot += w * (large.get(feature) ?? 0);
-  const n = norm(a) * norm(b);
+  const n = Math.max(norm(a), minNorm) * Math.max(norm(b), minNorm);
   return n ? dot / n : 0;
 }
 
@@ -177,7 +184,7 @@ export function rankSimilar(
   feedback: FeedbackEvent[],
   opts: RankOptions,
 ): RankedMovie[] {
-  const { idf, entries } = libraryIndex(library);
+  const { idf, entries, typicalNorm } = libraryIndex(library);
   const signatureOf = (m: Movie) => entries.get(m.id)?.sig ?? signature(m, idf);
   const likedSig = signatureOf(liked);
   const likedKeywords = usableKeywords(liked);
@@ -186,7 +193,7 @@ export function rankSimilar(
 
   const candidates = eligible.flatMap((m) => {
     if (m.id === liked.id || (liked.saga && m.saga?.id === liked.saga.id)) return [];
-    const sim = similarity(likedSig, signatureOf(m));
+    const sim = similarity(likedSig, signatureOf(m), typicalNorm);
     return sim > 0 ? [{ m, sim }] : [];
   });
   const strongSim = STRONG_SHARE * Math.max(0, ...candidates.map((c) => c.sim));

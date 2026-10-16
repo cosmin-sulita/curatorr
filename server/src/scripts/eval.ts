@@ -511,9 +511,9 @@ function explainLike(profileId: number, query: string) {
     return;
   }
   const p = picking(dataAt(profileId, nextEvening), nextEvening);
-  const { entries } = libraryIndex(movies);
+  const { entries, typicalNorm } = libraryIndex(movies);
   const likedSig = entries.get(liked.id)!.sig;
-  const likeness = (m: Movie) => similarity(likedSig, entries.get(m.id)!.sig);
+  const likeness = (m: Movie) => similarity(likedSig, entries.get(m.id)!.sig, typicalNorm);
   const others = p.eligible.filter((m) => m.id !== liked.id && !(liked.saga && m.saga?.id === liked.saga.id));
   const best = Math.max(0, ...others.map(likeness));
   const signals = profileSignals(p.ctx.feedback, p.opts);

@@ -161,4 +161,20 @@ describe('rankSimilar', () => {
     ]);
     expect(ranked[1]!.reasons).not.toContainEqual({ kind: 'keyword', label: 'Absurd' });
   });
+
+  it("doesn't rank a movie TMDB knows little about above one that shares more", () => {
+    const keywords = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8'];
+    const liked = movie({ genres: ['Crime'], keywords, themes: { heist: 6 } });
+    const thin = movie({ genres: ['Crime'], themes: { heist: 6 } });
+    const rich = movie({
+      genres: ['Crime'],
+      keywords: [...keywords.slice(0, 4), ...Array.from({ length: 8 }, (_, i) => `rich ${i}`)],
+      themes: { heist: 6 },
+    });
+    // A typical movie here has ten keywords.
+    const others = Array.from({ length: 10 }, (_, i) =>
+      movie({ genres: ['Drama'], keywords: Array.from({ length: 10 }, (_, j) => `other ${i}-${j}`) }),
+    );
+    expect(ids(like(liked, [thin, rich], { others }))).toEqual([rich.id, thin.id]);
+  });
 });

@@ -61,6 +61,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
     - TMDB's tone words (`TONE_KEYWORDS`: absurd, suspenseful…) don't count as keywords, here or in taste: contributors add them unevenly, and the moods cover them.
+    - A signature shorter than a typical movie's (`typicalNorm`, the library's median) counts as that long in `similarity`, so movies with few keywords don't crowd every list.
   - `sagas.ts`: collection ordering.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
