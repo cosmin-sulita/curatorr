@@ -56,15 +56,21 @@ export function Spinner({ className }: { className?: string }) {
 function isCached(src: string | null | undefined) {
   if (!src) return false;
   const probe = new Image();
+  // Lazy, so asking doesn't download it: a held image still completes at once, and a detached one never loads.
+  probe.loading = 'lazy';
   probe.src = src;
   return probe.complete && probe.naturalWidth > 0;
 }
 
-/** An image that fades in when loaded and degrades to a tinted block when missing. */
+/**
+ * An image that fades in when loaded and degrades to a tinted block when missing. Lazy unless told otherwise, since
+ * most sit in lists: pass `loading="eager"` for the one a screen is about.
+ */
 export function Img({
   src,
   className,
   alt = '',
+  loading = 'lazy',
   ...rest
 }: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null }) {
   // Starting out loaded means a preloaded or just-shown image appears at once instead of fading in.
@@ -76,6 +82,7 @@ export function Img({
       {...rest}
       src={src}
       alt={alt}
+      loading={loading}
       decoding="async"
       onLoad={() => setLoaded(true)}
       onError={() => setFailed(true)}

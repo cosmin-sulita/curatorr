@@ -14,7 +14,7 @@ import {
   useStatus,
   type HiddenMovie,
 } from '../lib/api';
-import { plural, serverName } from '../lib/format';
+import { plural, serverName, tmdbSize } from '../lib/format';
 import { unwatchlistMessage } from './Pick';
 
 export type MarkListId = 'watchlist' | 'seen' | 'never';
@@ -220,7 +220,10 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
                   exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.18 } }}
                   className="flex flex-col"
                 >
-                  <Img src={h.movie.posterUrl} className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line" />
+                  <Img
+                    src={tmdbSize(h.movie.posterUrl, 'w342')}
+                    className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line"
+                  />
                   <span className="mt-2 line-clamp-2 text-sm font-medium">{h.movie.title}</span>
                   {h.movie.year && <span className="text-xs text-muted">{h.movie.year}</span>}
                   {/* At the foot of the row, so the buttons line up whether a title takes one line or two. */}

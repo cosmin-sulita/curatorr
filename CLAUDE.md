@@ -108,6 +108,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - Every wizard answer lives in the URL (`/ask/<step>?genre=…`), so the phone's back gesture steps back through the questions. Auto-skipped steps use `navigate(…, { replace: true })`, so Back never lands on them.
   - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick, settings, or one of the profile's lists (`/settings/watchlist`, `/settings/seen` or `/settings/never`).
   - The service worker caches the app shell and images. `/api/*` is network-only.
+  - **Images:** a movie's `posterUrl` and `fanartUrl` are TMDB's w500 and w1280, the sizes a pick shows. Cards ask for their own width with `tmdbSize` (`lib/format.ts`): w780 for tiles, w342 for grids and the rail, w154 for poster fans. `Img` loads lazily unless given `loading="eager"`.
 
 ### Feedback model
 

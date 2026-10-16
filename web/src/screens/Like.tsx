@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
-import { serverName } from '../lib/format';
+import { serverName, tmdbSize } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
 
 /** "Something like…": pick a movie you loved, then get unwatched ones that resemble it. */
@@ -97,7 +97,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
               <li key={m.id}>
                 <button onClick={() => choose(m.id)} className="group w-full text-left">
                   <Img
-                    src={m.posterUrl}
+                    src={tmdbSize(m.posterUrl, 'w342')}
                     className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
                   />
                   <span className="mt-2 line-clamp-2 text-sm font-medium">{m.title}</span>

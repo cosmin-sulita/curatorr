@@ -25,6 +25,16 @@ export function listNames(names: string[], last = ' and ') {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')}${last}${names.at(-1)}` : (names[0] ?? '');
 }
 
+/** The TMDB widths Curatorr asks for: w500 posters and w1280 backdrops for a pick, smaller ones for cards. */
+export type TmdbWidth = 'w154' | 'w342' | 'w500' | 'w780' | 'w1280';
+
+/**
+ * The same TMDB image at another width, so a card downloads about what it shows. Other images (Radarr's through the
+ * proxy, the demo's art) come in one size and stay as they are.
+ */
+export const tmdbSize = <T extends string | null | undefined>(url: T, width: TmdbWidth) =>
+  (url ? url.replace(/^(https:\/\/image\.tmdb\.org\/t\/p\/)[^/]+\//, `$1${width}/`) : url) as T;
+
 /** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
 export const serverName = (server: MediaServer | null | undefined) => (server === 'jellyfin' ? 'Jellyfin' : 'Plex');
 
