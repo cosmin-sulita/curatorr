@@ -2,6 +2,29 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.1 (2026-10-16)
+
+- fix(settings): call them your lists instead of naming your profile ([b1412d5](https://github.com/cosmin-sulita/curatorr/commit/b1412d5))
+- chore(scripts): wrap the Something like… report's long lines ([3ba3658](https://github.com/cosmin-sulita/curatorr/commit/3ba3658))
+- fix(picks): let likeness decide the order of movies like the one you loved ([2510278](https://github.com/cosmin-sulita/curatorr/commit/2510278))
+- fix(picks): keep thinly-tagged movies from crowding every list of movies like the one you loved ([c17595f](https://github.com/cosmin-sulita/curatorr/commit/c17595f))
+- fix(picks): match movies like the one you loved on what they're about, not TMDB's tone words ([e9bfc99](https://github.com/cosmin-sulita/curatorr/commit/e9bfc99))
+- chore(scripts): explain and measure Something like… on a real library ([c5cfcfd](https://github.com/cosmin-sulita/curatorr/commit/c5cfcfd))
+- build(licence): ship the libraries' licence notices with the app ([f2e9d38](https://github.com/cosmin-sulita/curatorr/commit/f2e9d38))
+- test(picks): keep the ranking tests' movies further apart than the daily jitter ([6a8b921](https://github.com/cosmin-sulita/curatorr/commit/6a8b921))
+- docs(github): link the bug form to the repository's security policy page ([7138cf1](https://github.com/cosmin-sulita/curatorr/commit/7138cf1))
+- chore(deps): propose dependency, action and base-image updates with Dependabot ([160e164](https://github.com/cosmin-sulita/curatorr/commit/160e164))
+- build(docker): pin the base images so each update is tested before it ships ([b6ec592](https://github.com/cosmin-sulita/curatorr/commit/b6ec592))
+- docs: describe the new CI checks ([a7d28ec](https://github.com/cosmin-sulita/curatorr/commit/a7d28ec))
+- build(docker): map stack traces to the source and keep local files out of the build ([9808d96](https://github.com/cosmin-sulita/curatorr/commit/9808d96))
+- ci(docker): show the image's description on its package page ([2c142af](https://github.com/cosmin-sulita/curatorr/commit/2c142af))
+- docs(github): add issue forms and a pull request template ([e366abf](https://github.com/cosmin-sulita/curatorr/commit/e366abf))
+- ci(docker): start the built image and wait until it's healthy ([7772b42](https://github.com/cosmin-sulita/curatorr/commit/7772b42))
+- ci(test): also test and build on Node 22.13 ([c96eff7](https://github.com/cosmin-sulita/curatorr/commit/c96eff7))
+- ci: pin actions to commits, drop the kept token and add timeouts ([aae84ae](https://github.com/cosmin-sulita/curatorr/commit/aae84ae))
+- docs: add a security policy ([ec533a8](https://github.com/cosmin-sulita/curatorr/commit/ec533a8))
+- ci(release): only publish a changelog version newer than the last release ([7a80de0](https://github.com/cosmin-sulita/curatorr/commit/7a80de0))
+
 ## 1.3.0 (2026-10-15)
 
 - fix(settings): list the connections together and let a change be cancelled ([10d68e0](https://github.com/cosmin-sulita/curatorr/commit/10d68e0))
