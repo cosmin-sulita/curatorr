@@ -49,7 +49,10 @@ const TONE_KEYWORDS = new Set([
 const THEME_WEIGHT = 4;
 const MOOD_WEIGHT = 2;
 const GENRE_WEIGHT = 1;
-/** Similarity (0..1) in points; the rating mostly breaks near-ties. */
+/**
+ * Likeness in points: the closest match gets them all, the others their share. The rating and personal bonuses
+ * then only reorder movies about as alike, instead of outweighing likeness when every movie shares little.
+ */
 const SIMILARITY_POINTS = 100;
 const QUALITY_SHARE = 0.3;
 const MAX_TAG_REASONS = 4;
@@ -196,7 +199,8 @@ export function rankSimilar(
     const sim = similarity(likedSig, signatureOf(m), typicalNorm);
     return sim > 0 ? [{ m, sim }] : [];
   });
-  const strongSim = STRONG_SHARE * Math.max(0, ...candidates.map((c) => c.sim));
+  const best = Math.max(0, ...candidates.map((c) => c.sim));
+  const strongSim = STRONG_SHARE * best;
 
   const ranked = candidates.map(({ m, sim }): RankedMovie => {
     const shared: Shared = {
@@ -208,7 +212,7 @@ export function rankSimilar(
     };
     const quality = qualityScore(m.ratings);
     const adj = personalAdjustment(m, signals, opts);
-    let score = SIMILARITY_POINTS * sim + QUALITY_SHARE * quality + adj.delta;
+    let score = SIMILARITY_POINTS * (sim / best) + QUALITY_SHARE * quality + adj.delta;
 
     const sagaReasons: Reason[] = [];
     if (sagas.next.has(m.id) && m.saga) {

@@ -177,4 +177,29 @@ describe('rankSimilar', () => {
     );
     expect(ids(like(liked, [thin, rich], { others }))).toEqual([rich.id, thin.id]);
   });
+
+  it('lets likeness decide the order, leaving ratings and requests to break near-ties', () => {
+    const keywords = Array.from({ length: 20 }, (_, i) => `k${i}`);
+    const own = (name: string, n: number) => Array.from({ length: n }, (_, i) => `${name} ${i}`);
+    const liked = movie({ genres: ['Crime'], keywords, themes: { heist: 6 } });
+    const close = movie({
+      genres: ['Crime'],
+      keywords: [...keywords.slice(0, 6), ...own('close', 6)],
+      themes: { heist: 6 },
+    });
+    // Half as alike, but requested, just arrived and acclaimed.
+    const wanted = movie({
+      genres: ['Crime'],
+      keywords: [...keywords.slice(0, 2), ...own('wanted', 10)],
+      themes: { heist: 3 },
+      ratings: { rt: 100, imdb: 8.5 },
+      arrivedAt: new Date(NOW - 24 * 60 * 60 * 1000).toISOString(),
+    });
+    const others = Array.from({ length: 10 }, (_, i) => movie({ genres: ['Drama'], keywords: own(`other ${i}`, 12) }));
+    const ranked = like(liked, [wanted, close], { others, requested: new Set([wanted.id]) });
+    expect(ranked.map((r) => [r.movie.id, r.tier])).toEqual([
+      [close.id, 0],
+      [wanted.id, 0],
+    ]);
+  });
 });
