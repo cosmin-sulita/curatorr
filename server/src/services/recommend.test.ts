@@ -128,9 +128,9 @@ describe('a Jellyfin profile limited to some libraries', () => {
 describe('Surprise me', () => {
   it('deals the ten best picks in a drawn order, while answers keep the ranking', async () => {
     const store = tempStore();
-    // Far enough apart that the daily jitter can't reorder them, listed best first.
+    // Critics and audiences both five points apart, more than the daily jitter can reorder, listed best first.
     const movies = Array.from({ length: 15 }, (_, i) =>
-      movie({ ratings: { rt: 99 - i * 5, imdb: null, tmdb: null, metacritic: null } }),
+      movie({ ratings: { rt: 99 - i * 5, imdb: 7.95 - i / 4, tmdb: null, metacritic: null } }),
     );
     store.replaceMovies(movies, Date.now());
     const row = store.profileRow(store.createLocalProfile('Alex', true))!;
@@ -150,11 +150,12 @@ describe('Just arrived', () => {
   it('picks from what arrived lately, best first rather than shuffled', async () => {
     const store = tempStore();
     const ago = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-    // Twelve new arrivals five points apart, listed best first, and an older movie rated above them all.
+    // Twelve new arrivals, critics and audiences both five points apart (more than the daily jitter can
+    // reorder), listed best first, and an older movie rated above them all.
     const fresh = Array.from({ length: 12 }, (_, i) =>
-      movie({ arrivedAt: ago(10), ratings: { rt: 98 - i * 5, imdb: null, tmdb: null, metacritic: null } }),
+      movie({ arrivedAt: ago(10), ratings: { rt: 98 - i * 5, imdb: 7.9 - i / 4, tmdb: null, metacritic: null } }),
     );
-    const old = movie({ arrivedAt: ago(90), ratings: { rt: 100, imdb: null, tmdb: null, metacritic: null } });
+    const old = movie({ arrivedAt: ago(90), ratings: { rt: 100, imdb: 8, tmdb: null, metacritic: null } });
     store.replaceMovies([...fresh, old], Date.now());
     const row = store.profileRow(store.createLocalProfile('Alex', true))!;
     const { picks } = await recommendFor(store, [row], { shelf: 'new' });
