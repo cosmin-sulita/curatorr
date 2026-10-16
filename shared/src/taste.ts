@@ -17,12 +17,27 @@ const UNDATED_DAYS = 365;
 const HALF_CONFIDENCE_WATCHES = 10;
 /** "Seen it" says a movie was watched somewhere, not that it was liked. */
 const SEEN_WEIGHT = 0.3;
+/**
+ * "Seen it" also marks the movie watched on the media server, which dates the watch that moment, and the
+ * next sync reads it back. A watch this close to such a mark is the mark (allowing for the server's clock).
+ */
+const ECHO_MS = 10 * 60 * 1000;
 
 export interface TasteEvent {
   movieId: number;
   /** When, or null if unknown. */
   at: number | null;
   weight: number;
+}
+
+/** Tells the media server's watches that are only its copy of a "Seen it" mark Curatorr made there. */
+export function seenEchoes(feedback: FeedbackEvent[]) {
+  const marked = new Map<number, number[]>();
+  for (const e of feedback) {
+    if (e.kind === 'seen' && e.serverSynced) marked.set(e.movieId, [...(marked.get(e.movieId) ?? []), e.createdAt]);
+  }
+  return (w: { movieId: number; viewedAt: number | null }) =>
+    w.viewedAt != null && (marked.get(w.movieId) ?? []).some((at) => Math.abs(at - w.viewedAt!) <= ECHO_MS);
 }
 
 /** Plex watches, plays started from Curatorr and "Seen it" marks: one event per movie, the strongest. */
@@ -37,7 +52,8 @@ export function tasteEvents(
       best.set(e.movieId, e);
     }
   };
-  for (const w of watched) add({ movieId: w.movieId, at: w.viewedAt, weight: 1 });
+  const echo = seenEchoes(feedback);
+  for (const w of watched) if (!echo(w)) add({ movieId: w.movieId, at: w.viewedAt, weight: 1 });
   for (const e of feedback) {
     if (e.kind === 'accepted') add({ movieId: e.movieId, at: e.createdAt, weight: 1 });
     else if (e.kind === 'seen') add({ movieId: e.movieId, at: e.createdAt, weight: SEEN_WEIGHT });

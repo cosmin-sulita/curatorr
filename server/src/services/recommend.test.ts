@@ -3,11 +3,11 @@ import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Criteria } from '@curatorr/shared';
+import { tasteEvents, type Criteria } from '@curatorr/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
 import { Store, type StoredMovie } from '../store.js';
-import { ensurePlexIds, likeSeeds, recommendFor, similarFor } from './recommend.js';
+import { ensurePlexIds, likeSeeds, profileData, recommendFor, similarFor } from './recommend.js';
 
 let nextId = 1;
 function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
@@ -160,6 +160,21 @@ describe('Just arrived', () => {
     const row = store.profileRow(store.createLocalProfile('Alex', true))!;
     const { picks } = await recommendFor(store, [row], { shelf: 'new' });
     expect(picks.map((p) => p.movie.id)).toEqual(fresh.map((m) => m.id));
+  });
+});
+
+describe('taste', () => {
+  it('counts a "Seen it" as Seen it once the media server shows it watched', () => {
+    const store = tempStore();
+    const film = movie();
+    store.replaceMovies([film], Date.now());
+    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const at = Date.now();
+    store.setFeedbackSynced(store.addFeedback(alex.id, film.id, 'seen', at));
+    // The next sync reads the mark back from Plex, which dated the watch the same second.
+    store.replaceWatched(alex.id, [{ movieId: film.id, viewedAt: at - 1000 }], at);
+    const d = profileData(store, alex);
+    expect(tasteEvents(d.watched, d.feedback)).toEqual([{ movieId: film.id, at, weight: 0.3 }]);
   });
 });
 

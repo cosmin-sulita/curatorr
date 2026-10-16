@@ -59,6 +59,8 @@ export interface FeedbackEvent {
   movieId: number;
   kind: FeedbackKind;
   createdAt: number; // epoch ms
+  /** Curatorr made the mark on the media server too, e.g. "Seen it" marked the movie watched there at this moment. */
+  serverSynced?: boolean;
 }
 
 export type RestrictionProfile = 'little_kid' | 'older_kid' | 'teen' | null;

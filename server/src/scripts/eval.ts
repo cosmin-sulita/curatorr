@@ -15,7 +15,8 @@
  * or Radarr's added date in copies from before that was stored), the earlier watches, requests and
  * feedback, and the questions the wizard would have offered. Where
  * the watched movie ranks says how likely the profile was to accept the pick. Watches predate
- * Curatorr, so this rewards existing habits; read it together with the staleness check.
+ * Curatorr, so this rewards existing habits; read it together with the staleness check. A "Seen it"
+ * that Curatorr marked watched on the media server comes back as a watch, but isn't one, so it isn't replayed.
  *
  * "Something like…" has no watches to replay, so the report checks its lists from every movie a profile
  * watched instead: how many picks share a genre or a theme with the movie, and whether a few movies crowd
@@ -42,6 +43,7 @@ import {
   qualityScore,
   rankMovies,
   rankSimilar,
+  seenEchoes,
   similarity,
   surpriseOrder,
   tagMovie,
@@ -101,8 +103,8 @@ const profiles = all<{ id: number; name: string; restriction_profile: string | n
 const watched = all<{ profile_id: number; movie_id: number; viewed_at: number | null }>(
   'SELECT profile_id, movie_id, viewed_at FROM watched',
 );
-const feedback = all<{ profile_id: number; movie_id: number; kind: FeedbackKind; created_at: number }>(
-  'SELECT profile_id, movie_id, kind, created_at FROM feedback',
+const feedback = all<{ profile_id: number; movie_id: number; kind: FeedbackKind; created_at: number; plex_synced: number }>(
+  'SELECT profile_id, movie_id, kind, created_at, plex_synced FROM feedback',
 );
 const requests = all<{ profile_id: number; movie_id: number; requested_at: number | null }>(
   'SELECT profile_id, movie_id, requested_at FROM requests',
@@ -111,6 +113,12 @@ const watchlist = all<{ profile_id: number; movie_id: number }>('SELECT profile_
 db.close();
 
 const movieById = new Map(movies.map((m) => [m.id, m]));
+const toEvent = (f: (typeof feedback)[number]): FeedbackEvent => ({
+  movieId: f.movie_id,
+  kind: f.kind,
+  createdAt: f.created_at,
+  serverSynced: Boolean(f.plex_synced),
+});
 const arrived = (m: Movie) => arrivalTime(m) ?? 0;
 const libraryStart = Math.min(...movies.map(arrived).filter((t) => t > 0));
 /** When the copy was taken, roughly: its latest activity. */
@@ -138,12 +146,7 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
     watched: watched
       .filter((w) => w.profile_id === profileId && (w.viewed_at ?? 0) < at)
       .map((w) => ({ movieId: w.movie_id, viewedAt: w.viewed_at })),
-    feedback: [
-      ...feedback
-        .filter((f) => f.profile_id === profileId && f.created_at < at)
-        .map((f) => ({ movieId: f.movie_id, kind: f.kind, createdAt: f.created_at })),
-      ...extraFeedback,
-    ],
+    feedback: [...feedback.filter((f) => f.profile_id === profileId && f.created_at < at).map(toEvent), ...extraFeedback],
     watchlist: new Set(at >= copiedAt ? watchlist.filter((w) => w.profile_id === profileId).map((w) => w.movie_id) : []),
     requested: new Set(requests.filter((r) => r.profile_id === profileId && (r.requested_at ?? 0) <= at).map((r) => r.movie_id)),
     requestedByOthers: new Set(
@@ -289,8 +292,15 @@ function harmonic(n: number) {
 }
 
 function replay(profileId: number): Watch[] {
+  const echo = seenEchoes(feedback.filter((f) => f.profile_id === profileId).map(toEvent));
   const replayable = watched
-    .filter((w) => w.profile_id === profileId && w.viewed_at != null && w.viewed_at >= libraryStart + SETTLING)
+    .filter(
+      (w) =>
+        w.profile_id === profileId &&
+        w.viewed_at != null &&
+        w.viewed_at >= libraryStart + SETTLING &&
+        !echo({ movieId: w.movie_id, viewedAt: w.viewed_at }),
+    )
     .sort((a, b) => a.viewed_at! - b.viewed_at!);
   return replayable.map((w) => {
     const m = movieById.get(w.movie_id)!;

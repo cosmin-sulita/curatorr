@@ -59,6 +59,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
         - The tile needs at least 3 movies, with no half rule.
       - **Sagas:** a new sequel still brings in its unwatched first part, as answers do. On a season, the first part must fit the season too.
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched: media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move.
+    - "Seen it" marks the movie watched on the media server too, and the next sync reads that back as a watch. `seenEchoes` spots it (the mark changed the server, `serverSynced`, and the watch is dated within 10 minutes of it), and it counts as the mark. `npm run eval` doesn't replay it either.
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
     - TMDB's tone words (`TONE_KEYWORDS`: absurd, suspenseful…) don't count as keywords, here or in taste: contributors add them unevenly, and the moods cover them.
     - A signature shorter than a typical movie's (`typicalNorm`, the library's median) counts as that long in `similarity`, so movies with few keywords don't crowd every list.

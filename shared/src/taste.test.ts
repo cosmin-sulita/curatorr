@@ -105,6 +105,44 @@ describe('tasteEvents', () => {
       { movieId: b.id, at: NOW, weight: 0.3 },
     ]);
   });
+
+  it('counts the watch "Seen it" made on the media server as the mark, not as a watch', () => {
+    const [a, b] = [movie(), movie()];
+    // Plex dates it when Curatorr marks it, in whole seconds, so just before the mark; another server's clock may run ahead.
+    const events = tasteEvents(
+      [
+        { movieId: a.id, viewedAt: NOW - 1000 },
+        { movieId: b.id, viewedAt: NOW + 2 * 60_000 },
+      ],
+      [
+        { movieId: a.id, kind: 'seen', createdAt: NOW, serverSynced: true },
+        { movieId: b.id, kind: 'seen', createdAt: NOW, serverSynced: true },
+      ],
+    );
+    expect(events).toEqual([
+      { movieId: a.id, at: NOW, weight: 0.3 },
+      { movieId: b.id, at: NOW, weight: 0.3 },
+    ]);
+  });
+
+  it('still counts a real watch of a movie marked "Seen it"', () => {
+    const [rewatched, watchedFirst] = [movie(), movie()];
+    const events = tasteEvents(
+      [
+        { movieId: rewatched.id, viewedAt: NOW + 3 * DAY },
+        // Watched in Plex just before the tap, so the mark had nothing to change there.
+        { movieId: watchedFirst.id, viewedAt: NOW - 5 * 60_000 },
+      ],
+      [
+        { movieId: rewatched.id, kind: 'seen', createdAt: NOW, serverSynced: true },
+        { movieId: watchedFirst.id, kind: 'seen', createdAt: NOW },
+      ],
+    );
+    expect(events).toEqual([
+      { movieId: rewatched.id, at: NOW + 3 * DAY, weight: 1 },
+      { movieId: watchedFirst.id, at: NOW - 5 * 60_000, weight: 1 },
+    ]);
+  });
 });
 
 describe('ranking with taste', () => {

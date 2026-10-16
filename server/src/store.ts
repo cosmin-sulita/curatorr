@@ -548,9 +548,14 @@ export class Store {
 
   feedback(profileId: number): FeedbackEvent[] {
     const rows = this.db
-      .prepare('SELECT movie_id, kind, created_at FROM feedback WHERE profile_id = ?')
-      .all(profileId) as { movie_id: number; kind: FeedbackKind; created_at: number }[];
-    return rows.map((r) => ({ movieId: r.movie_id, kind: r.kind, createdAt: r.created_at }));
+      .prepare('SELECT movie_id, kind, created_at, plex_synced FROM feedback WHERE profile_id = ?')
+      .all(profileId) as { movie_id: number; kind: FeedbackKind; created_at: number; plex_synced: number }[];
+    return rows.map((r) => ({
+      movieId: r.movie_id,
+      kind: r.kind,
+      createdAt: r.created_at,
+      serverSynced: Boolean(r.plex_synced),
+    }));
   }
 
   addFeedback(profileId: number, movieId: number, kind: FeedbackKind, at = Date.now()): number {
