@@ -88,7 +88,7 @@ export function ProfilesScreen() {
     <>
       <Shell>
         <div className="flex flex-col items-center pt-10 sm:pt-20">
-          <h1 className="font-display text-5xl sm:text-6xl">{picked ? "Who's watching together?" : "Who's watching?"}</h1>
+          <h1 className="text-center font-display text-5xl sm:text-6xl">{picked ? "Who's watching together?" : "Who's watching?"}</h1>
           <p className="mt-3 max-w-sm text-center text-muted">
             {picked
               ? `Picks skip what any of you has watched in ${serverName(status?.server)}, within everyone's limits.`
