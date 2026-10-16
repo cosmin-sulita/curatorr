@@ -451,12 +451,17 @@ function tonight(profileId: number) {
 function likeSeeds(profileId: number, at: number): Movie[] {
   const ids = new Set([
     ...watched.filter((w) => w.profile_id === profileId && (w.viewed_at ?? 0) < at).map((w) => w.movie_id),
-    ...feedback.filter((f) => f.profile_id === profileId && f.kind === 'seen' && f.created_at < at).map((f) => f.movie_id),
+    ...feedback
+      .filter((f) => f.profile_id === profileId && f.kind === 'seen' && f.created_at < at)
+      .map((f) => f.movie_id),
   ]);
   return [...ids].flatMap((id) => movieById.get(id) ?? []);
 }
 
-/** From every movie the profile watched: do the picks share a genre or a theme with it, and do a few movies crowd every list? */
+/**
+ * From every movie the profile watched: do the picks share a genre or a theme with it, and do a few movies
+ * crowd every list?
+ */
 function likeSummary(profileId: number) {
   const p = picking(dataAt(profileId, nextEvening), nextEvening);
   const seeds = likeSeeds(profileId, nextEvening).filter((m) => allowedFor(m, p.ctx));
@@ -493,7 +498,9 @@ const featureLabel = (feature: string) => {
 
 /** What a pick shares with the liked movie, as shares of their likeness, biggest first. */
 function sharedParts(liked: Signature, pick: Signature): string {
-  const parts = [...liked].flatMap(([feature, w]) => (pick.has(feature) ? [{ feature, part: w * pick.get(feature)! }] : []));
+  const parts = [...liked].flatMap(([feature, w]) =>
+    pick.has(feature) ? [{ feature, part: w * pick.get(feature)! }] : [],
+  );
   const total = parts.reduce((sum, p) => sum + p.part, 0);
   return parts
     .sort((a, b) => b.part - a.part)
@@ -521,12 +528,17 @@ function explainLike(profileId: number, query: string) {
 
   const profile = profiles.find((x) => x.id === profileId)!;
   heading(`Something like ${name(liked)} for ${profile.name}, on ${day(nextEvening)}:`);
-  console.log(`  ${'#'.padStart(3)}  ${'match'.padEnd(6)}${'score'.padStart(7)}${'likeness'.padStart(15)}${'rating'.padStart(8)}${'personal'.padStart(10)}`);
+  console.log(
+    `  ${'#'.padStart(3)}  ${'match'.padEnd(6)}${'score'.padStart(7)}${'likeness'.padStart(15)}` +
+      `${'rating'.padStart(8)}${'personal'.padStart(10)}`,
+  );
   ranked.forEach((r, i) => {
     const sim = likeness(r.movie);
-    const personal =
-      personalAdjustment(r.movie, signals, p.opts).delta + (p.opts.sagas?.next.has(r.movie.id) && r.movie.saga ? NEXT_PART_BONUS : 0);
-    const chips = r.reasons.filter((x) => ['requested', 'watchlist', 'added', 'saga'].includes(x.kind)).map((x) => x.label);
+    const next = p.opts.sagas?.next.has(r.movie.id) && r.movie.saga ? NEXT_PART_BONUS : 0;
+    const personal = personalAdjustment(r.movie, signals, p.opts).delta + next;
+    const chips = r.reasons
+      .filter((x) => ['requested', 'watchlist', 'added', 'saga'].includes(x.kind))
+      .map((x) => x.label);
     console.log(
       `  ${String(i + 1).padStart(3)}  ${(r.tier ? 'loose' : 'strong').padEnd(6)}${r.score.toFixed(1).padStart(7)}` +
         `${`${sim.toFixed(3)} ${pct(sim / best)}`.padStart(15)}${Math.round(r.quality).toString().padStart(8)}` +
