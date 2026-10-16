@@ -18,6 +18,7 @@ npm run typecheck    # tsc on shared, server and web in turn
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
 npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
 npm run eval         # ranking report on config/curatorr.db; -- --save <file> then -- --compare <file> measures a change
+                     # -- --like <title> explains one "Something like…" list
 npm run icons        # regenerates the committed PWA icons from web/public/logo.svg and app-icon.svg
 ```
 
@@ -75,6 +76,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `scripts/tags.ts` (`npm run tags`) and `scripts/eval.ts` (`npm run eval`) are read-only reports on a copy of a real database in `config/`. It holds Plex or Jellyfin tokens: never commit or upload it.
     - Real TMDB keywords are much messier than the demo library's, so tune the vocabulary against `npm run tags` (coverage, unmatched keywords, idiom candidates), not the demo.
     - `npm run eval` replays each watch with that evening's library, history and wizard questions, and reports MRR and hit@k for new arrivals and the backlog, plus a staleness simulation. It never reads `settings`. Measure ranking changes with `--save` and `--compare` rather than by feel.
+    - "Something like…" has no watches to replay, so `npm run eval` checks its lists from every movie a profile watched: picks sharing a genre or a theme, and movies crowding the top 3. `--like <title>` explains one list: what each pick shares with the movie, and how much of their likeness each shared keyword, theme, mood or genre makes up.
   - `services/recommend.ts`: `profileData` reads what ranking needs from the store, and `picking` turns it into the context and `RankOptions`. `npm run eval` calls `picking` for earlier moments, so every ranking input must go through it.
     - **Watching together:** `picking` takes one profile or several; a profile on its own is a group of one, and `npm run eval -- --compare` must stay at +0.000 when this changes. Together:
       - a movie is out if anyone watched it or marked it Seen it or Never;

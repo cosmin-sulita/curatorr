@@ -9,12 +9,17 @@
  *   npm run eval -- --save run.json     keeps each watch's result, to compare a later run with
  *   npm run eval -- --compare run.json  compares with a saved run, watch by watch, with 95% intervals
  *   npm run eval -- --evenings 30       how many evenings the staleness check simulates
+ *   npm run eval -- --like heat         explains one movie's "Something like…" list: what each pick shares with it
  *
  * Each watch is replayed on the evening it happened: the library as it was (by when each file arrived,
  * or Radarr's added date in copies from before that was stored), the earlier watches, requests and
  * feedback, and the questions the wizard would have offered. Where
  * the watched movie ranks says how likely the profile was to accept the pick. Watches predate
  * Curatorr, so this rewards existing habits; read it together with the staleness check.
+ *
+ * "Something like…" has no watches to replay, so the report checks its lists from every movie a profile
+ * watched instead: how many picks share a genre or a theme with the movie, and whether a few movies crowd
+ * the top of every list.
  *
  * The database is only read, and never its settings table (it holds tokens): settings are taken at
  * their defaults, watched movies left out and requests favoured.
@@ -25,19 +30,29 @@ import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import {
   JUST_ARRIVED,
+  NEXT_PART_BONUS,
+  allowedFor,
   arrivalTime,
   isSurprise,
+  libraryIndex,
   matchesShelf,
+  moodById,
+  personalAdjustment,
+  profileSignals,
   qualityScore,
   rankMovies,
+  rankSimilar,
+  similarity,
   surpriseOrder,
   tagMovie,
+  themeById,
   wizardOptions,
   type Criteria,
   type FeedbackEvent,
   type FeedbackKind,
   type Movie,
   type RankedMovie,
+  type Signature,
 } from '@curatorr/shared';
 import { config } from '../config.js';
 import { picking, type Picking, type ProfileData } from '../services/recommend.js';
@@ -51,6 +66,7 @@ const { values } = parseArgs({
     save: { type: 'string' },
     compare: { type: 'string' },
     evenings: { type: 'string', default: '60' },
+    like: { type: 'string' },
   },
 });
 
@@ -158,6 +174,8 @@ const signed = (x: number, digits = 3) => `${x >= 0 ? '+' : ''}${x.toFixed(digit
 const name = (m: Movie) => (m.year ? `${m.title} (${m.year})` : m.title);
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
 const noImage = () => null;
+/** Lowercase without accents, so "amelie" finds "Amélie". */
+const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 function heading(text: string) {
   console.log(`\n${text}`);
@@ -426,6 +444,100 @@ function tonight(profileId: number) {
 }
 
 // ---------------------------------------------------------------------------
+// "Something like…": what its lists hold, and why
+// ---------------------------------------------------------------------------
+
+/** The movies a profile starts "Something like…" from, as the app lists them: watched or marked "Seen it". */
+function likeSeeds(profileId: number, at: number): Movie[] {
+  const ids = new Set([
+    ...watched.filter((w) => w.profile_id === profileId && (w.viewed_at ?? 0) < at).map((w) => w.movie_id),
+    ...feedback.filter((f) => f.profile_id === profileId && f.kind === 'seen' && f.created_at < at).map((f) => f.movie_id),
+  ]);
+  return [...ids].flatMap((id) => movieById.get(id) ?? []);
+}
+
+/** From every movie the profile watched: do the picks share a genre or a theme with it, and do a few movies crowd every list? */
+function likeSummary(profileId: number) {
+  const p = picking(dataAt(profileId, nextEvening), nextEvening);
+  const seeds = likeSeeds(profileId, nextEvening).filter((m) => allowedFor(m, p.ctx));
+  let picks = 0;
+  let sameGenre = 0;
+  let sameTheme = 0;
+  let firstOffGenre = 0;
+  const inTop3 = new Map<number, number>();
+  for (const seed of seeds) {
+    rankSimilar(p.eligible, seed, movies, p.ctx.feedback, p.opts).forEach((r, i) => {
+      picks++;
+      if (r.movie.genres.some((g) => seed.genres.includes(g))) sameGenre++;
+      else if (i === 0) firstOffGenre++;
+      if (Object.keys(r.movie.themes).some((t) => (seed.themes[t] ?? 0) > 0)) sameTheme++;
+      if (i < 3) inTop3.set(r.movie.id, (inTop3.get(r.movie.id) ?? 0) + 1);
+    });
+  }
+  const crowding = [...inTop3].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  heading(`Something like…, from each of the ${seeds.length} movies they watched (the picks shown, up to 12):`);
+  const line = (label: string, value: string) => console.log(`  ${label.padEnd(54)}${value}`);
+  line('picks sharing a genre with the movie', pct(sameGenre / picks, 1));
+  line('picks sharing a theme with it', pct(sameTheme / picks, 1));
+  line('first picks with no genre in common', `${firstOffGenre} of ${seeds.length}`);
+  line('different movies in some top 3', String(inTop3.size));
+  console.log(`  most often in the top 3: ${crowding.map(([id, n]) => `${name(movieById.get(id)!)} ${n}`).join(', ')}`);
+}
+
+const featureLabel = (feature: string) => {
+  const id = feature.slice(2);
+  if (feature.startsWith('t:')) return themeById.get(id)?.label ?? id;
+  if (feature.startsWith('m:')) return moodById.get(id)?.label ?? id;
+  return id;
+};
+
+/** What a pick shares with the liked movie, as shares of their likeness, biggest first. */
+function sharedParts(liked: Signature, pick: Signature): string {
+  const parts = [...liked].flatMap(([feature, w]) => (pick.has(feature) ? [{ feature, part: w * pick.get(feature)! }] : []));
+  const total = parts.reduce((sum, p) => sum + p.part, 0);
+  return parts
+    .sort((a, b) => b.part - a.part)
+    .map((p) => `${featureLabel(p.feature)} ${pct(p.part / total)}`)
+    .join(' · ');
+}
+
+/** `--like`: one movie's "Something like…" list on the evening after the copy, and what each pick shares with it. */
+function explainLike(profileId: number, query: string) {
+  const q = fold(query);
+  const found = movies.filter((m) => fold(m.title).includes(q));
+  const liked = found.find((m) => fold(m.title) === q) ?? found[0];
+  if (!liked) {
+    console.log(`No movie title contains "${query}".`);
+    return;
+  }
+  const p = picking(dataAt(profileId, nextEvening), nextEvening);
+  const { entries } = libraryIndex(movies);
+  const likedSig = entries.get(liked.id)!.sig;
+  const likeness = (m: Movie) => similarity(likedSig, entries.get(m.id)!.sig);
+  const others = p.eligible.filter((m) => m.id !== liked.id && !(liked.saga && m.saga?.id === liked.saga.id));
+  const best = Math.max(0, ...others.map(likeness));
+  const signals = profileSignals(p.ctx.feedback, p.opts);
+  const ranked = rankSimilar(p.eligible, liked, movies, p.ctx.feedback, p.opts);
+
+  const profile = profiles.find((x) => x.id === profileId)!;
+  heading(`Something like ${name(liked)} for ${profile.name}, on ${day(nextEvening)}:`);
+  console.log(`  ${'#'.padStart(3)}  ${'match'.padEnd(6)}${'score'.padStart(7)}${'likeness'.padStart(15)}${'rating'.padStart(8)}${'personal'.padStart(10)}`);
+  ranked.forEach((r, i) => {
+    const sim = likeness(r.movie);
+    const personal =
+      personalAdjustment(r.movie, signals, p.opts).delta + (p.opts.sagas?.next.has(r.movie.id) && r.movie.saga ? NEXT_PART_BONUS : 0);
+    const chips = r.reasons.filter((x) => ['requested', 'watchlist', 'added', 'saga'].includes(x.kind)).map((x) => x.label);
+    console.log(
+      `  ${String(i + 1).padStart(3)}  ${(r.tier ? 'loose' : 'strong').padEnd(6)}${r.score.toFixed(1).padStart(7)}` +
+        `${`${sim.toFixed(3)} ${pct(sim / best)}`.padStart(15)}${Math.round(r.quality).toString().padStart(8)}` +
+        `${signed(personal, 1).padStart(10)}  ${[name(r.movie), ...chips].join(' · ')}`,
+    );
+    console.log(`  ${''.padStart(23)}shares ${sharedParts(likedSig, entries.get(r.movie.id)!.sig)}`);
+  });
+  if (!ranked.length) console.log('  nothing in common with any movie they may watch');
+}
+
+// ---------------------------------------------------------------------------
 // Saving and comparing runs
 // ---------------------------------------------------------------------------
 
@@ -491,36 +603,42 @@ console.log(`${movies.length} movies in ${file}`);
 console.log(`Library started ${day(libraryStart)}; latest activity ${day(copiedAt)}.`);
 
 const chosen = values.profile ? profiles.filter((p) => String(p.id) === values.profile) : profiles;
-const runs = new Map<number, Watch[]>();
-const tooFew: string[] = [];
-for (const profile of chosen) {
-  const ws = replay(profile.id);
-  if (ws.length < MIN_WATCHES) {
-    tooFew.push(`${profile.name} (${ws.length})`);
-    continue;
+if (values.like) {
+  if (chosen[0]) explainLike(chosen[0].id, values.like);
+  else console.log(`\nNo profile ${values.profile}.`);
+} else {
+  const runs = new Map<number, Watch[]>();
+  const tooFew: string[] = [];
+  for (const profile of chosen) {
+    const ws = replay(profile.id);
+    if (ws.length < MIN_WATCHES) {
+      tooFew.push(`${profile.name} (${ws.length})`);
+      continue;
+    }
+    runs.set(profile.id, ws);
+    const offered = ws.filter((w) => w.offered).length;
+    heading(
+      `${profile.name}: would the pick have been what they watched? ${ws.length} watches since ${day(libraryStart + SETTLING)}, ` +
+        `${ws.length - offered} of them not offerable that evening (saga order, not in Plex)`,
+    );
+    if (values.split) {
+      const split = Date.parse(values.split);
+      console.log(`  before ${values.split}`);
+      scoreTable(ws.filter((w) => w.at < split));
+      console.log(`  from ${values.split}`);
+      scoreTable(ws.filter((w) => w.at >= split));
+    } else {
+      scoreTable(ws);
+    }
+    staleness(profile.id);
+    tonight(profile.id);
+    likeSummary(profile.id);
   }
-  runs.set(profile.id, ws);
-  const offered = ws.filter((w) => w.offered).length;
-  heading(
-    `${profile.name}: would the pick have been what they watched? ${ws.length} watches since ${day(libraryStart + SETTLING)}, ` +
-      `${ws.length - offered} of them not offerable that evening (saga order, not in Plex)`,
-  );
-  if (values.split) {
-    const split = Date.parse(values.split);
-    console.log(`  before ${values.split}`);
-    scoreTable(ws.filter((w) => w.at < split));
-    console.log(`  from ${values.split}`);
-    scoreTable(ws.filter((w) => w.at >= split));
-  } else {
-    scoreTable(ws);
-  }
-  staleness(profile.id);
-  tonight(profile.id);
-}
-if (tooFew.length) console.log(`\nToo few watches to judge (${MIN_WATCHES} needed): ${tooFew.join(', ')}.`);
+  if (tooFew.length) console.log(`\nToo few watches to judge (${MIN_WATCHES} needed): ${tooFew.join(', ')}.`);
 
-if (values.compare) compare(runs, path.resolve(cwd, values.compare));
-if (values.save) {
-  writeFileSync(path.resolve(cwd, values.save), JSON.stringify(toSaved(runs)));
-  console.log(`\nSaved each watch's result to ${path.resolve(cwd, values.save)}.`);
+  if (values.compare) compare(runs, path.resolve(cwd, values.compare));
+  if (values.save) {
+    writeFileSync(path.resolve(cwd, values.save), JSON.stringify(toSaved(runs)));
+    console.log(`\nSaved each watch's result to ${path.resolve(cwd, values.save)}.`);
+  }
 }
