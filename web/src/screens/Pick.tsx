@@ -1,5 +1,6 @@
 import {
   JUST_ARRIVED,
+  genreById,
   shelfById,
   wantedReasons,
   type MediaServer,
@@ -520,7 +521,13 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                     {m.certification && (
                       <span className="rounded-md px-1.5 py-0.5 text-xs font-semibold ring-1 ring-white/25">{m.certification}</span>
                     )}
-                    <span className="text-faint">{m.genres.slice(0, 3).join(', ')}</span>
+                    {/* Named as on the genre tiles: Sci-Fi, not TMDB's Science Fiction. */}
+                    <span className="text-faint">
+                      {m.genres
+                        .slice(0, 3)
+                        .map((g) => genreById.get(g)?.label ?? g)
+                        .join(', ')}
+                    </span>
                   </div>
                   {m.saga && (
                     <p className="mt-2 text-[15px] text-muted">
