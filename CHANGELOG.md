@@ -2,6 +2,10 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.4 (2026-10-16)
+
+- fix(images): show pictures straight away again, as before 1.3.3 ([9f17290](https://github.com/cosmin-sulita/curatorr/commit/9f17290))
+
 ## 1.3.3 (2026-10-16)
 
 - perf(app): drop the server's tagging vocabulary from the app's download ([41855ca](https://github.com/cosmin-sulita/curatorr/commit/41855ca))
