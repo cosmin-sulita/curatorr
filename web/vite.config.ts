@@ -94,7 +94,8 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Archivo's Latin subset is the one the app shows. The others load from the server when a title needs them.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}', '**/archivo-latin-wdth-*.woff2'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
