@@ -24,8 +24,8 @@ interface MarkList {
   kind: HiddenMovie['kind'];
   title: string;
   Icon: LucideIcon;
-  /** What the list is, for whom. */
-  lede: (name: string) => string;
+  /** What the list is. */
+  lede: string;
   /** How a movie gets on the list, for an empty one. */
   hint: string;
   action: 'Remove' | 'Restore';
@@ -39,7 +39,7 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'later',
     title: 'Watchlist',
     Icon: Bookmark,
-    lede: (name) => `Movies ${name} added from a pick. Picks favour them.`,
+    lede: 'Movies you added from a pick. Picks favour them.',
     hint: 'Tap Watchlist on a pick to save it',
     action: 'Remove',
     ActionIcon: BookmarkMinus,
@@ -49,7 +49,7 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'seen',
     title: 'Seen it',
     Icon: Eye,
-    lede: (name) => `Movies ${name} marked as seen. Restore one to see it in picks again.`,
+    lede: 'Movies you marked as seen. Restore one to see it in picks again.',
     hint: "Tap Seen it on a pick you've watched",
     action: 'Restore',
     ActionIcon: RotateCcw,
@@ -59,7 +59,7 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'never',
     title: 'Never',
     Icon: Ban,
-    lede: (name) => `Movies that won't be suggested to ${name}. Restore one to see it in picks again.`,
+    lede: "Movies that won't be suggested to you. Restore one to see it in picks again.",
     hint: "Tap Never on a pick you don't want",
     action: 'Restore',
     ActionIcon: RotateCcw,
@@ -172,7 +172,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
         <h1 className="font-display text-[44px] sm:text-6xl">{list.title}</h1>
         {marked.data && (
           <p className="mt-3 text-muted">
-            {all.length ? list.lede(status?.profile?.name ?? 'you') : `Nothing here. ${list.hint}.`}
+            {all.length ? list.lede : `Nothing here. ${list.hint}.`}
           </p>
         )}
 

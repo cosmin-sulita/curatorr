@@ -44,7 +44,7 @@ export function SettingsScreen() {
 
         <div className="mt-8 space-y-5">
           {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
-          {status?.profile && <ProfileLists name={status.profile.name} />}
+          {status?.profile && <ProfileLists />}
           {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
           {isAdmin && settings.isLoading && <Spinner />}
           {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
@@ -93,11 +93,11 @@ function UpdateAvailable({ release, running }: { release: NonNullable<AppStatus[
  * The profile's own lists: movies on its watchlist, and movies it hid from picks. Each card shows how many and the
  * latest posters, and opens the whole list, where they can be restored.
  */
-function ProfileLists({ name }: { name: string }) {
+function ProfileLists() {
   const marked = useHidden();
   return (
     <section>
-      <h2 className="text-lg font-semibold">{name}'s lists</h2>
+      <h2 className="text-lg font-semibold">Your lists</h2>
       <div className="mt-3 grid gap-3">
         {MARK_LISTS.map(({ id, kind, title, Icon, hint }) => {
           const movies = marked.data?.filter((m) => m.kind === kind) ?? [];
