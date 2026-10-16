@@ -1,0 +1,50 @@
+# Monthly, grouped pull requests against develop. Their subjects use chore, ci and build, which stay
+# out of What's new. A new version waits a week first, since a hijacked package is usually caught by then.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    # Minor and patch updates come together; each major comes on its own.
+    groups:
+      npm:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ['*']
+
+  # The Dockerfile pins its base images by digest, so this proposes their rebuilds too.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      docker:
+        patterns: ['*']
+    ignore:
+      # A new Node major is adopted by hand, once it's an LTS line, together with CI's Node 26.
+      - dependency-name: node
+        update-types: [version-update:semver-major]

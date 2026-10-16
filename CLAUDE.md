@@ -30,6 +30,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
   - the changelog check, and on `main` the release (see below);
   - everywhere but `main`, a build of the Docker image for both platforms, without pushing it. Then it starts the amd64 image in demo mode, which must become healthy, run as PUID:PGID, keep the database at mode 600 and exit with 0 on SIGTERM.
   - Actions are pinned to commit SHAs, with the release in a comment. Change both together.
+- **Dependency updates:** Dependabot (`.github/dependabot.yml`) opens monthly, grouped pull requests against `develop` for npm, the Actions and the Dockerfile's base images, which are pinned by digest. New versions wait a week first. A new Node major is adopted by hand.
 
 ## Architecture
 
