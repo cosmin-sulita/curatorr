@@ -1,9 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 import type { AppStatus, LikeSeed, Profile, RecommendationsResponse, WizardOptionsResponse } from '@curatorr/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { config } from './config.js';
 
 describe('API (demo data)', () => {
   let dir: string;
@@ -292,5 +294,72 @@ describe('API (demo data)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/demo/art/1/poster.svg' });
     expect(res.headers['content-type']).toContain('image/svg+xml');
     expect(res.body).toContain('KNIGHT');
+  });
+});
+
+describe('the web app', () => {
+  let web: string;
+  let dir: string;
+  let app: Awaited<ReturnType<typeof buildApp>>['app'];
+  const webDist = config.webDist;
+
+  beforeAll(async () => {
+    // A build in miniature: text files with brotli and gzip copies beside them, the service worker without.
+    web = mkdtempSync(path.join(tmpdir(), 'curatorr-web-'));
+    mkdirSync(path.join(web, 'assets'));
+    const files: Record<string, string> = {
+      'index.html': '<!doctype html><title>Curatorr</title>',
+      'assets/index-abc.js': 'console.log("Curatorr")',
+      'sw.js': 'self.skipWaiting()',
+    };
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(web, name), text);
+    for (const name of ['index.html', 'assets/index-abc.js']) {
+      writeFileSync(path.join(web, `${name}.br`), brotliCompressSync(files[name]!));
+      writeFileSync(path.join(web, `${name}.gz`), gzipSync(files[name]!));
+    }
+    config.webDist = web;
+    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-test-'));
+    ({ app } = await buildApp({ configDir: dir, demo: true, logger: false }));
+  });
+
+  afterAll(async () => {
+    config.webDist = webDist;
+    await app.close();
+    rmSync(web, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const get = (url: string, encoding?: string) =>
+    app.inject({ method: 'GET', url, headers: encoding ? { 'accept-encoding': encoding } : {} });
+
+  it('sends the compressed copy a browser accepts, and says the answer depends on it', async () => {
+    for (const [encoding, sent] of [['gzip, deflate, br', 'br'], ['gzip, deflate', 'gzip'], [undefined, undefined]]) {
+      const res = await get('/assets/index-abc.js', encoding);
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-encoding']).toBe(sent);
+      expect(res.headers['content-type']).toMatch(/javascript/);
+      expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+      expect(res.headers.vary).toMatch(/accept-encoding/);
+    }
+  });
+
+  it('keeps the page itself uncached, compressed or not, at any address in the app', async () => {
+    for (const url of ['/', '/pick?genre=Drama']) {
+      for (const [encoding, sent] of [['br', 'br'], [undefined, undefined]]) {
+        const res = await get(url, encoding);
+        expect(res.statusCode).toBe(200);
+        expect(res.headers['content-encoding']).toBe(sent);
+        expect(res.headers['content-type']).toMatch(/text\/html/);
+        expect(res.headers['cache-control']).toBe('no-cache');
+      }
+    }
+  });
+
+  it('sends a file as it is when it has no compressed copy', async () => {
+    const res = await get('/sw.js', 'gzip, deflate, br');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-encoding']).toBeUndefined();
+    expect(res.body).toBe('self.skipWaiting()');
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 });

@@ -77,8 +77,11 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
   if (existsSync(path.join(config.webDist, 'index.html'))) {
     await app.register(fastifyStatic, {
       root: config.webDist,
+      // The build puts .br and .gz copies beside the text files; browsers that accept one get it.
+      preCompressed: true,
       setHeaders(reply, filePath) {
-        const name = path.basename(filePath);
+        // Named as asked for, not as the compressed copy sent.
+        const name = path.basename(filePath).replace(/\.(br|gz)$/, '');
         if (filePath.includes(`${path.sep}assets${path.sep}`)) {
           reply.header('cache-control', 'public, max-age=31536000, immutable');
         } else if (name === 'index.html' || name === 'sw.js' || name.endsWith('.webmanifest')) {

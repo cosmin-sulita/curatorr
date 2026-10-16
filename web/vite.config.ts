@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { brotliCompressSync, constants as zlib, gzipSync } from 'node:zlib';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -38,11 +39,37 @@ function moreLicenses(): Plugin {
   };
 }
 
+/**
+ * Brotli and gzip copies of the text files, beside them in dist, for the server to send to browsers that accept them.
+ * Browsers only offer brotli over HTTPS, so gzip covers the plain-HTTP address on the home network.
+ */
+function precompress(): Plugin {
+  return {
+    name: 'curatorr:precompress',
+    apply: 'build',
+    generateBundle: {
+      order: 'post',
+      handler(_, bundle) {
+        for (const file of Object.values(bundle)) {
+          if (!/\.(js|css|html|svg|md)$/.test(file.fileName)) continue;
+          const source = Buffer.from(file.type === 'chunk' ? file.code : file.source);
+          // Too small to gain from it.
+          if (source.length < 1024) continue;
+          const br = brotliCompressSync(source, { params: { [zlib.BROTLI_PARAM_QUALITY]: zlib.BROTLI_MAX_QUALITY } });
+          this.emitFile({ type: 'asset', fileName: `${file.fileName}.br`, source: br });
+          this.emitFile({ type: 'asset', fileName: `${file.fileName}.gz`, source: gzipSync(source, { level: 9 }) });
+        }
+      },
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     moreLicenses(),
+    precompress(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
