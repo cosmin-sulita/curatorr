@@ -66,7 +66,7 @@ function markMessage(
   who?: string[],
 ) {
   const name = serverName(server);
-  if (kind === 'skipped') return `Skipped ${title}`;
+  if (kind === 'skipped') return `Not tonight: ${title}`;
   if (who) {
     const failed = result === 'failed' ? `, but couldn't update ${name}` : '';
     if (kind === 'never') return `${title} won't be suggested to ${listNames(who)} again`;
