@@ -4,7 +4,7 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Found a security problem? Please report it privately instead, as [SECURITY.md](https://github.com/cosmin-sulita/curatorr/blob/main/SECURITY.md) explains.
+      value: Found a security problem? Please report it privately instead, as the [security policy](https://github.com/cosmin-sulita/curatorr/security/policy) explains.
   - type: textarea
     id: what
     attributes:
