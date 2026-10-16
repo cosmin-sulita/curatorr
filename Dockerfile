@@ -38,6 +38,8 @@ COPY --from=build /prod/node_modules ./node_modules
 COPY --from=build /app/server/package.json ./server/package.json
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/web/dist ./web/dist
+# Curatorr's licence. The web app's libraries are in web/dist/licenses.md, the server's in node_modules.
+COPY LICENSE ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /config
 
