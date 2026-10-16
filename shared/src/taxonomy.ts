@@ -495,9 +495,18 @@ export const STEP_ORDER = ['genre', 'theme', 'mood', 'time'] as const;
 /** An option is only offered when at least this many movies match it. */
 export const MIN_OPTION_COUNT = 3;
 
-export const themeById = new Map(THEMES.map((t) => [t.id, t]));
-export const moodById = new Map(MOODS.map((m) => [m.id, m]));
-export const genreById = new Map(GENRES.map((g) => [g.id, g]));
-export const timeById = new Map(TIME_OPTIONS.map((t) => [t.id, t]));
-export const shelfById = new Map(SHELVES.map((s) => [s.id, s]));
-export const seasonById = new Map(SEASONS.map((s) => [s.id, s]));
+/**
+ * A lookup by id. Marked free of side effects, so a bundle that never reads a lookup leaves its list out too: the web
+ * app uses the genres and the shortcuts, not the themes' and moods' vocabulary.
+ */
+/* @__NO_SIDE_EFFECTS__ */
+function byId<T extends { id: string }>(items: readonly T[]): Map<string, T> {
+  return new Map(items.map((item) => [item.id, item]));
+}
+
+export const themeById = byId(THEMES);
+export const moodById = byId(MOODS);
+export const genreById = byId(GENRES);
+export const timeById = byId(TIME_OPTIONS);
+export const shelfById = byId(SHELVES);
+export const seasonById = byId(SEASONS);
