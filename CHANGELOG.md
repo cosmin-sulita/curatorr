@@ -2,6 +2,11 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.2 (2026-10-16)
+
+- fix(picks): push a pick you keep passing on further down each evening ([49f5ffa](https://github.com/cosmin-sulita/curatorr/commit/49f5ffa))
+- fix(picks): stop "Seen it" marks from steering your picks like movies you just watched ([4d3374d](https://github.com/cosmin-sulita/curatorr/commit/4d3374d))
+
 ## 1.3.1 (2026-10-16)
 
 - fix(settings): call them your lists instead of naming your profile ([b1412d5](https://github.com/cosmin-sulita/curatorr/commit/b1412d5))
