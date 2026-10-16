@@ -132,4 +132,33 @@ describe('rankSimilar', () => {
     const many = like(liked, [...loose, ...strong]);
     expect(ids(many).sort()).toEqual(strong.map((m) => m.id).sort());
   });
+
+  it("doesn't match movies on TMDB's tone words", () => {
+    // The Woman in the Yard and a Jack Ryan movie: both "absurd" and "suspense" on TMDB, and both Edge of Your Seat.
+    const liked = movie({
+      genres: ['Horror', 'Mystery'],
+      keywords: ['absurd', 'suspense', 'widow', 'psychological horror', 'isolated farmhouse'],
+      themes: { supernatural: 2, psychological: 2 },
+      moods: { edge: 5 },
+    });
+    const spy = movie({
+      genres: ['Action', 'Thriller'],
+      keywords: ['absurd', 'suspense', 'jack ryan'],
+      themes: { spies: 2 },
+      moods: { edge: 5 },
+    });
+    const ghost = movie({
+      genres: ['Horror'],
+      keywords: ['ghost', 'haunted house'],
+      themes: { supernatural: 4 },
+      moods: { edge: 5 },
+    });
+    const others = Array.from({ length: 30 }, () => movie({ genres: ['Drama'], keywords: ['family', 'friendship'] }));
+    const ranked = like(liked, [spy, ghost], { others });
+    expect(ranked.map((r) => [r.movie.id, r.tier])).toEqual([
+      [ghost.id, 0],
+      [spy.id, 1],
+    ]);
+    expect(ranked[1]!.reasons).not.toContainEqual({ kind: 'keyword', label: 'Absurd' });
+  });
 });

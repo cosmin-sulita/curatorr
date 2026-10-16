@@ -23,6 +23,28 @@ import type { FeedbackEvent, Movie, Reason } from './types.js';
 
 /** TMDB bookkeeping keywords that say nothing about the movie itself. */
 export const IGNORED_KEYWORDS = new Set(['duringcreditsstinger', 'aftercreditsstinger', 'woman director', 'sequel', 'prequel']);
+/**
+ * TMDB's tone words (absurd, amused, suspenseful…) say how a movie feels to someone, which the moods already
+ * capture, not what happens in it. Contributors add them unevenly: The Woman in the Yard is "absurd" and
+ * "suspense", and so is a Jack Ryan movie, so as keywords they made unrelated movies look alike.
+ */
+const TONE_KEYWORDS = new Set([
+  'absurd', 'admiring', 'adoring', 'affectation', 'aggressive', 'ambiguous', 'ambivalent', 'amused', 'angry',
+  'antagonistic', 'anxious', 'appreciative', 'approving', 'arrogant', 'assertive', 'audacious', 'awestruck', 'baffled',
+  'bewildered', 'biting', 'bitter', 'bleak', 'blunt', 'bold', 'callous', 'calm', 'campy', 'candid', 'cautionary',
+  'celebratory', 'cheerful', 'cliché', 'clinical', 'comforting', 'commanding', 'compassionate', 'complex',
+  'complicated', 'conceited', 'critical', 'cruel', 'curious', 'cynical', 'dark', 'defiant', 'demeaning', 'depressing',
+  'derisive', 'didactic', 'disdainful', 'disgusted', 'disturbed', 'distressing', 'dramatic', 'dreary', 'earnest',
+  'embarrassed', 'empathetic', 'energetic', 'enthusiastic', 'excited', 'exhilarated', 'exuberant', 'farcical',
+  'foreboding', 'frantic', 'frightened', 'frustrated', 'furious', 'ghoulish', 'gloomy', 'grand', 'grim', 'gritty',
+  'hard', 'harsh', 'hilarious', 'hopeful', 'hopeless', 'horrified', 'hostile', 'inflammatory', 'informative',
+  'insecure', 'inspirational', 'intense', 'intimate', 'ironic', 'joyful', 'joyous', 'light-hearted', 'lighthearted',
+  'loving', 'macabre', 'malicious', 'melancholy', 'melodramatic', 'mischievous', 'mocking', 'modest', 'mysterious',
+  'nostalgic', 'ominous', 'optimistic', 'philosophical', 'playful', 'powerful', 'pretentious', 'provocative',
+  'reflective', 'respectful', 'ridiculous', 'romantic', 'sarcastic', 'satirical', 'scathing', 'sentimental', 'serene',
+  'serious', 'shocking', 'sincere', 'sinister', 'skeptical', 'somber', 'suspense', 'suspenseful', 'sympathetic',
+  'tense', 'thoughtful', 'tragic', 'vibrant', 'vindictive', 'whimsical', 'wistful', 'witty', 'wonder', 'wry', 'zealous',
+]);
 const THEME_WEIGHT = 4;
 const MOOD_WEIGHT = 2;
 const GENRE_WEIGHT = 1;
@@ -39,7 +61,7 @@ function usableKeywords(m: Movie): Set<string> {
   const out = new Set<string>();
   for (const raw of m.keywords) {
     const k = raw.toLowerCase().trim();
-    if (k && !IGNORED_KEYWORDS.has(k)) out.add(k);
+    if (k && !IGNORED_KEYWORDS.has(k) && !TONE_KEYWORDS.has(k)) out.add(k);
   }
   return out;
 }
