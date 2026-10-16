@@ -141,9 +141,11 @@ const DAY = 24 * 60 * 60 * 1000;
 const SKIP_PENALTY = 15;
 const SKIP_WINDOW = 14 * DAY;
 const SKIP_MEMORY = 90 * DAY;
-/** Each earlier evening a pick was shown and not played costs this, up to the maximum, for a month. */
+/**
+ * The first earlier evening a pick was shown and not played costs this, the second twice as much, and so on, for a
+ * month: 4, 12, 24, 40 in all. A movie passed over night after night makes way, however well rated it is.
+ */
 const SHOWN_PENALTY = 4;
-const SHOWN_PENALTY_MAX = 16;
 const SHOWN_WINDOW = 30 * DAY;
 /** A pick shown this evening isn't demoted yet, so answering the same way again gives the same pick. */
 const SHOWN_GRACE = 3 * 60 * 60 * 1000;
@@ -434,7 +436,8 @@ export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOption
   let delta = 0;
   const skip = s.skips.get(m.id);
   if (skip && opts.now - skip.last < SKIP_WINDOW * skip.count) delta -= SKIP_PENALTY;
-  delta -= Math.min(SHOWN_PENALTY_MAX, SHOWN_PENALTY * (s.shownEvenings.get(m.id) ?? 0));
+  const shown = s.shownEvenings.get(m.id) ?? 0;
+  delta -= (SHOWN_PENALTY * shown * (shown + 1)) / 2;
   const onWatchlist = s.wanted.has(m.id);
   const requested = s.requested.has(m.id);
   // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.

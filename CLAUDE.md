@@ -63,7 +63,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
     - TMDB's tone words (`TONE_KEYWORDS`: absurd, suspenseful…) don't count as keywords, here or in taste: contributors add them unevenly, and the moods cover them.
     - A signature shorter than a typical movie's (`typicalNorm`, the library's median) counts as that long in `similarity`, so movies with few keywords don't crowd every list.
-    - Likeness is scored against the closest match (`SIMILARITY_POINTS * sim / best`), so the rating and `personalAdjustment` only reorder movies about as alike.
+    - Likeness is scored against the closest match (`SIMILARITY_POINTS * sim / best`), so the rating and `personalAdjustment` only reorder movies about as alike, except a pick passed over on several evenings, whose shown penalty keeps growing.
   - `sagas.ts`: collection ordering.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
@@ -132,7 +132,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
 - **Ranking:**
   - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
   - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.
-  - **Shown picks:** `shown` costs −4 per evening shown in the last 30 days, up to −16. It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick for those three hours (later the same evening, that evening counts too).
+  - **Shown picks:** `shown` costs −4 for one evening shown in the last 30 days, and each further evening costs 4 more than the one before: −12 after two, −24 after three, −40 after four, with no ceiling, so a well-rated pick passed over night after night makes way (decided with the maintainer). It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick for those three hours (later the same evening, that evening counts too).
   - **New arrivals:** a movie whose file arrived lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. Movies only another profile requested don't get it.
     - The date is Radarr's import date of the first file Curatorr saw (`arrived_at`), so an upgrade doesn't make a movie new again. Radarr's added date is when a request was made, often before release, and is only the fallback.
   - **Retention:** `shown` and `skipped` older than 90 days are pruned when the server starts; `accepted` is kept for taste.

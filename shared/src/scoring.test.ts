@@ -158,7 +158,7 @@ describe('rankMovies', () => {
     expect(shownYesterday).toBeCloseTo(fresh - 4, 5);
   });
 
-  it('demotes a pick more for each evening it was shown, up to a limit, for a month', () => {
+  it('demotes a pick more steeply for each evening it was shown, for a month', () => {
     // Evenings turn over at 4 am local time; in UTC, every show here is at 8 pm or 7 pm.
     vi.stubEnv('TZ', 'UTC');
     try {
@@ -166,14 +166,23 @@ describe('rankMovies', () => {
       const fresh = rank([a])[0]!.score;
       const shownOn = (...daysAgo: number[]) =>
         rank([a], {}, daysAgo.map((d) => ({ movieId: a.id, kind: 'shown' as const, createdAt: NOW - d * DAY })))[0]!.score;
-      expect(shownOn(1, 2, 3)).toBeCloseTo(fresh - 12, 5);
+      expect(shownOn(1, 2)).toBeCloseTo(fresh - 12, 5);
+      expect(shownOn(1, 2, 3)).toBeCloseTo(fresh - 24, 5);
       // Twice on one evening is one evening.
       expect(shownOn(1, 1 + 1 / 24)).toBeCloseTo(fresh - 4, 5);
-      expect(shownOn(1, 2, 3, 4, 5, 6, 7)).toBeCloseTo(fresh - 16, 5);
+      expect(shownOn(1, 2, 3, 4, 5, 6, 7)).toBeCloseTo(fresh - 112, 5);
       expect(shownOn(31, 40)).toBeCloseTo(fresh, 5);
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it('lets a strong pick passed over evening after evening fall below weaker ones', () => {
+    // Rated 75 and 55: twenty points apart, more than a penalty with a ceiling would ever close.
+    const strong = movie({ ratings: { rt: 100 } });
+    const weaker = movie({ ratings: { rt: 60 } });
+    const aWeek = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ movieId: strong.id, kind: 'shown' as const, createdAt: NOW - d * DAY }));
+    expect(rank([strong, weaker], {}, aWeek)[0]!.movie.id).toBe(weaker.id);
   });
 
   it('keeps a movie down longer each time it is skipped', () => {
