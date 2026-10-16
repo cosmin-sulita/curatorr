@@ -1,6 +1,5 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
-import { tmdbSize } from '../lib/format';
 import { Link } from '../lib/router';
 import { Img } from './ui';
 
@@ -16,7 +15,7 @@ export function PosterFan({ images }: { images: string[] }) {
       {shown.map((src, i) => (
         <Img
           key={src}
-          src={tmdbSize(src, 'w154')}
+          src={src}
           className={clsx(
             'h-14 w-10 rounded-md object-cover shadow-lg shadow-black/50 ring-1 ring-black/40 sm:h-16 sm:w-11',
             tilt[i],

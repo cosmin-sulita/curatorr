@@ -8,7 +8,7 @@ import { InstallHint } from '../components/InstallHint';
 import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Button, Img, Notice, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus, useWizardOptions } from '../lib/api';
-import { plural, tmdbSize } from '../lib/format';
+import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
@@ -209,10 +209,7 @@ function GenreTile({ option: o, onClick, icon = false }: { option: WizardOption;
       onClick={onClick}
       className="group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]"
     >
-      <Img
-        src={tmdbSize(o.images[0], 'w780')}
-        className="absolute inset-0 size-full object-cover grayscale transition duration-500 group-hover:scale-105"
-      />
+      <Img src={o.images[0]} className="absolute inset-0 size-full object-cover grayscale transition duration-500 group-hover:scale-105" />
       <span className="absolute inset-0 mix-blend-multiply" style={{ backgroundColor: o.color }} />
       <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
       {/* Shortcuts wear their icon, which sets them apart from the genres. */}
@@ -276,10 +273,7 @@ function MoodGrid({ options, onChoose }: OptionsProps) {
           onClick={() => onChoose(o.id)}
           className="group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition active:scale-[0.99]"
         >
-          <Img
-            src={tmdbSize(o.images[0], 'w780')}
-            className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105"
-          />
+          <Img src={o.images[0]} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
           <span className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/20" />
           <span className="relative flex items-center gap-3">
             <TagIcon name={o.icon} className="size-7 text-indigo-300" />

@@ -40,17 +40,7 @@ import {
   useStatus,
   type ServerSyncResult,
 } from '../lib/api';
-import {
-  fallBackIfStillHere,
-  listNames,
-  plural,
-  runtime,
-  serverName,
-  tmdbSize,
-  vibrate,
-  watchLink,
-  type WatchLink,
-} from '../lib/format';
+import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
 import { navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from './Wizard';
@@ -214,8 +204,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     surprisePending() && !reduceMotion ? 'pending' : null,
   );
   useEffect(() => clearSurprise(), []);
-  // At the rail's size, so the posters dealt are the ones it shows next.
-  const shufflePosters = rest.flatMap((p) => (p.movie.posterUrl ? [tmdbSize(p.movie.posterUrl, 'w342')] : []));
+  const shufflePosters = rest.flatMap((p) => (p.movie.posterUrl ? [p.movie.posterUrl] : []));
   // The genre question's "N movies to choose from", still cached from a moment ago (picks are capped at 12).
   const libraryTotal = qc.getQueryData<WizardOptionsResponse>(['wizard', 'genre', {}])?.total;
   const shuffling = shuffle === 'pending' && shufflePosters.length >= 3;
@@ -474,7 +463,6 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 <Img
                   src={m.posterUrl}
                   alt={`${m.title} poster`}
-                  loading="eager"
                   draggable={false}
                   className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10"
                 />
@@ -610,7 +598,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                   <button onClick={() => bringForward(p)} className="group w-full text-left">
                     <span className="relative block">
                       <Img
-                        src={tmdbSize(p.movie.posterUrl, 'w342')}
+                        src={p.movie.posterUrl}
                         alt=""
                         className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
                       />
