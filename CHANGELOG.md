@@ -2,6 +2,17 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.3 (2026-10-16)
+
+- perf(app): drop the server's tagging vocabulary from the app's download ([41855ca](https://github.com/cosmin-sulita/curatorr/commit/41855ca))
+- fix(picks): name a pick's genres as the genre tiles do ([1df1afb](https://github.com/cosmin-sulita/curatorr/commit/1df1afb))
+- perf(app): install only the font the app shows, and fetch the others when a title needs them ([12c4a39](https://github.com/cosmin-sulita/curatorr/commit/12c4a39))
+- perf(server): send the app compressed when it first opens and after each update ([9473b1c](https://github.com/cosmin-sulita/curatorr/commit/9473b1c))
+- perf(images): load pictures at the size each card shows, and only as they come into view ([98d28ac](https://github.com/cosmin-sulita/curatorr/commit/98d28ac))
+- fix(profiles): centre "Who's watching together?" when it wraps on a phone ([0388955](https://github.com/cosmin-sulita/curatorr/commit/0388955))
+- fix(picks): say "Not tonight" in the toast after passing on a pick ([705f429](https://github.com/cosmin-sulita/curatorr/commit/705f429))
+- fix(settings): stop iPhones zooming in on address, key and password fields ([a23e730](https://github.com/cosmin-sulita/curatorr/commit/a23e730))
+
 ## 1.3.2 (2026-10-16)
 
 - fix(picks): push a pick you keep passing on further down each evening ([49f5ffa](https://github.com/cosmin-sulita/curatorr/commit/49f5ffa))
