@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ToastProvider } from './components/Toast';
-import { ApiError, isNetworkError } from './lib/api';
+import { ApiError, isNetworkError, loadFirstScreen } from './lib/api';
 import { startUpdateChecks } from './lib/appUpdate';
 import { listenForInstallPrompt } from './lib/install';
 import './styles.css';
@@ -39,6 +39,9 @@ const queryClient: QueryClient = new QueryClient({
     },
   }),
 });
+
+// The first screen loads alongside the status, so the app opens on it in one go.
+loadFirstScreen(queryClient);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

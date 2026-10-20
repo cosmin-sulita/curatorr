@@ -1,9 +1,10 @@
 import type { AppStatus } from '@curatorr/shared';
-import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, type ReactNode } from 'react';
 import { CenteredState, Frame, Shell, Wordmark } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
-import { errorMessage, isNetworkError, useStatus } from './lib/api';
+import { errorMessage, isNetworkError, likeSeedsQuery, profilesQuery, useStatus, wizardQuery } from './lib/api';
 import { useLocation } from './lib/router';
 import { isStep } from './lib/wizard';
 import { LikeScreen } from './screens/Like';
@@ -17,17 +18,9 @@ import { WizardScreen } from './screens/Wizard';
 export function App() {
   const { path, search } = useLocation();
   const status = useStatus();
+  const opening = useOpening(path, status.data);
 
-  if (status.isLoading) {
-    return (
-      <div className="grid min-h-dvh place-items-center">
-        <div className="flex flex-col items-center gap-6">
-          <Wordmark className="scale-125" />
-          <Spinner />
-        </div>
-      </div>
-    );
-  }
+  if (status.isLoading || opening) return <Launch />;
 
   // Only when nothing has loaded yet. A later check that fails (say, coming back to the app while
   // Wi-Fi reconnects) leaves the screen as it is, and its own requests say what went wrong.
@@ -55,6 +48,47 @@ export function App() {
       <WhatsNew setupComplete={status.data.setupComplete} />
     </>
   );
+}
+
+/** What shows while the app opens. The spinner only comes after a moment: a quick launch shows the wordmark alone. */
+function Launch() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div className="grid min-h-dvh place-items-center">
+      <div className="flex flex-col items-center gap-6">
+        <Wordmark className="scale-125" />
+        {/* Its room is kept, so the wordmark doesn't move when it comes. */}
+        {slow ? <Spinner /> : <span className="size-6" aria-hidden />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * At launch, the app stays on the launch screen until its first screen has what it shows (loaded alongside the
+ * status, see loadFirstScreen): the first question with the "Something like…" posters, or "Who's watching?" with the
+ * profiles. So it opens once, whole, instead of showing the header with a spinner of its own. Later screens load as
+ * they always do.
+ */
+function useOpening(path: string, status: AppStatus | undefined) {
+  const [opened, setOpened] = useState(false);
+  // Without a profile every address but Settings shows "Who's watching?"; with one, / and /ask/genre show the first
+  // question (see screenFor).
+  const firstScreen = path !== '/settings' && (!status?.profile || path === '/' || path === '/ask/genre');
+  const atStart = !opened && status?.setupComplete === true && firstScreen;
+  const question = atStart && Boolean(status?.profile);
+  const genre = useQuery({ ...wizardQuery('genre', {}), enabled: question });
+  const seeds = useQuery({ ...likeSeedsQuery(''), enabled: question });
+  const profiles = useQuery({ ...profilesQuery, enabled: atStart && !status?.profile });
+  const waiting = atStart && (question ? genre.isPending || seeds.isPending : profiles.isPending);
+  useEffect(() => {
+    if (status && !waiting) setOpened(true);
+  }, [status, waiting]);
+  return waiting;
 }
 
 /** The screen for this address, and whether the top bar leaves out Settings and the profile. */

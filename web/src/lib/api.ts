@@ -1,4 +1,11 @@
-import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import type {
   AppStatus,
   Criteria,
@@ -50,10 +57,25 @@ export const errorMessage = (err: unknown) =>
 // Queries
 // ---------------------------------------------------------------------------
 
+/** Whether this device had a profile when the app last asked: what the next launch loads first (loadFirstScreen). */
+const HAD_PROFILE = 'curatorr:hadProfile';
+
+function rememberProfile(status: AppStatus) {
+  try {
+    localStorage.setItem(HAD_PROFILE, status.profile ? '1' : '0');
+  } catch {
+    // Storage blocked: the next launch loads its first screen after the status, as it would anyway.
+  }
+}
+
 export function useStatus() {
   return useQuery({
     queryKey: ['status'],
-    queryFn: () => api<AppStatus>('/api/status'),
+    queryFn: async () => {
+      const status = await api<AppStatus>('/api/status');
+      rememberProfile(status);
+      return status;
+    },
     refetchInterval: (q) => (q.state.data?.library.syncing ? 2_000 : false),
     refetchOnWindowFocus: true,
     // Many components read the status; refetching on each mount would also bounce the
@@ -64,8 +86,13 @@ export function useStatus() {
 }
 
 /** `locked`: the profile's Plex PIN hasn't been entered on this device yet. */
+export const profilesQuery = queryOptions({
+  queryKey: ['profiles'],
+  queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles'),
+});
+
 export function useProfiles() {
-  return useQuery({ queryKey: ['profiles'], queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles') });
+  return useQuery(profilesQuery);
 }
 
 const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time, shelf: c.shelf });
@@ -194,24 +221,42 @@ export function useHidden() {
 }
 
 /** Everything below depends on who is watching. */
-function newViewers(qc: ReturnType<typeof useQueryClient>) {
+function newViewers(qc: QueryClient) {
   qc.removeQueries({ queryKey: ['wizard'] });
   qc.removeQueries({ queryKey: ['recommendations'] });
   qc.removeQueries({ queryKey: ['like'] });
   qc.removeQueries({ queryKey: ['hidden'] });
-  // The first question, and the "Something like…" posters it waits for, load before the screen changes, and their
-  // pictures start as soon as they're known. The new status comes after them, since on "Who's watching?" at / it's
-  // what changes the screen.
+  // The first question loads before the screen changes. The new status comes after it, since on "Who's watching?"
+  // at / it's what changes the screen.
+  return loadFirstQuestion(qc).then(() => qc.invalidateQueries({ queryKey: ['status'] }));
+}
+
+/**
+ * The first question, and the "Something like…" posters it waits for, with their pictures starting as soon as they're
+ * known. A failure is left for the screen to show.
+ */
+function loadFirstQuestion(qc: QueryClient) {
   const question = qc.fetchQuery(wizardQuery('genre', {})).then((d) => warmImages(firstPictures(d), 'high'));
-  const seeds = qc
-    .fetchQuery(likeSeedsQuery(''))
-    .then((s) => {
-      const posters = s.flatMap((m) => (m.posterUrl ? [sized(m.posterUrl, PICTURE.fan)] : [])).slice(0, 3);
-      warmImages(posters, 'high');
-    });
-  return Promise.all([question, seeds].map((p) => p.catch(() => {}))).then(() =>
-    qc.invalidateQueries({ queryKey: ['status'] }),
-  );
+  const seeds = qc.fetchQuery(likeSeedsQuery('')).then((s) => {
+    const posters = s.flatMap((m) => (m.posterUrl ? [sized(m.posterUrl, PICTURE.fan)] : [])).slice(0, 3);
+    warmImages(posters, 'high');
+  });
+  return Promise.all([question, seeds].map((p) => p.catch(() => {})));
+}
+
+/**
+ * At launch, the first screen loads alongside the status instead of after it: the first question when this device had
+ * a profile last time, "Who's watching?" otherwise. A guess that's wrong (the profile is gone) only costs a request.
+ */
+export function loadFirstScreen(qc: QueryClient) {
+  let had: string | null = null;
+  try {
+    had = localStorage.getItem(HAD_PROFILE);
+  } catch {
+    // Storage blocked: the first screen loads after the status.
+  }
+  if (had === '1') void loadFirstQuestion(qc);
+  else if (had === '0') void qc.prefetchQuery(profilesQuery);
 }
 
 export function useSelectProfile() {
