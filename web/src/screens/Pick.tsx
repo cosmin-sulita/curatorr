@@ -30,7 +30,17 @@ import { RatingBadges } from '../components/Ratings';
 import { ForWhom, type ForWhomKind } from '../components/ForWhom';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, buttonClass, Img, isCached, Notice, Spinner } from '../components/ui';
+import {
+  Button,
+  buttonClass,
+  CROSS_ORIGIN,
+  Img,
+  isCached,
+  Notice,
+  retryWithoutCors,
+  Spinner,
+  warmImages,
+} from '../components/ui';
 import {
   errorMessage,
   removeFromWatchlist,
@@ -178,9 +188,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       shown.current.add(current.movie.id);
       sendFeedback(current.movie.id, 'shown').catch(() => {});
     }
-    for (const p of rest.slice(0, 3)) {
-      for (const url of [p.movie.posterUrl, p.movie.fanartUrl]) if (url) new Image().src = url;
-    }
+    warmImages(rest.slice(0, 3).flatMap((p) => [p.movie.posterUrl, p.movie.fanartUrl]), 'low');
   }, [current?.movie.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Each new pick starts at the top. Passing on one or choosing from "Other good picks" often
@@ -718,6 +726,8 @@ function BackdropImage({ src }: { src: string }) {
     <motion.img
       src={src}
       alt=""
+      crossOrigin={CROSS_ORIGIN}
+      onError={(e) => retryWithoutCors(e.currentTarget)}
       initial={{ opacity: 0 }}
       animate={{ opacity: loaded ? 1 : 0 }}
       exit={{ opacity: 0 }}

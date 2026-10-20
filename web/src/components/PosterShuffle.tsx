@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { vibrate } from '../lib/format';
-import { preloadImages } from './ui';
+import { CROSS_ORIGIN, preloadImages, retryWithoutCors } from './ui';
 
 // Gaps between cards, easing out so the deck visibly slows before the pick lands.
 const GAPS = [70, 75, 85, 100, 125, 160, 220];
@@ -76,7 +76,14 @@ export function PosterShuffle({ posters, final, onDone }: { posters: string[]; f
             transition={isPick ? { type: 'spring', stiffness: 500, damping: 20 } : { duration: 0.12, ease: 'easeOut' }}
           >
             {src ? (
-              <img src={src} alt="" draggable={false} className={card} />
+              <img
+                src={src}
+                alt=""
+                crossOrigin={CROSS_ORIGIN}
+                onError={(e) => retryWithoutCors(e.currentTarget)}
+                draggable={false}
+                className={card}
+              />
             ) : (
               <div className={clsx(card, 'bg-raised')} />
             )}

@@ -98,12 +98,15 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}', '**/archivo-latin-wdth-*.woff2'],
         runtimeCaching: [
           {
+            // Loaded with CORS (CROSS_ORIGIN in components/ui.tsx), so each is kept at its real size: a whole library's
+            // fits, about 1,500 pictures and 180 MB for 750 movies. The name changed with that, since a CORS request
+            // can't use the opaque copies the old store held (main.tsx deletes it).
             urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'tmdb-images',
-              expiration: { maxEntries: 600, maxAgeSeconds: THIRTY_DAYS },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheName: 'tmdb-pictures',
+              expiration: { maxEntries: 2000, maxAgeSeconds: THIRTY_DAYS },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {

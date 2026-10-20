@@ -116,6 +116,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - **Taps and entrances:** for 300 ms after the screen changes (`justArrived` in `lib/router.tsx`), answers, Back and a pick's buttons ignore taps, so a double tap can't act on the next screen. Screens slide in from the right going forward and from the left going back (`useEntrance`), not at all when the browser animated Back itself, and only fade with reduced motion.
   - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick, settings, or one of the profile's lists (`/settings/watchlist`, `/settings/seen` or `/settings/never`).
   - The service worker caches the app shell and images. `/api/*` is network-only.
+  - TMDB pictures load with CORS everywhere (`CROSS_ORIGIN` in `components/ui.tsx`), so the service worker keeps them at their real size in `tmdb-pictures`, enough for a whole library. A new way of loading one must do the same, or the picture downloads twice.
 
 ### Feedback model
 

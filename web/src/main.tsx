@@ -12,6 +12,14 @@ import './styles.css';
 startUpdateChecks();
 listenForInstallPrompt();
 
+// The service worker's pictures from before they loaded with CORS: opaque copies that a CORS request can't use, under
+// the old name (see vite.config.ts). Plain HTTP has no `caches`.
+try {
+  window.caches?.delete('tmdb-images').catch(() => {});
+} catch {
+  // Storage blocked: there's nothing to delete.
+}
+
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
     // Curatorr lives on the home network, so "browser offline" says nothing about whether it's reachable: always try.

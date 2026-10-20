@@ -64,9 +64,27 @@ export function Pending({ className = 'rounded-2xl' }: { className?: string }) {
 /** How soon a picture is wanted: for a screen that's opening, or ahead of a tap that may never come. */
 export type Priority = 'high' | 'low';
 
+/**
+ * Pictures load with CORS, which TMDB allows, so the service worker keeps them at their real size: browsers count an
+ * opaque copy as megabytes of storage. Every way of loading one must do the same, since the browser keeps the two
+ * kinds of copy apart: a picture loaded both ways would download twice, and what's loaded ahead wouldn't be used.
+ */
+export const CROSS_ORIGIN = 'anonymous';
+
+/**
+ * A picture from somewhere that doesn't allow CORS fails to load with it: asks for it again without, once, rather
+ * than losing it. False when it was already asked for without, so the picture is missing.
+ */
+export function retryWithoutCors(img: HTMLImageElement) {
+  if (!img.crossOrigin) return false;
+  img.removeAttribute('crossorigin');
+  return true;
+}
+
 /** Every picture loads through here, the way the screens load it, so what's loaded ahead is what they show. */
 function loadImage(src: string, priority?: Priority) {
   const img = new Image();
+  img.crossOrigin = CROSS_ORIGIN;
   if (priority) img.fetchPriority = priority;
   img.src = src;
   return img;
@@ -126,12 +144,15 @@ export function Img({
       {...rest}
       src={src}
       alt={alt}
+      crossOrigin={CROSS_ORIGIN}
       decoding="async"
       onLoad={() => {
         if (!loaded && performance.now() - shownAt < QUICK_MS) setInstant(true);
         setLoaded(true);
       }}
-      onError={() => setFailed(true)}
+      onError={(e) => {
+        if (!retryWithoutCors(e.currentTarget)) setFailed(true);
+      }}
       style={instant ? { ...style, transition: 'none' } : style}
       className={clsx('bg-raised transition-opacity duration-500', loaded ? 'opacity-100' : 'opacity-0', className)}
     />
