@@ -2,6 +2,20 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.6 (2026-10-20)
+
+- fix(settings): fold the webhook's set-up steps away once Radarr has called ([54f95ad](https://github.com/cosmin-sulita/curatorr/commit/54f95ad))
+- fix(settings): give Settings the same title and slide-in as the other screens ([0f2b8e6](https://github.com/cosmin-sulita/curatorr/commit/0f2b8e6))
+- fix(settings): name each profile's limit and what Radarr's webhook last sent ([ef1328e](https://github.com/cosmin-sulita/curatorr/commit/ef1328e))
+- fix(settings): keep keyboard focus in place when a connection's form opens or closes ([a098f58](https://github.com/cosmin-sulita/curatorr/commit/a098f58))
+- fix(settings): ask before disconnecting Seerr ([9a86694](https://github.com/cosmin-sulita/curatorr/commit/9a86694))
+- fix(settings): let a Plex sign-in be cancelled after closing its window ([a1908f7](https://github.com/cosmin-sulita/curatorr/commit/a1908f7))
+- fix(watchlist): take a movie off your watchlist here when you take it off in Plex or Jellyfin ([3b96c2f](https://github.com/cosmin-sulita/curatorr/commit/3b96c2f))
+- fix(settings): keep the chosen libraries when changing the Plex or Jellyfin connection ([27b393f](https://github.com/cosmin-sulita/curatorr/commit/27b393f))
+- fix(profiles): read watch history and watchlists once the first library sync is in ([7c929cf](https://github.com/cosmin-sulita/curatorr/commit/7c929cf))
+- fix(settings): list your Plex Watchlist and Jellyfin favourites under Your lists ([dc87b5f](https://github.com/cosmin-sulita/curatorr/commit/dc87b5f))
+- fix(settings): keep the Plex server's addresses inside the card on phones ([c012e71](https://github.com/cosmin-sulita/curatorr/commit/c012e71))
+
 ## 1.3.5 (2026-10-20)
 
 - fix(profiles): keep the spinner away when choosing a profile for the first time ([3a48cfb](https://github.com/cosmin-sulita/curatorr/commit/3a48cfb))
