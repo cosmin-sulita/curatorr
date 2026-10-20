@@ -275,14 +275,6 @@ describe('rankMovies', () => {
     expect(ranked[1]!.reasons.some((r) => r.kind === 'added')).toBe(false);
   });
 
-  it("doesn't favour a new arrival only someone else asked for", () => {
-    const fresh = movie({ ratings: { rt: 82 }, addedAt: new Date(NOW - 2 * DAY).toISOString() });
-    const old = movie({ ratings: { rt: 88 } });
-    const ranked = rankMovies([old, fresh], {}, [], { now: NOW, seed: 'test', othersRequested: new Set([fresh.id]) });
-    expect(ranked.map((r) => r.movie.id)).toEqual([old.id, fresh.id]);
-    expect(ranked[1]!.reasons.some((r) => r.kind === 'added')).toBe(false);
-  });
-
   it('lets the arrival bonus fade over a few weeks', () => {
     const m = movie({ ratings: { rt: 80 } });
     const bonus = (days: number) =>

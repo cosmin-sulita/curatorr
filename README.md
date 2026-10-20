@@ -126,7 +126,7 @@ If your proxy asks people to sign in, let `/api/radarr/webhook` through. Radarr 
 3. **Score**: half the Rotten Tomatoes critics' score, half the IMDb audience rating as a percentage: (IMDb − 3) × 20, so 7.0 counts as 80% (TMDB's rating less 0.3 stands in when there's no IMDb one). A missing score counts as 50. Then:
    - up to + 8 for how strongly the theme/mood matches;
    - up to ± 12 for taste (see below);
-   - up to + 12 for a movie that just arrived in the library, fading over a few weeks. It counts from when the file arrived, so a movie requested before its release is new when it lands. A movie only someone else requested doesn't get it;
+   - up to + 12 for a movie that just arrived in the library, fading over a few weeks. It counts from when the file arrived, so a movie requested before its release is new when it lands, whoever in the household requested it;
    - \+ 8 if they requested it in Seerr and haven't watched it yet, otherwise + 6 if it's on their watchlist;
    - − 15 if you passed on it in the last two weeks. Each other pass in the last three months keeps it down two weeks longer;
    - − 4 if it was shown and not played on an earlier evening in the last month, and more for each further evening: − 12 after two, − 24 after three, − 40 after four. So a well-rated movie you keep passing on makes way for others. A pick shown in the last three hours doesn't count yet, so going back and answering the same way gives the same pick that evening.

@@ -274,14 +274,14 @@ describe('watching together', () => {
     expect(alone.find((p) => p.movie.title === 'Jaws')!.reasons.some((r) => r.kind === 'watchlist')).toBe(false);
   });
 
-  it("doesn't treat a movie only someone outside the group asked for as news", async () => {
+  it('treats a movie someone else in the household asked for as news when it arrives', async () => {
     const { store, library, alex, sam, kids } = household();
     const now = Date.now();
     store.replaceMovies([{ ...library.up, arrivedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString() }], now);
     store.replaceRequests([{ profileId: kids.id, movieId: library.up.id, requestedAt: now }]);
     const added = async (rows: typeof alex[]) =>
       (await recommendFor(store, rows, {})).picks[0]!.reasons.some((r) => r.kind === 'added');
-    expect(await added([alex, sam])).toBe(false);
-    expect(await added([alex, kids])).toBe(true);
+    expect(await added([alex])).toBe(true);
+    expect(await added([alex, sam])).toBe(true);
   });
 });

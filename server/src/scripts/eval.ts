@@ -176,9 +176,6 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
     feedback: [...feedback.filter((f) => f.profile_id === profileId && f.created_at < at).map(toEvent), ...extraFeedback],
     watchlist: new Set(at >= copiedAt ? watchlist.filter((w) => w.profile_id === profileId).map((w) => w.movie_id) : []),
     requested: new Set(requests.filter((r) => r.profile_id === profileId && (r.requested_at ?? 0) <= at).map((r) => r.movie_id)),
-    requestedByOthers: new Set(
-      requests.filter((r) => r.profile_id !== profileId && (r.requested_at ?? 0) <= at).map((r) => r.movie_id),
-    ),
     server: 'plex',
     available: null,
     includeWatched: false,

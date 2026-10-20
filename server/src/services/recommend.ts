@@ -59,8 +59,6 @@ export interface ProfileData {
   watchlist: Set<number>;
   /** Library movies this profile requested in Seerr. */
   requested: Set<number>;
-  /** Library movies other profiles requested in Seerr. */
-  requestedByOthers: Set<number>;
   /** The media server Curatorr uses. */
   server: MediaServer | null;
   /** The movies this profile can open there (Jellyfin: its library access and parental controls); null when all can. */
@@ -80,7 +78,6 @@ export function profileData(store: Store, row: ProfileRow): ProfileData {
     feedback: store.feedback(row.id),
     watchlist: store.watchlistIds(row.id),
     requested: store.requestedIds(row.id),
-    requestedByOthers: store.requestedByOthers(row.id),
     server: store.mediaServer(),
     available: store.availableMovies(row),
     includeWatched: app.includeWatched,
@@ -149,9 +146,6 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
   const playable = d.movies.filter((m) => (!requireServer || onServer(m, requireServer)) && allowedFor(m, limits));
   const requested = union(views.map((v) => v.requested));
   const watchlist = union(members.map((m) => m.watchlist));
-  // A movie only someone outside the group asked for isn't news to it when it arrives.
-  const ownRequests = union(members.map((m) => m.requested));
-  const othersRequested = new Set([...union(members.map((m) => m.requestedByOthers))].filter((id) => !ownRequests.has(id)));
   const ctx: ProfileContext = {
     watched,
     feedback: members.length > 1 ? dedupe(members.flatMap((m) => m.feedback)) : d.feedback,
@@ -174,7 +168,6 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
         .join('+'),
       watchlist,
       requested,
-      othersRequested,
       sagas: ctx.sagas,
       wantedBy: members.length > 1 ? wantedBy(views) : undefined,
       taste: !taste

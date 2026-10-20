@@ -264,8 +264,6 @@ export interface RankOptions {
   watchlist?: Set<number>;
   /** Unwatched movies the profile requested in Seerr. */
   requested?: Set<number>;
-  /** Movies only other profiles requested: their arrival isn't news to this one. */
-  othersRequested?: Set<number>;
   sagas?: SagaState;
   /** What the profile tends to watch (see taste.ts), or each person's, when several watch together. */
   taste?: TasteProfile | TasteProfile[];
@@ -347,7 +345,6 @@ export interface ProfileSignals {
   shownEvenings: Map<number, number>;
   wanted: Set<number>;
   requested: Set<number>;
-  othersRequested: Set<number>;
   day: string;
 }
 
@@ -387,7 +384,6 @@ export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): Pr
     shownEvenings: new Map([...shownDays].map(([id, days]) => [id, days.size])),
     wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
     requested: opts.requested ?? new Set(),
-    othersRequested: opts.othersRequested ?? new Set(),
     day: pickingDay(opts.now),
   };
 }
@@ -449,7 +445,7 @@ export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOption
   const shown = s.shownEvenings.get(m.id) ?? 0;
   const onWatchlist = s.wanted.has(m.id);
   const requested = s.requested.has(m.id);
-  const days = s.othersRequested.has(m.id) ? null : daysInLibrary(m, opts.now);
+  const days = daysInLibrary(m, opts.now);
   const parts = {
     skip: skip && opts.now - skip.last < SKIP_WINDOW * skip.count ? -SKIP_PENALTY : 0,
     shown: -(SHOWN_PENALTY * shown * (shown + 1)) / 2,
