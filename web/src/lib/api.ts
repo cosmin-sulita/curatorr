@@ -11,6 +11,7 @@ import type {
   WizardOptionsResponse,
   WizardStep,
 } from '@curatorr/shared';
+import { warmImages } from '../components/ui';
 import { withQuery } from './router';
 
 export class ApiError extends Error {
@@ -187,9 +188,14 @@ function newViewers(qc: ReturnType<typeof useQueryClient>) {
   qc.removeQueries({ queryKey: ['recommendations'] });
   qc.removeQueries({ queryKey: ['like'] });
   qc.removeQueries({ queryKey: ['hidden'] });
-  // The first question, and the "Something like…" posters it waits for, load before the screen changes. The new
-  // status comes after them, since on "Who's watching?" at / it's what changes the screen.
-  return Promise.all([qc.prefetchQuery(wizardQuery('genre', {})), qc.prefetchQuery(likeSeedsQuery(''))]).then(() =>
+  // The first question, and the "Something like…" posters it waits for, load before the screen changes, and their
+  // pictures start as soon as they're known. The new status comes after them, since on "Who's watching?" at / it's
+  // what changes the screen.
+  const question = qc.fetchQuery(wizardQuery('genre', {})).then((d) => warmImages(firstPictures(d), 'high'));
+  const seeds = qc
+    .fetchQuery(likeSeedsQuery(''))
+    .then((s) => warmImages(s.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3), 'high'));
+  return Promise.all([question, seeds].map((p) => p.catch(() => {}))).then(() =>
     qc.invalidateQueries({ queryKey: ['status'] }),
   );
 }
