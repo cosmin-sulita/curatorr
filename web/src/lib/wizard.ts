@@ -104,7 +104,8 @@ export function useAdvance() {
   const go = (id: string, url: string, before?: () => void) => {
     if (busy.current || justArrived()) return;
     busy.current = true;
-    const from = window.location.pathname + window.location.search;
+    // Back, or the logo, pressed meanwhile wins. A search typed meanwhile only changes the query, which doesn't.
+    const from = window.location.pathname;
     setGoing({ id, slow: false });
     const slow = window.setTimeout(() => setGoing((g) => g && { ...g, slow: true }), SLOW);
     // A server that's slow or down doesn't hold the tap: the next screen shows its own spinner or error.
@@ -115,7 +116,7 @@ export function useAdvance() {
       window.clearTimeout(giveUp);
       busy.current = false;
       setGoing(null);
-      if (window.location.pathname + window.location.search !== from) return;
+      if (window.location.pathname !== from) return;
       before?.();
       navigate(to);
     });
