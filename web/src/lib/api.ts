@@ -175,7 +175,12 @@ function newViewers(qc: ReturnType<typeof useQueryClient>) {
   qc.removeQueries({ queryKey: ['recommendations'] });
   qc.removeQueries({ queryKey: ['like'] });
   qc.removeQueries({ queryKey: ['hidden'] });
-  return qc.invalidateQueries({ queryKey: ['status'] });
+  // The first question, and the "Something like…" posters it waits for, load before the screen changes.
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['status'] }),
+    qc.prefetchQuery(wizardQuery('genre', {})),
+    qc.prefetchQuery(likeSeedsQuery('')),
+  ]);
 }
 
 export function useSelectProfile() {
