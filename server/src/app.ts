@@ -3,6 +3,7 @@ import path from 'node:path';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import Fastify, { LogController } from 'fastify';
+import { compressAnswers } from './compress.js';
 import { config } from './config.js';
 import type { AppContext } from './context.js';
 import { openDb } from './db.js';
@@ -43,6 +44,8 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
   app.addHook('onSend', async (_req, reply) => {
     reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'same-origin');
   });
+  // The picking answers go compressed to browsers that accept it; nothing holding a secret does (compress.ts).
+  compressAnswers(app);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
