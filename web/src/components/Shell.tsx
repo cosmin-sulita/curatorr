@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { useStatus } from '../lib/api';
 import { applyUpdate, useUpdateReady } from '../lib/appUpdate';
 import { listNames } from '../lib/format';
-import { Link } from '../lib/router';
+import { justArrived, Link } from '../lib/router';
 import { Avatar } from './ui';
 
 export function Wordmark({ className }: { className?: string }) {
@@ -114,12 +114,18 @@ function UpdateChip() {
   );
 }
 
-/** Steps back through history, or runs `onClick` where the steps aren't in the URL (setup). */
+/**
+ * Steps back through history, or runs `onClick` where the steps aren't in the URL (setup). It sits in the same spot
+ * on every question, so the second tap of a double tap is ignored rather than going back twice.
+ */
 export function BackButton({ onClick, label = 'Back' }: { onClick?: () => void; label?: string }) {
+  const back = () => {
+    if (!justArrived()) window.history.back();
+  };
   return (
     <button
       type="button"
-      onClick={onClick ?? (() => window.history.back())}
+      onClick={onClick ?? back}
       aria-label={label}
       className="grid size-11 place-items-center rounded-full bg-surface text-fg ring-1 ring-line transition hover:bg-raised active:scale-95"
     >

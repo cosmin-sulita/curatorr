@@ -3,7 +3,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { preloadImages } from '../components/ui';
 import { recommendationsQuery, wizardQuery } from './api';
-import { navigate, withQuery } from './router';
+import { justArrived, navigate, withQuery } from './router';
 
 // Moving on: how long the next question may wait for its first pictures (about a screenful of them), and a pick
 // for its poster (as long as the shuffle waits for its cards), when the tapped answer starts saying it's loading,
@@ -90,7 +90,7 @@ export function useAdvance() {
   const busy = useRef(false);
 
   const go = (id: string, url: string, before?: () => void) => {
-    if (busy.current) return;
+    if (busy.current || justArrived()) return;
     busy.current = true;
     const from = window.location.pathname + window.location.search;
     setGoing({ id, slow: false });

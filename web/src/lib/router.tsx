@@ -18,10 +18,22 @@ function subscribe(callback: () => void) {
 
 const snapshot = () => window.location.pathname + window.location.search;
 
+// When the screen last changed: the second tap of a double tap mustn't act on the screen the first one opened.
+let arrivedAt = 0;
+window.addEventListener('popstate', () => {
+  arrivedAt = performance.now();
+});
+
+/** True for a moment after moving to another screen (Back included), so the taps that matter can wait it out. */
+export const justArrived = (ms = 300) => performance.now() - arrivedAt < ms;
+
 export function navigate(to: string, opts: { replace?: boolean } = {}) {
   if (to === snapshot()) return;
   if (opts.replace) window.history.replaceState(null, '', to);
-  else window.history.pushState(null, '', to);
+  else {
+    window.history.pushState(null, '', to);
+    arrivedAt = performance.now();
+  }
   window.dispatchEvent(new Event(NAV_EVENT));
   window.scrollTo({ top: 0 });
 }

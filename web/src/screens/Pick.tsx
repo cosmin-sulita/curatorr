@@ -41,7 +41,7 @@ import {
   type ServerSyncResult,
 } from '../lib/api';
 import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
-import { navigate } from '../lib/router';
+import { justArrived, navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom } from '../lib/wizard';
 
@@ -214,8 +214,9 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     if (shuffle === 'pending' && queue && !shuffling) setShuffle(null);
   }, [queue, shuffle, shuffling]);
 
+  // The actions ignore the second tap of a double tap that opened this screen (the bar sits where answers were).
   const decline = (kind: Decline, profileIds?: number[]) => {
-    if (!current) return;
+    if (!current || justArrived()) return;
     if (together && kind !== 'skipped' && !profileIds) {
       setAsking(kind);
       return;
@@ -264,7 +265,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   // Takes the pick off the watchlist (watching together, off the watchlists the sheet names). It stays on screen.
   const unwatchlist = (profileIds?: number[]) => {
-    if (!current) return;
+    if (!current || justArrived()) return;
     if (together && !profileIds) {
       setAsking('unwatchlist');
       return;
@@ -318,6 +319,10 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   // The tap on the link itself does the navigation; this only records it (and handles demo mode).
   const onWatch = (e: MouseEvent<HTMLAnchorElement>, link: WatchLink) => {
+    if (justArrived()) {
+      e.preventDefault();
+      return;
+    }
     if (!current) return;
     if (status?.demo) {
       e.preventDefault();
