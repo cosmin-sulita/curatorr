@@ -158,12 +158,13 @@ export function removeFromWatchlist(movieId: number, profileIds?: number[]) {
   });
 }
 
-export interface HiddenMovie {
-  id: number;
-  kind: 'seen' | 'never' | 'later';
-  createdAt: number;
-  movie: MovieDTO;
-}
+/**
+ * A movie on one of the profile's lists. `id` is its mark's, for Restore. A movie that's only on the media server's
+ * watchlist has no mark, so no `id`; its `createdAt` is when Curatorr first saw it there, if it knows.
+ */
+export type HiddenMovie =
+  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: MovieDTO }
+  | { id: null; kind: 'later'; createdAt: number | null; movie: MovieDTO };
 
 export function useHidden() {
   return useQuery({ queryKey: ['hidden'], queryFn: () => api<HiddenMovie[]>('/api/hidden') });

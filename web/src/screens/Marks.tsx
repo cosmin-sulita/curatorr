@@ -1,3 +1,4 @@
+import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Bookmark, BookmarkMinus, Eye, RotateCcw, Search, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -24,10 +25,10 @@ interface MarkList {
   kind: HiddenMovie['kind'];
   title: string;
   Icon: LucideIcon;
-  /** What the list is. */
-  lede: string;
+  /** What the list is, with the media server Curatorr uses. */
+  lede: (server: MediaServer | null) => string;
   /** How a movie gets on the list, for an empty one. */
-  hint: string;
+  hint: (server: MediaServer | null) => string;
   action: 'Remove' | 'Restore';
   ActionIcon: LucideIcon;
 }
@@ -39,8 +40,19 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'later',
     title: 'Watchlist',
     Icon: Bookmark,
-    lede: 'Movies you added from a pick. Picks favour them.',
-    hint: 'Tap Watchlist on a pick to save it',
+    // Only movies in the library: the server's watchlist can hold anything.
+    lede: (server) =>
+      server === 'plex'
+        ? 'Movies on your Plex Watchlist that are in your library, and ones you added from a pick. Picks favour them.'
+        : server === 'jellyfin'
+          ? 'Your Jellyfin favourites and the movies you added from a pick. Picks favour them.'
+          : 'Movies you added from a pick. Picks favour them.',
+    hint: (server) =>
+      server === 'plex'
+        ? 'Tap Watchlist on a pick or in Plex'
+        : server === 'jellyfin'
+          ? 'Tap Watchlist on a pick, or favourite a movie in Jellyfin'
+          : 'Tap Watchlist on a pick to save it',
     action: 'Remove',
     ActionIcon: BookmarkMinus,
   },
@@ -49,8 +61,8 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'seen',
     title: 'Seen it',
     Icon: Eye,
-    lede: 'Movies you marked as seen. Restore one to see it in picks again.',
-    hint: "Tap Seen it on a pick you've watched",
+    lede: () => 'Movies you marked as seen. Restore one to see it in picks again.',
+    hint: () => "Tap Seen it on a pick you've watched",
     action: 'Restore',
     ActionIcon: RotateCcw,
   },
@@ -59,8 +71,8 @@ export const MARK_LISTS: MarkList[] = [
     kind: 'never',
     title: 'Never',
     Icon: Ban,
-    lede: "Movies that won't be suggested to you. Restore one to see it in picks again.",
-    hint: "Tap Never on a pick you don't want",
+    lede: () => "Movies that won't be suggested to you. Restore one to see it in picks again.",
+    hint: () => "Tap Never on a pick you don't want",
     action: 'Restore',
     ActionIcon: RotateCcw,
   },
@@ -85,13 +97,14 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
   const qc = useQueryClient();
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
-  // Restored here: off the page at once, and kept off while the list reloads, so a reload that started before
-  // a second Restore went through can't bring that movie back for a moment.
+  // Movies restored here: off the page at once, and kept off while the list reloads, so a reload that started
+  // before a second Restore went through can't bring that movie back for a moment.
   const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
 
-  const all = marked.data?.filter((m) => m.kind === list.kind && !gone.has(m.id)) ?? [];
+  // A list holds each movie once, so movies key it: one only on the media server's watchlist has no mark id.
+  const all = marked.data?.filter((m) => m.kind === list.kind && !gone.has(m.movie.id)) ?? [];
   const q = fold(query.trim());
   const found = q ? all.filter((m) => fold(`${m.movie.title} ${m.movie.year ?? ''}`).includes(q)) : all;
 
@@ -102,12 +115,20 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
     qc.removeQueries({ queryKey: ['recommendations'] });
   };
 
-  // Undo marks the movie again.
+  const bringBack = (movieId: number) =>
+    setGone((g) => {
+      const back = new Set(g);
+      back.delete(movieId);
+      return back;
+    });
+
+  // Undo marks the movie again, which puts it back on the page.
   const undo = (h: HiddenMovie) => ({
     label: 'Undo',
     run: () =>
       sendFeedback(h.movie.id, h.kind)
         .then((r) => {
+          bringBack(h.movie.id);
           if (r.server === 'failed') toast({ message: `Undone here, but ${server} couldn't be updated` });
         })
         .catch((err) => toast({ message: errorMessage(err) }))
@@ -120,7 +141,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
     const item = e.currentTarget.closest('li');
     const next = (item?.nextElementSibling ?? item?.previousElementSibling)?.querySelector('button');
     if (document.activeElement === e.currentTarget) next?.focus();
-    setGone((g) => new Set(g).add(h.id));
+    setGone((g) => new Set(g).add(h.movie.id));
     try {
       if (h.kind === 'later') {
         // As "On watchlist" does on a pick: off the media server's watchlist too, unless it was put there in Plex
@@ -128,6 +149,8 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
         const res = await removeFromWatchlist(h.movie.id);
         const who = [status?.profile?.name ?? ''];
         const kept = res.onWatchlistOf.includes(status?.profile?.id ?? -1);
+        // Still on the server's watchlist, so still on this one.
+        if (kept) bringBack(h.movie.id);
         toast({
           message: unwatchlistMessage(h.movie.title, res.server, status?.server ?? null, {
             off: kept ? [] : who,
@@ -142,11 +165,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
         toast({ message: res.server === 'failed' ? `${done}, but couldn't update ${server}` : done, action: undo(h) });
       }
     } catch (err) {
-      setGone((g) => {
-        const back = new Set(g);
-        back.delete(h.id);
-        return back;
-      });
+      bringBack(h.movie.id);
       toast({ message: errorMessage(err) });
     }
     refresh();
@@ -172,7 +191,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
         <h1 className="font-display text-[44px] sm:text-6xl">{list.title}</h1>
         {marked.data && (
           <p className="mt-3 text-muted">
-            {all.length ? list.lede : `Nothing here. ${list.hint}.`}
+            {all.length ? list.lede(status?.server ?? null) : `Nothing here. ${list.hint(status?.server ?? null)}.`}
           </p>
         )}
 
@@ -215,7 +234,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
             <AnimatePresence mode="popLayout" initial={false}>
               {found.slice(0, limit).map((h) => (
                 <motion.li
-                  key={h.id}
+                  key={h.movie.id}
                   layout
                   exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.18 } }}
                   className="flex flex-col"

@@ -153,10 +153,22 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     return { server: overall(results), onWatchlistOf: onWatchlistOf(store, group, movie.id) };
   });
 
-  /** Movies this profile marked "seen", "never" or saved for "later", so they can be restored. */
+  /**
+   * Settings' lists, newest first: movies this profile marked "seen" or "never", and its watchlist. The watchlist is
+   * what it saved with "Watchlist" in Curatorr plus what's on its media server's (the Plex Watchlist, Jellyfin
+   * favourites), as for picks. A movie only the server has on it has no mark, so no `id`.
+   */
   app.get('/api/hidden', async (req) => {
     const profile = requireProfile(req, store);
-    return store.markedMovies(profile.id).flatMap((h) => {
+    const marks = store.markedMovies(profile.id);
+    const saved = new Set(marks.flatMap((m) => (m.kind === 'later' ? [m.movieId] : [])));
+    const onServer = store
+      .watchlistEntries(profile.id)
+      .filter((w) => !saved.has(w.movieId))
+      .map((w) => ({ id: null, movieId: w.movieId, kind: 'later' as const, createdAt: w.addedAt }));
+    // Stable, so the server's order breaks ties. Entries saved before Curatorr dated them go last.
+    const newestFirst = [...marks, ...onServer].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    return newestFirst.flatMap((h) => {
       const movie = store.movie(h.movieId);
       return movie ? [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: toDTO(store, movie) }] : [];
     });

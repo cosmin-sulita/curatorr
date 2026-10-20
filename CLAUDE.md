@@ -178,7 +178,8 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
     - **The profile's lists:** Watchlist, Seen it and Never are cards in the style of "Something like…" (`FanCard`), showing how many movies and the latest three posters, in the order of the pick's buttons.
       - Each card opens a page of its own (`Marks.tsx`): a poster grid with Remove or Restore and Undo, a search field past 12 movies, and 30 at a time.
       - An empty list's card only says how to add to it.
-      - The Watchlist's Remove calls `DELETE /api/watchlist/:movieId`, as "On watchlist" does on a pick.
+      - The Watchlist is the one picks use: the `later` marks plus the media server's watchlist (its movies in the library), from `GET /api/hidden`, newest first. Server entries are dated by when Curatorr first saw them there (`watchlist.added_at`, migration v10), and one with no mark has `id: null`.
+      - The Watchlist's Remove calls `DELETE /api/watchlist/:movieId`, as "On watchlist" does on a pick. A movie the server keeps (marks don't update it, or it couldn't be reached) stays on the page.
     - **Connections:** Radarr, Plex or Jellyfin, and Seerr are rows in one card, each with a quiet Change that opens its form in place, with Cancel.
     - **Webhook:** Radarr's webhook is a card of its own, after Library.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.

@@ -147,6 +147,11 @@ const migrations: string[] = [
   );
   CREATE INDEX together_pending ON together (done_at);
   `,
+  // v10: when each movie went on a profile's media server watchlist, as far as Curatorr knows, so Settings can list
+  // the watchlist newest first.
+  `
+  ALTER TABLE watchlist ADD COLUMN added_at INTEGER;  -- first seen there, or put there by Curatorr; NULL before v10
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {

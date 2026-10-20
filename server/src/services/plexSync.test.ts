@@ -102,12 +102,9 @@ describe('two-way Plex sync over the API', () => {
     // The owner's Watchlist already holds The Matrix, plus 150 movies that aren't in the library (paging).
     watchlists.set(OWNER, [...Array.from({ length: 150 }, (_, i) => `zz${i}`), 'aaa111']);
 
-    for (const [name, token, admin] of [['Owner', OWNER, true], ['Member', MEMBER, false], ['Kid', KID, false]] as const) {
-      const id = store.createLocalProfile(name, admin);
-      store.setProfileTokens(id, token, token);
-      const res = await app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, payload: {} });
-      cookies[name] = String(res.headers['set-cookie']).split(';')[0]!;
-    }
+    await newProfile('Owner', OWNER, true);
+    await newProfile('Member', MEMBER);
+    await newProfile('Kid', KID);
   });
 
   afterAll(async () => {
@@ -123,6 +120,23 @@ describe('two-way Plex sync over the API', () => {
   });
 
   const profileId = (name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
+  /** A profile signed in to its own Plex account, picked on a device of its own. */
+  async function newProfile(name: string, token: string, admin = false) {
+    const id = store.createLocalProfile(name, admin);
+    store.setProfileTokens(id, token, token);
+    const res = await app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, payload: {} });
+    cookies[name] = String(res.headers['set-cookie']).split(';')[0]!;
+    return id;
+  }
+  /** The Watchlist in Settings, in its order: each movie, with its mark's id (null when only Plex has it). */
+  const watchlisted = async (who: string) =>
+    ((await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: cookies[who]! } })).json() as {
+      id: number | null;
+      kind: string;
+      movie: { id: number };
+    }[])
+      .filter((h) => h.kind === 'later')
+      .map((h) => ({ movieId: h.movie.id, id: h.id }));
   const mark = async (who: string, movieId: number, kind: string) =>
     (await app.inject({ method: 'POST', url: '/api/feedback', headers: { cookie: cookies[who]! }, payload: { movieId, kind } })).json() as {
       id: number;
@@ -145,6 +159,10 @@ describe('two-way Plex sync over the API', () => {
     const matrix = (await picks('Owner')).picks.find((p) => p.movie.id === 1)!;
     expect(matrix.reasons[0]).toEqual({ kind: 'watchlist', label: 'On your watchlist' });
     expect(matrix.onWatchlistOf).toEqual([profileId('Owner')]);
+  });
+
+  it('shows what is on the Plex Watchlist in Settings, before anything is saved in Curatorr', async () => {
+    expect(await watchlisted('Owner')).toEqual([{ movieId: 1, id: null }]);
   });
 
   it('a Watchlist error does not stop the watch history from syncing', () => {
@@ -252,5 +270,15 @@ describe('two-way Plex sync over the API', () => {
       movie: { id: number };
     }[];
     expect(marked.filter((m) => m.movie.id === 2 && m.kind === 'later')).toHaveLength(1);
+  });
+
+  it('lists the watchlist newest first, whether a movie went on it in Plex or in Curatorr', async () => {
+    const id = await newProfile('Lists', 'lists-token');
+    const minutesAgo = (n: number) => Date.now() - n * 60_000;
+    store.addFeedback(id, 3, 'later', minutesAgo(3)); // Alien, saved in Curatorr
+    store.replaceWatchlist(id, [2], minutesAgo(2)); // Heat, found on the Plex Watchlist
+    store.addFeedback(id, 1, 'later', minutesAgo(1)); // The Matrix, saved in Curatorr
+    store.replaceWatchlist(id, [2]); // read again: Heat has been there since it was first found
+    expect((await watchlisted('Lists')).map((w) => w.movieId)).toEqual([1, 2, 3]);
   });
 });

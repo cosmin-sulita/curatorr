@@ -44,7 +44,7 @@ export function SettingsScreen() {
 
         <div className="mt-8 space-y-5">
           {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
-          {status?.profile && <ProfileLists />}
+          {status?.profile && <ProfileLists server={status.server} />}
           {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
           {isAdmin && settings.isLoading && <Spinner />}
           {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
@@ -90,10 +90,10 @@ function UpdateAvailable({ release, running }: { release: NonNullable<AppStatus[
 }
 
 /**
- * The profile's own lists: movies on its watchlist, and movies it hid from picks. Each card shows how many and the
- * latest posters, and opens the whole list, where they can be restored.
+ * The profile's own lists: movies on its watchlist (its media server's too), and movies it hid from picks. Each card
+ * shows how many and the latest posters, and opens the whole list, where they can be restored.
  */
-function ProfileLists() {
+function ProfileLists({ server }: { server: MediaServer | null }) {
   const marked = useHidden();
   return (
     <section>
@@ -111,7 +111,7 @@ function ProfileLists() {
               className="min-h-20 sm:min-h-22"
               icon={<Icon className="size-5" strokeWidth={1.75} aria-hidden />}
               title={title}
-              subtitle={!marked.data ? ' ' : movies.length ? plural(movies.length, 'movie') : hint}
+              subtitle={!marked.data ? ' ' : movies.length ? plural(movies.length, 'movie') : hint(server)}
               posters={posters}
             />
           );

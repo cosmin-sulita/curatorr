@@ -335,6 +335,12 @@ describe('Curatorr with Jellyfin, over the API', () => {
     expect((await picks('Kid')).picks.map((p) => p.movie.id)).toEqual([3]);
   });
 
+  it("shows a person's Jellyfin favourites in Settings, as their watchlist", async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: profiles.Dad! } });
+    const listed = res.json() as { id: number | null; kind: string; movie: { id: number } }[];
+    expect(listed.map((h) => [h.movie.id, h.kind, h.id])).toEqual([[1, 'later', null]]);
+  });
+
   describe('marks', () => {
     beforeEach(() => {
       fake.state.marks.length = 0;

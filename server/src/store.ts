@@ -467,14 +467,13 @@ export class Store {
     syncedAt: number,
   ) {
     const watched = this.db.prepare('INSERT OR REPLACE INTO watched (profile_id, movie_id, viewed_at) VALUES (?, ?, ?)');
-    const watchlist = this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)');
     const available = this.db.prepare('INSERT OR IGNORE INTO available (profile_id, key) VALUES (?, ?)');
     transaction(this.db, () => {
-      for (const table of ['watched', 'watchlist', 'available']) {
+      for (const table of ['watched', 'available']) {
         this.db.prepare(`DELETE FROM ${table} WHERE profile_id = ?`).run(profileId);
       }
       for (const e of state.watched) watched.run(profileId, e.movieId, e.viewedAt);
-      for (const movieId of state.watchlist) watchlist.run(profileId, movieId);
+      this.writeWatchlist(profileId, state.watchlist, syncedAt);
       for (const item of state.available) for (const key of idKeys(item)) available.run(profileId, key);
       this.db.prepare('UPDATE profiles SET watched_synced_at = ? WHERE id = ?').run(syncedAt, profileId);
     });
@@ -501,16 +500,35 @@ export class Store {
     return new Set(rows.map((r) => r.movie_id));
   }
 
-  replaceWatchlist(profileId: number, movieIds: number[]) {
-    const insert = this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)');
-    transaction(this.db, () => {
-      this.db.prepare('DELETE FROM watchlist WHERE profile_id = ?').run(profileId);
-      for (const id of movieIds) insert.run(profileId, id);
-    });
+  /** The watchlist, newest first: by when Curatorr first saw each movie there, then in the server's order. */
+  watchlistEntries(profileId: number): { movieId: number; addedAt: number | null }[] {
+    const rows = this.db
+      .prepare(`
+        SELECT movie_id, added_at FROM watchlist WHERE profile_id = ?
+        ORDER BY added_at IS NULL, added_at DESC, rowid
+      `)
+      .all(profileId) as { movie_id: number; added_at: number | null }[];
+    return rows.map((r) => ({ movieId: r.movie_id, addedAt: r.added_at }));
+  }
+
+  /** Saves the watchlist as just read, in the server's order. See `writeWatchlist`. */
+  replaceWatchlist(profileId: number, movieIds: number[], at = Date.now()) {
+    transaction(this.db, () => this.writeWatchlist(profileId, movieIds, at));
+  }
+
+  /** Movies still on the watchlist keep the date Curatorr first saw them there; new ones get `at`. */
+  private writeWatchlist(profileId: number, movieIds: number[], at: number) {
+    const keep = new Set(movieIds);
+    const remove = this.db.prepare('DELETE FROM watchlist WHERE profile_id = ? AND movie_id = ?');
+    for (const id of this.watchlistIds(profileId)) if (!keep.has(id)) remove.run(profileId, id);
+    const insert = this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id, added_at) VALUES (?, ?, ?)');
+    for (const id of movieIds) insert.run(profileId, id, at);
   }
 
   addToWatchlist(profileId: number, movieId: number) {
-    this.db.prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id) VALUES (?, ?)').run(profileId, movieId);
+    this.db
+      .prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id, added_at) VALUES (?, ?, ?)')
+      .run(profileId, movieId, Date.now());
   }
 
   removeFromWatchlist(profileId: number, movieId: number) {
