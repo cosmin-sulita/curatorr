@@ -7,7 +7,9 @@ import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
+import type { RadarrMovie } from '../integrations/radarr.js';
 import type { Store } from '../store.js';
+import { syncServerState } from './mediaServer.js';
 import { importHomeUsers, syncPlexState } from './profiles.js';
 
 const OWNER = 5001;
@@ -31,6 +33,10 @@ describe('Plex Home profiles', () => {
   const revoked = new Set<string>();
   /** What Plex Home says about the Kid; changed in Plex after setup by some tests. */
   let kidInPlex: Record<string, unknown> = {};
+  /** The movies in Radarr and in the Plex library, and the Plex guid ids on everyone's Watchlist. None by default. */
+  let inRadarr: RadarrMovie[] = [];
+  let inPlex: object[] = [];
+  let onWatchlist: string[] = [];
   const cleanups: (() => Promise<void>)[] = [];
 
   beforeAll(async () => {
@@ -63,12 +69,16 @@ describe('Plex Home profiles', () => {
         return json(200, { authToken: `user-${switched[1]}` });
       }
       // Plex Discover and the Plex Media Server, read when a profile is picked.
-      if (url.pathname === '/library/sections/watchlist/all') return json(200, { MediaContainer: { totalSize: 0 } });
+      if (url.pathname === '/library/sections/watchlist/all') {
+        const Metadata = onWatchlist.map((id) => ({ guid: `plex://movie/${id}` }));
+        return json(200, { MediaContainer: { totalSize: Metadata.length, size: Metadata.length, Metadata } });
+      }
       // Radarr, for a library sync.
-      if (url.pathname === '/api/v3/movie' || url.pathname === '/api/v3/collection') return json(200, []);
+      if (url.pathname === '/api/v3/movie') return json(200, inRadarr);
+      if (url.pathname === '/api/v3/collection') return json(200, []);
       if (url.pathname === '/library/sections/1/all') {
         const token = req.headers['x-plex-token'] as string;
-        return revoked.has(token) ? json(401, {}) : json(200, { MediaContainer: { Metadata: [] } });
+        return revoked.has(token) ? json(401, {}) : json(200, { MediaContainer: { Metadata: inPlex } });
       }
       json(404, {});
     });
@@ -83,6 +93,9 @@ describe('Plex Home profiles', () => {
     pins = { [MEMBER]: '1234' };
     revoked.clear();
     kidInPlex = {};
+    inRadarr = [];
+    inPlex = [];
+    onWatchlist = [];
     for (const cleanup of cleanups.splice(0)) await cleanup();
   });
 
@@ -172,6 +185,28 @@ describe('Plex Home profiles', () => {
     expect((await select(app, kid, { cookie })).statusCode).toBe(200);
     expect(store.profileRow(kid)!.server_token).not.toBeNull();
     expect((await status()).profile).toMatchObject({ name: 'Kid' });
+  });
+
+  it('reads the history and Watchlist of a profile picked before the first library sync, once the library is in', async () => {
+    const { app, store, library } = await plexInstance();
+    await importHomeUsers(store, silent);
+    // In Radarr and Plex already, but the first library sync hasn't stored them yet.
+    inRadarr = [
+      { id: 1, title: 'The Matrix', tmdbId: 603, hasFile: true, genres: ['Action'] },
+      { id: 2, title: 'Heat', tmdbId: 949, hasFile: true, genres: ['Crime'] },
+    ];
+    inPlex = [
+      { ratingKey: '101', title: 'The Matrix', guid: 'plex://movie/aaa111', Guid: [{ id: 'tmdb://603' }] },
+      { ratingKey: '102', title: 'Heat', guid: 'plex://movie/bbb222', Guid: [{ id: 'tmdb://949' }], viewCount: 1 },
+    ];
+    onWatchlist = ['aaa111'];
+    const owner = idOf(store, 'Owner');
+    expect((await select(app, owner)).statusCode).toBe(200);
+
+    await library.run();
+    await syncServerState(store, store.profileRow(owner)!, silent); // as the app's next status call does
+    expect([...store.watchedIds(owner)]).toEqual([2]);
+    expect([...store.watchlistIds(owner)]).toEqual([1]);
   });
 
   it('gives a user with custom Plex restrictions the strictest limit, since Curatorr can\'t read them', async () => {

@@ -30,6 +30,9 @@ export async function refreshProfiles(store: Store, log: FastifyBaseLogger) {
 
 /** Refreshes a profile's watch history and watchlist from the media server, if they are stale. */
 export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
+  // Before the first library sync there's nothing to match them with, and an empty read would pass for fresh for
+  // ten minutes. The status calls made while that sync runs read them once the library is in.
+  if (!store.movies().length) return;
   const server = store.mediaServer();
   if (server === 'plex') await syncPlexState(store, row, log, force);
   if (server === 'jellyfin') await syncJellyfinState(store, row, log, force);
