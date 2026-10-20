@@ -303,6 +303,32 @@ function Connection({
   );
 }
 
+/**
+ * Disconnecting Seerr forgets its API key and the requests read from it, with nothing to undo, so it asks first,
+ * away from the form's own buttons.
+ */
+function DisconnectSeerr({ onConfirm }: { onConfirm: () => void }) {
+  const [asking, setAsking] = useState(false);
+  // Keyed, so each row gets buttons of its own instead of the others fading into them.
+  return asking ? (
+    <div key="ask" className="mt-5 flex flex-wrap items-center gap-3">
+      <p className="w-full text-sm">Picks stop favouring requested movies, and Curatorr forgets the API key.</p>
+      <Button variant="danger" onClick={onConfirm}>
+        Disconnect Seerr
+      </Button>
+      <Button variant="ghost" onClick={() => setAsking(false)} autoFocus>
+        Keep Seerr
+      </Button>
+    </div>
+  ) : (
+    <div key="start" className="mt-5">
+      <Button variant="ghost" className="-ml-4" onClick={() => setAsking(true)}>
+        Disconnect Seerr
+      </Button>
+    </div>
+  );
+}
+
 /** Which connection is being changed. One at a time. */
 type Editing = 'radarr' | 'seerr' | MediaServer;
 
@@ -567,39 +593,32 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               action={editing !== 'seerr' && change('seerr', 'Seerr', seerr ? 'Change' : 'Connect')}
             >
               {editing === 'seerr' ? (
-                <ServiceForm
-                  service="Seerr"
-                  heading={false}
-                  initialUrl={seerr?.url ?? ''}
-                  hasKey={Boolean(seerr?.hasApiKey)}
-                  actions={
-                    <>
-                      {cancel}
-                      {seerr && (
-                        <Button
-                          variant="ghost"
-                          size="lg"
-                          type="button"
-                          onClick={() => {
-                            setEditing(null);
-                            run(async () => {
-                              await api('/api/settings/seerr', { method: 'DELETE' });
-                              clearPicks();
-                            }, 'Seerr disconnected');
-                          }}
-                        >
-                          Disconnect
-                        </Button>
-                      )}
-                    </>
-                  }
-                  onSaved={() => {
-                    setEditing(null);
-                    clearPicks();
-                    refresh();
-                    toast({ message: 'Seerr connected' });
-                  }}
-                />
+                <>
+                  <ServiceForm
+                    service="Seerr"
+                    heading={false}
+                    initialUrl={seerr?.url ?? ''}
+                    hasKey={Boolean(seerr?.hasApiKey)}
+                    actions={cancel}
+                    onSaved={() => {
+                      setEditing(null);
+                      clearPicks();
+                      refresh();
+                      toast({ message: 'Seerr connected' });
+                    }}
+                  />
+                  {seerr && (
+                    <DisconnectSeerr
+                      onConfirm={() => {
+                        setEditing(null);
+                        run(async () => {
+                          await api('/api/settings/seerr', { method: 'DELETE' });
+                          clearPicks();
+                        }, 'Seerr disconnected');
+                      }}
+                    />
+                  )}
+                </>
               ) : (
                 seerr?.error && <Notice>Last read failed: {seerr.error}</Notice>
               )}
