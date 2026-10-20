@@ -16,6 +16,7 @@ import { recentReleases } from '../lib/whatsNew';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { MARK_LISTS } from './Marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
+import { RESTRICTION_LABEL } from './Profiles';
 import { ServiceForm } from './Setup';
 
 function Section({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
@@ -153,16 +154,21 @@ const SYNC_INTERVALS = [1, 3, 6, 12, 24];
 function lastCall({ at, event, title }: SettingsResponse['webhook']) {
   if (!at) return null;
   const movie = title ?? 'a movie';
-  const what =
-    event === 'Test'
-      ? 'a test'
-      : event === 'Download'
-        ? `imported ${movie}`
-        : event === 'MovieFileDelete'
-          ? `deleted the file of ${movie}`
-          : event === 'MovieDelete'
-            ? `removed ${movie}`
-            : event;
+  // Radarr's other events reach Curatorr too when they're ticked; it only needs the first four.
+  const events: Record<string, string> = {
+    Test: 'a test',
+    Download: `imported ${movie}`,
+    MovieFileDelete: `deleted the file of ${movie}`,
+    MovieDelete: `removed ${movie}`,
+    Grab: `grabbed ${movie}`,
+    Rename: `renamed ${movie}`,
+    MovieAdded: `added ${movie}`,
+    Health: 'a health warning',
+    HealthRestored: 'a health warning cleared',
+    ApplicationUpdate: 'an update of Radarr',
+    ManualInteractionRequired: `${movie} needs a hand with its download`,
+  };
+  const what = (event && events[event]) ?? `a ${event} event`;
   return `Radarr last called ${relativeTime(at)}: ${what}.`;
 }
 
@@ -676,7 +682,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                       ? 'Administrator'
                       : 'Owner'
                     : p.restrictionProfile
-                      ? `Restricted by ${name}`
+                      ? `Restricted to ${RESTRICTION_LABEL[p.restrictionProfile]} by ${name}`
                       : 'Member'}
                   {p.serverUser && !p.linked && ', waiting for PIN'}
                 </span>
