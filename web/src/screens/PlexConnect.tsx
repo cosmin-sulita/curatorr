@@ -30,9 +30,17 @@ export function PlexConnect({
           Curatorr uses Plex to know who has watched what, and to open a pick straight in Plex. Sign in with the account that
           owns your Plex server.
         </p>
-        <Button variant="primary" size="lg" onClick={signIn.start} loading={signIn.waiting}>
-          {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary" size="lg" onClick={signIn.start} loading={signIn.waiting}>
+            {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
+          </Button>
+          {/* For a Plex window closed without signing in, which Curatorr can't tell. */}
+          {signIn.waiting && (
+            <Button variant="ghost" size="lg" onClick={signIn.cancel}>
+              Cancel
+            </Button>
+          )}
+        </div>
         {signIn.manualUrl && (
           <Notice tone="info">
             Your browser blocked the sign-in window.{' '}
@@ -195,9 +203,17 @@ export function OwnerSignIn() {
   const signIn = usePlexSignIn('login', () => qc.invalidateQueries());
   return (
     <>
-      <Button variant="primary" onClick={signIn.start} loading={signIn.waiting}>
-        {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="primary" onClick={signIn.start} loading={signIn.waiting}>
+          {signIn.waiting ? 'Waiting for Plex…' : 'Sign in with Plex'}
+        </Button>
+        {/* For a Plex window closed without signing in, which Curatorr can't tell. */}
+        {signIn.waiting && (
+          <Button variant="ghost" onClick={signIn.cancel}>
+            Cancel
+          </Button>
+        )}
+      </div>
       {signIn.manualUrl && (
         <p className="mt-3 text-sm text-muted">
           Pop-up blocked.{' '}
