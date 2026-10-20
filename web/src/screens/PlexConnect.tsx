@@ -123,7 +123,9 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: ServerLibr
     <div className="space-y-5">
       <p className="text-muted">Choose the server Curatorr should read from. Addresses that answered are marked.</p>
       {servers.data.map((s) => (
-        <fieldset key={s.machineId} className="rounded-2xl bg-ink/60 p-4 ring-1 ring-line">
+        // A fieldset is as wide as its longest line unless told otherwise: without min-w-0, a plex.direct address
+        // pushes it past the card on a phone instead of being shortened.
+        <fieldset key={s.machineId} className="min-w-0 rounded-2xl bg-ink/60 p-4 ring-1 ring-line">
           <legend className="px-1 font-semibold">{s.name}</legend>
           <div className="mt-1 space-y-1">
             {s.connections.map((c) => {
