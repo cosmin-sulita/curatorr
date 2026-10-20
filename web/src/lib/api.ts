@@ -73,14 +73,25 @@ const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood:
 
 /** The questions are kept a while after leaving them, so coming back from a pick shows them at once. */
 const KEEP_QUESTIONS = 30 * 60_000;
+/**
+ * Long enough that a question loaded ahead still counts when it's tapped after a while: only marks (which refresh the
+ * questions) and library syncs change the answers.
+ */
+const FRESH_QUESTIONS = 5 * 60_000;
+/** About a screenful of a question's pictures: what starts loading as it opens. */
+const FIRST_PICTURES = 18;
 
 export const wizardQuery = (step: WizardStep, criteria: Criteria) =>
   queryOptions({
     queryKey: ['wizard', step, criteria],
     queryFn: () => api<WizardOptionsResponse>(withQuery(`/api/wizard/${step}`, criteriaParams(criteria))),
-    staleTime: 60_000,
+    staleTime: FRESH_QUESTIONS,
     gcTime: KEEP_QUESTIONS,
   });
+
+/** The pictures a question shows first: the first question's shortcuts, then the answers'. */
+export const firstPictures = (d: WizardOptionsResponse) =>
+  [...(d.shelves ?? []), ...d.options].flatMap((o) => o.images).slice(0, FIRST_PICTURES);
 
 export function useWizardOptions(step: WizardStep, criteria: Criteria) {
   return useQuery(wizardQuery(step, criteria));

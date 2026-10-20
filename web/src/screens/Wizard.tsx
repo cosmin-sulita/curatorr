@@ -13,12 +13,14 @@ import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
 import {
+  SURPRISE_URL,
   answersBefore,
   criteriaFrom,
   nextUrl,
   tapped,
   useAdvance,
   useEntrance,
+  useLookAhead,
   type Going,
   type Tapped,
 } from '../lib/wizard';
@@ -32,27 +34,41 @@ const COPY: Record<WizardStep, { title: string; any: string | null }> = {
 
 export function WizardScreen({ step, search }: { step: WizardStep; search: URLSearchParams }) {
   const criteria = answersBefore(step, criteriaFrom(search));
-  const { data, error, refetch } = useWizardOptions(step, criteria);
+  const { data, error, refetch, dataUpdatedAt } = useWizardOptions(step, criteria);
   // Fetched alongside the genres, and waited for, so the "Something like…" card appears with its posters
   // rather than growing under the thumb when they arrive. A failure only leaves the posters out.
   const seeds = useLikeSeeds('', step === 'genre');
   const seedsPending = step === 'genre' && seeds.isPending;
   const { data: status } = useStatus();
   const index = STEP_ORDER.indexOf(step);
-  const { go, going } = useAdvance();
+  const { go, going, warm } = useAdvance();
   const entrance = useEntrance();
+  const ready = Boolean(data && !data.skip && !seedsPending);
+  const anyLabel = COPY[step].any;
+
+  // Where each answer leads. While the question is on screen, all of it loads ahead, so a tap moves on at once:
+  // first "no preference", under the thumb on phones, then the answers from the top.
+  const urlFor = (value: string) => nextUrl(step, criteria, value);
+  // "Surprise me" skips the rest of the questions, and the pick lands after a quick shuffle.
+  const anyUrl = step === 'genre' ? SURPRISE_URL : urlFor('any');
+  const shelfUrl = (shelf: string) => withQuery('/pick', { shelf });
+  const destinations = data
+    ? [
+        ...(anyLabel ? [anyUrl] : []),
+        ...(data.shelves ?? []).map((o) => shelfUrl(o.id)),
+        ...data.options.map((o) => urlFor(o.id)),
+      ]
+    : [];
+  useLookAhead(destinations, ready ? `${step} ${JSON.stringify(criteria)} ${dataUpdatedAt}` : null);
 
   // Answers normally move past a question with no real choice before it shows; this covers opening one directly.
   useEffect(() => {
     if (data?.skip) navigate(nextUrl(step, criteria, 'any'), { replace: true });
   }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const choose = (value: string) => go(value, nextUrl(step, criteria, value));
-  // "Surprise me" skips the rest of the questions, and the pick lands after a quick shuffle.
-  const chooseAny = () => {
-    if (step !== 'genre') return choose('any');
-    go('any', withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' }), requestSurprise);
-  };
+  const choose = (value: string) => go(value, urlFor(value));
+  const touch = (value: string) => warm(urlFor(value));
+  const chooseAny = () => (step === 'genre' ? go('any', anyUrl, requestSurprise) : choose('any'));
   const genreLabel = criteria.genre && criteria.genre !== 'any' ? genreById.get(criteria.genre)?.label : null;
 
   if (error) {
@@ -91,8 +107,6 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     );
   }
 
-  const ready = Boolean(data && !data.skip && !seedsPending);
-  const anyLabel = COPY[step].any;
   const anyGoing = going?.id === 'any';
   const anyButton = (className?: string) => (
     <Button
@@ -100,6 +114,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
       size="lg"
       className={clsx(className, anyGoing && 'scale-[0.98]')}
       loading={anyGoing && going.slow}
+      onPointerDown={() => warm(anyUrl)}
       onClick={chooseAny}
     >
       {step === 'genre' && !(anyGoing && going.slow) && <Shuffle className="size-5" />}
@@ -147,13 +162,15 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
                   shelves={data.shelves ?? []}
                   options={data.options}
                   going={going}
-                  onShelf={(shelf) => go(`shelf:${shelf}`, withQuery('/pick', { shelf }))}
+                  onShelf={(shelf) => go(`shelf:${shelf}`, shelfUrl(shelf))}
+                  onShelfTouch={(shelf) => warm(shelfUrl(shelf))}
                   onChoose={choose}
+                  onTouch={touch}
                 />
               )}
-              {step === 'theme' && <ThemeList options={data.options} going={going} onChoose={choose} />}
-              {step === 'mood' && <MoodGrid options={data.options} going={going} onChoose={choose} />}
-              {step === 'time' && <TimeList options={data.options} going={going} onChoose={choose} />}
+              {step === 'theme' && <ThemeList options={data.options} going={going} onChoose={choose} onTouch={touch} />}
+              {step === 'mood' && <MoodGrid options={data.options} going={going} onChoose={choose} onTouch={touch} />}
+              {step === 'time' && <TimeList options={data.options} going={going} onChoose={choose} onTouch={touch} />}
               {anyLabel && <div className="h-28 md:hidden" aria-hidden />}
             </div>
           </motion.section>
@@ -170,7 +187,13 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   );
 }
 
-type OptionsProps = { options: WizardOption[]; going: Going | null; onChoose: (id: string) => void };
+/** `onTouch`: a finger landed on an answer, so what it leads to starts loading before the tap completes. */
+type OptionsProps = {
+  options: WizardOption[];
+  going: Going | null;
+  onChoose: (id: string) => void;
+  onTouch: (id: string) => void;
+};
 
 const pressedRing = (state: Tapped) => (state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line');
 
@@ -180,8 +203,10 @@ function GenreGrid({
   options,
   going,
   onShelf,
+  onShelfTouch,
   onChoose,
-}: OptionsProps & { shelves: WizardOption[]; onShelf: (id: string) => void }) {
+  onTouch,
+}: OptionsProps & { shelves: WizardOption[]; onShelf: (id: string) => void; onShelfTouch: (id: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {shelves.map((o) => (
@@ -190,11 +215,12 @@ function GenreGrid({
           option={o}
           state={tapped(going, `shelf:${o.id}`)}
           onClick={() => onShelf(o.id)}
+          onTouch={() => onShelfTouch(o.id)}
           icon
         />
       ))}
       {options.map((o) => (
-        <GenreTile key={o.id} option={o} state={tapped(going, o.id)} onClick={() => onChoose(o.id)} />
+        <GenreTile key={o.id} option={o} state={tapped(going, o.id)} onClick={() => onChoose(o.id)} onTouch={() => onTouch(o.id)} />
       ))}
     </div>
   );
@@ -204,15 +230,18 @@ function GenreTile({
   option: o,
   state,
   onClick,
+  onTouch,
   icon = false,
 }: {
   option: WizardOption;
   state: Tapped;
   onClick: () => void;
+  onTouch: () => void;
   icon?: boolean;
 }) {
   return (
     <button
+      onPointerDown={onTouch}
       onClick={onClick}
       className={clsx(
         'group relative aspect-[16/10] overflow-hidden rounded-2xl text-left transition active:scale-[0.98]',
@@ -253,7 +282,7 @@ function LikeCard({ seeds }: { seeds: LikeSeed[] | undefined }) {
   );
 }
 
-function ThemeList({ options, going, onChoose }: OptionsProps) {
+function ThemeList({ options, going, onChoose, onTouch }: OptionsProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {options.map((o) => {
@@ -261,6 +290,7 @@ function ThemeList({ options, going, onChoose }: OptionsProps) {
         return (
           <button
             key={o.id}
+            onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
               'relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left transition hover:bg-raised active:scale-[0.99]',
@@ -284,7 +314,7 @@ function ThemeList({ options, going, onChoose }: OptionsProps) {
   );
 }
 
-function MoodGrid({ options, going, onChoose }: OptionsProps) {
+function MoodGrid({ options, going, onChoose, onTouch }: OptionsProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {options.map((o) => {
@@ -292,6 +322,7 @@ function MoodGrid({ options, going, onChoose }: OptionsProps) {
         return (
           <button
             key={o.id}
+            onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
               'group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left transition active:scale-[0.99]',
@@ -318,7 +349,7 @@ function MoodGrid({ options, going, onChoose }: OptionsProps) {
   );
 }
 
-function TimeList({ options, going, onChoose }: OptionsProps) {
+function TimeList({ options, going, onChoose, onTouch }: OptionsProps) {
   return (
     <div className="grid gap-3">
       {options.map((o) => {
@@ -326,6 +357,7 @@ function TimeList({ options, going, onChoose }: OptionsProps) {
         return (
           <button
             key={o.id}
+            onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
               'relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left transition hover:bg-raised active:scale-[0.99]',

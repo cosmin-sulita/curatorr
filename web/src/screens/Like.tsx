@@ -31,9 +31,10 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
     commit(text);
     input.current?.blur(); // Puts the keyboard away so the results show.
   };
-  // The pick opens once it has loaded, with its poster; until then the tapped poster stays pressed.
-  const { go, going } = useAdvance();
-  const choose = (id: number) => go(String(id), withQuery('/pick', { like: String(id) }));
+  // The pick opens once it has loaded, which starts as a finger lands on a poster; until then the poster stays pressed.
+  const { go, going, warm } = useAdvance();
+  const pickUrl = (id: number) => withQuery('/pick', { like: String(id) });
+  const choose = (id: number) => go(String(id), pickUrl(id));
   const entrance = useEntrance();
 
   return (
@@ -101,7 +102,11 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
               const state = tapped(going, String(m.id));
               return (
                 <li key={m.id}>
-                  <button onClick={() => choose(m.id)} className="group w-full text-left">
+                  <button
+                    onPointerDown={() => warm(pickUrl(m.id))}
+                    onClick={() => choose(m.id)}
+                    className="group w-full text-left"
+                  >
                     <span className={clsx('relative block transition', state && 'scale-[0.98]')}>
                       <Img
                         src={m.posterUrl}
