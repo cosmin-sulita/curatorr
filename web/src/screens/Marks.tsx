@@ -16,6 +16,7 @@ import {
   type HiddenMovie,
 } from '../lib/api';
 import { plural, serverName } from '../lib/format';
+import { useEntrance } from '../lib/wizard';
 import { unwatchlistMessage } from './Pick';
 
 export type MarkListId = 'watchlist' | 'seen' | 'never';
@@ -102,6 +103,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
   const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
+  const entrance = useEntrance();
 
   // A list holds each movie once, so movies key it: one only on the media server's watchlist has no mark id.
   const all = marked.data?.filter((m) => m.kind === list.kind && !gone.has(m.movie.id)) ?? [];
@@ -183,7 +185,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
       </div>
 
       <motion.section
-        initial={{ opacity: 0, x: 28 }}
+        initial={entrance}
         animate={{ opacity: 1, x: 0 }}
         transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         className="pt-6 pb-10"

@@ -2,7 +2,7 @@ import type { AppStatus, MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { FanCard } from '../components/FanCard';
 import { BackButton, Shell } from '../components/Shell';
@@ -13,6 +13,7 @@ import { api, errorMessage, useHidden, useSettings, useStatus, type SettingsResp
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
+import { useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { MARK_LISTS } from './Marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
@@ -36,32 +37,44 @@ export function SettingsScreen() {
   const [showNews, setShowNews] = useState(false);
   // People leave to copy an API key or sign in to their media server; a reload on their return would lose that.
   useDeferUpdates();
+  const entrance = useEntrance();
 
   return (
     <>
       <Shell>
-        <BackButton />
-        <h1 className="mt-3 font-display text-5xl">Settings</h1>
-
-        <div className="mt-8 space-y-5">
-          {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
-          {status?.profile && <ProfileLists server={status.server} />}
-          {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
-          {isAdmin && settings.isLoading && <Spinner />}
-          {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
-          {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
-          <p className="pt-2 pb-6 text-center text-xs text-faint">
-            Curatorr {status?.version}
-            {status?.demo && ', demo mode'}
-            {' · '}
-            <button
-              className="inline-flex h-11 items-center px-1 align-middle font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
-              onClick={() => setShowNews(true)}
-            >
-              What's new
-            </button>
-          </p>
+        <div className="flex h-11 items-center">
+          <BackButton />
         </div>
+
+        {/* As on the other screens: the title in the same place, sliding in from the side it's reached from. */}
+        <motion.section
+          initial={entrance}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          className="pt-6"
+        >
+          <h1 className="font-display text-[44px] sm:text-6xl">Settings</h1>
+
+          <div className="mt-8 space-y-5">
+            {status?.update && <UpdateAvailable release={status.update} running={status.version} />}
+            {status?.profile && <ProfileLists server={status.server} />}
+            {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
+            {isAdmin && settings.isLoading && <Spinner />}
+            {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
+            {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
+            <p className="pt-2 pb-6 text-center text-xs text-faint">
+              Curatorr {status?.version}
+              {status?.demo && ', demo mode'}
+              {' · '}
+              <button
+                className="inline-flex h-11 items-center px-1 align-middle font-semibold text-muted underline-offset-2 hover:text-fg hover:underline"
+                onClick={() => setShowNews(true)}
+              >
+                What's new
+              </button>
+            </p>
+          </div>
+        </motion.section>
       </Shell>
       {/* Outside Shell: its <main> is a stacking context below the header. */}
       <AnimatePresence>
