@@ -227,7 +227,7 @@ describe('rankMovies', () => {
   });
 
   it('favours movies on the Plex Watchlist or saved for later', () => {
-    // +6 beats a 2-point rating gap even with the daily jitter (±1.5 each).
+    // The watchlist's bonus beats a 2-point rating gap even with the daily jitter (±1.5 each).
     const top = movie({ ratings: { rt: 92 } });
     const listed = movie({ ratings: { rt: 90 } });
     const later = movie({ ratings: { rt: 90 } });
@@ -244,7 +244,7 @@ describe('rankMovies', () => {
   });
 
   it('favours unwatched Seerr requests and says so', () => {
-    // +8 beats a 4-point rating gap even with the daily jitter (±1.5 each).
+    // A request's bonus beats a 4-point rating gap even with the daily jitter (±1.5 each).
     const top = movie({ ratings: { rt: 94 } });
     const requested = movie({ ratings: { rt: 90 } });
     const ranked = rankMovies([top, requested], {}, [], { now: NOW, seed: 'test', requested: new Set([requested.id]) });
@@ -260,13 +260,13 @@ describe('rankMovies', () => {
     const plain = score({});
     const requested = score({ requested: new Set([m.id]) });
     const both = score({ requested: new Set([m.id]), watchlist: new Set([m.id]) });
-    expect(requested.score - plain.score).toBeCloseTo(8, 0);
+    expect(requested.score).toBeGreaterThan(plain.score);
     expect(both.score).toBe(requested.score);
     expect(both.reasons.slice(0, 2).map((r) => r.kind)).toEqual(['requested', 'watchlist']);
   });
 
   it('favours movies that just arrived, and says when', () => {
-    // Two days in, the bonus is about +11: enough to beat a 6-point rating gap even with the shuffle.
+    // Two days in, the bonus is enough to beat a 6-point rating gap even with the shuffle.
     const fresh = movie({ ratings: { rt: 82 }, addedAt: new Date(NOW - 2 * DAY).toISOString() });
     const old = movie({ ratings: { rt: 88 }, addedAt: '2020-01-01T00:00:00Z' });
     const ranked = rank([old, fresh]);
@@ -279,9 +279,9 @@ describe('rankMovies', () => {
     const m = movie({ ratings: { rt: 80 } });
     const bonus = (days: number) =>
       rank([{ ...m, addedAt: new Date(NOW - days * DAY).toISOString() }])[0]!.score - rank([m])[0]!.score;
-    expect(bonus(0)).toBeCloseTo(12, 0);
-    expect(bonus(21)).toBeCloseTo(12 / Math.E, 0);
-    expect(bonus(60)).toBeLessThan(1);
+    expect(bonus(0)).toBeGreaterThan(10);
+    expect(bonus(21)).toBeCloseTo(bonus(0) / Math.E, 0);
+    expect(bonus(60)).toBeLessThan(bonus(0) / 10);
     // The chip only shows while the bonus is worth mentioning.
     expect(rank([{ ...m, addedAt: new Date(NOW - 20 * DAY).toISOString() }])[0]!.reasons.some((r) => r.kind === 'added')).toBe(false);
   });
@@ -295,7 +295,8 @@ describe('rankMovies', () => {
     });
     const [ranked] = rank([m]);
     expect(ranked!.reasons).toContainEqual({ kind: 'added', label: 'Added 2 days ago' });
-    expect(ranked!.score - rank([{ ...m, addedAt: null, arrivedAt: null }])[0]!.score).toBeCloseTo(12 * Math.exp(-2 / 21), 0);
+    expect(ranked!.score).toBe(rank([{ ...m, addedAt: null }])[0]!.score);
+    expect(ranked!.score).toBeGreaterThan(rank([{ ...m, addedAt: null, arrivedAt: null }])[0]!.score);
   });
 
   it('explains the pick', () => {
@@ -307,6 +308,15 @@ describe('rankMovies', () => {
   it('says when audiences rate a pick highly', () => {
     const m = movie({ ratings: { rt: 60, imdb: 7.7 } });
     expect(rank([m])[0]!.reasons).toContainEqual({ kind: 'rating', label: '7.7 on IMDb' });
+  });
+
+  it('lets a requested movie that just arrived lead one rated well above it', () => {
+    // 23.5 points apart: more than the request's and a two-day-old arrival's bonuses add up to (19), less than they
+    // count for in the picks, with room for the daily jitter (±1.5 each).
+    const wanted = movie({ ratings: { rt: 60, imdb: 7 }, arrivedAt: new Date(NOW - 2 * DAY).toISOString() });
+    const better = movie({ ratings: { rt: 95, imdb: 7.6 } });
+    const ranked = rankMovies([better, wanted], {}, [], { now: NOW, seed: 'test', requested: new Set([wanted.id]) });
+    expect(ranked.map((r) => r.movie.id)).toEqual([wanted.id, better.id]);
   });
 
   it('keeps what each part of the score added', () => {

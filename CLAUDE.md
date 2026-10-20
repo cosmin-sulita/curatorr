@@ -48,6 +48,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - the theme/mood bonus, taste points (`tastePoints`) and the new-arrival bonus (`arrivalTime`: the file's `arrivedAt`, else `addedAt`);
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
+    - What the profile wants (the request or watchlist bonus, the new-arrival bonus, the next-saga bonus) counts `WANTED_WEIGHT` (1.5) times its bonus in these picks: replayed watches favoured those far more than the same points of rating (decided with the maintainer). `rankSimilar` adds them as they are.
     - For "Surprise me" (no answers, `isSurprise`), `surpriseOrder` then deals the ten best in an order drawn per profile per evening. `rankMovies` itself leaves `{}` in rank order; `recommendFor` and `npm run eval` apply the draw.
     - **Shortcuts** (`Criteria.shelf`): `matchesShelf` keeps a shortcut's movies, ranked as usual and not shuffled.
       - Given `now`, `wizardOptions` returns them as `shelves` on the genre step. `npm run eval` reports each as a row of its own.
@@ -130,10 +131,10 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
     - Once one shows the movie watched since the pick, the others who haven't watched it get `seen` and `applyMark`.
     - Rows close then, or after 12 hours.
 - **Ranking:**
-  - **Requests and the Watchlist:** an unwatched Seerr request gets +8 and a "You requested this" chip; otherwise the Watchlist gets +6. They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
+  - **Requests and the Watchlist:** an unwatched Seerr request gets +12 in the wizard's picks (+8 in "Something like…") and a "You requested this" chip; otherwise the Watchlist gets +9 (+6). They don't stack, since Seerr can auto-request Watchlist items. `app.boostRequests` turns requests off.
   - **Skips:** `skipped` costs −15 for 14 days, and each other skip in the last 90 days adds 14 more.
   - **Shown picks:** `shown` costs −4 for one evening shown in the last 30 days, and each further evening costs 4 more than the one before: −12 after two, −24 after three, −40 after four, with no ceiling, so a well-rated pick passed over night after night makes way (decided with the maintainer). It only counts after a 3-hour grace (`SHOWN_GRACE`), so the same answers give the same pick for those three hours (later the same evening, that evening counts too).
-  - **New arrivals:** a movie whose file arrived lately gets up to +12, fading over about three weeks, with an "Added … ago" chip while it's worth 6 or more. It doesn't matter who requested the movie: replayed watches showed a household watching each other's requests (decided with the maintainer).
+  - **New arrivals:** a movie whose file arrived lately gets up to +18 in the wizard's picks (+12 in "Something like…"), fading over about three weeks, with an "Added … ago" chip for about two weeks (while the +12 version is worth 6 or more). It doesn't matter who requested the movie: replayed watches showed a household watching each other's requests (decided with the maintainer).
     - The date is Radarr's import date of the first file Curatorr saw (`arrived_at`), so an upgrade doesn't make a movie new again. Radarr's added date is when a request was made, often before release, and is only the fallback.
   - **Retention:** `shown` and `skipped` older than 90 days are pruned when the server starts; `accepted` is kept for taste.
 - **README:** "How picks work" quotes these numbers and the other constants in `scoring.ts`. Update it in the same commit when they change.

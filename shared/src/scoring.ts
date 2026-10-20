@@ -176,6 +176,12 @@ const TASTE_MAX = 12;
 const TASTE_CHIP = 4;
 /** The next part of a saga the profile has started. */
 export const NEXT_PART_BONUS = 4;
+/**
+ * In the wizard's picks, what the profile wants counts this many times its bonus: a request or the watchlist, a new
+ * arrival, the next part of a saga. In replayed watches these said more about what a household picked than the same
+ * points of rating. "Something like…" ranks by likeness, and keeps the bonuses as they are.
+ */
+const WANTED_WEIGHT = 1.5;
 const MIN_RESULTS = 6;
 const MAX_RESULTS = 12;
 
@@ -610,11 +616,13 @@ export function rankMovies(
       quality: rating,
       answers: theme + mood,
       season: season && onHoliday(m, season) ? SEASON_BONUS : 0,
-      saga,
+      saga: saga * WANTED_WEIGHT,
       taste: taste.get(m.id) ?? 0,
       ...adj.parts,
+      wanted: adj.parts.wanted * WANTED_WEIGHT,
+      arrival: adj.parts.arrival * WANTED_WEIGHT,
     };
-    const score = rating + saga + theme + mood + parts.season + parts.taste + adj.delta;
+    const score = SCORE_PARTS.reduce((sum, part) => sum + parts[part], 0);
 
     // On "Just arrived" every new arrival says when it came, also once its bonus no longer would.
     const listedNew = c.shelf === JUST_ARRIVED.id && arrivedLately(m, opts.now);
