@@ -6,13 +6,13 @@ import { useEffect } from 'react';
 import { FanCard, PosterFan } from '../components/FanCard';
 import { InstallHint } from '../components/InstallHint';
 import { BackButton, BottomBar, CenteredState, Shell } from '../components/Shell';
-import { Button, Img, Notice, Spinner } from '../components/ui';
+import { Button, Img, Notice, Pending, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus, useWizardOptions } from '../lib/api';
 import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
-import { answersBefore, criteriaFrom, nextUrl, useAdvance, type Going } from '../lib/wizard';
+import { answersBefore, criteriaFrom, nextUrl, tapped, useAdvance, type Going, type Tapped } from '../lib/wizard';
 
 const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   genre: { title: 'What kind of movie tonight?', any: 'Surprise me' },
@@ -162,19 +162,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
 type OptionsProps = { options: WizardOption[]; going: Going | null; onChoose: (id: string) => void };
 
-/** The tapped answer stays pressed while the next screen loads, and says it's loading once that takes a moment. */
-type Tapped = 'pressed' | 'slow' | null;
-const tapped = (going: Going | null, id: string): Tapped => (going?.id === id ? (going.slow ? 'slow' : 'pressed') : null);
 const pressedRing = (state: Tapped) => (state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line');
-
-/** Like the avatar's on "Who's watching?" while a profile opens. */
-function Pending() {
-  return (
-    <span className="absolute inset-0 grid place-items-center rounded-2xl bg-ink/60">
-      <Spinner className="size-7 text-white" />
-    </span>
-  );
-}
 
 /** The genres, led by the shortcuts (Just arrived, the season's movies), which go straight to a pick. */
 function GenreGrid({

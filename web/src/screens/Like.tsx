@@ -3,10 +3,11 @@ import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { Button, Img, Notice, Spinner } from '../components/ui';
+import { Button, Img, Notice, Pending, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
+import { tapped, useAdvance } from '../lib/wizard';
 
 /** "Something like…": pick a movie you loved, then get unwatched ones that resemble it. */
 export function LikeScreen({ search }: { search: URLSearchParams }) {
@@ -30,7 +31,9 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
     commit(text);
     input.current?.blur(); // Puts the keyboard away so the results show.
   };
-  const choose = (id: number) => navigate(withQuery('/pick', { like: String(id) }));
+  // The pick opens once it has loaded, with its poster; until then the tapped poster stays pressed.
+  const { go, going } = useAdvance();
+  const choose = (id: number) => go(String(id), withQuery('/pick', { like: String(id) }));
 
   return (
     <Shell>
@@ -93,20 +96,29 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
               isFetching && isPlaceholderData && 'opacity-60',
             )}
           >
-            {data.map((m) => (
-              <li key={m.id}>
-                <button onClick={() => choose(m.id)} className="group w-full text-left">
-                  <Img
-                    src={m.posterUrl}
-                    className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
-                  />
-                  <span className="mt-2 line-clamp-2 text-sm font-medium">{m.title}</span>
-                  <span className="block text-xs text-muted">
-                    {[m.year, searching && m.watched ? 'Watched' : null].filter(Boolean).join(' · ')}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {data.map((m) => {
+              const state = tapped(going, String(m.id));
+              return (
+                <li key={m.id}>
+                  <button onClick={() => choose(m.id)} className="group w-full text-left">
+                    <span className={clsx('relative block transition', state && 'scale-[0.98]')}>
+                      <Img
+                        src={m.posterUrl}
+                        className={clsx(
+                          'aspect-[2/3] w-full rounded-xl object-cover transition group-hover:ring-2 group-hover:ring-accent-2',
+                          state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line',
+                        )}
+                      />
+                      {state === 'slow' && <Pending className="rounded-xl" />}
+                    </span>
+                    <span className="mt-2 line-clamp-2 text-sm font-medium">{m.title}</span>
+                    <span className="block text-xs text-muted">
+                      {[m.year, searching && m.watched ? 'Watched' : null].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </motion.section>

@@ -2,13 +2,15 @@ import { STEP_ORDER, type Criteria, type WizardStep } from '@curatorr/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { preloadImages } from '../components/ui';
-import { wizardQuery } from './api';
+import { recommendationsQuery, wizardQuery } from './api';
 import { navigate, withQuery } from './router';
 
-// Moving on: how long the next question may wait for its first pictures (about a screenful of them), when the
-// tapped answer starts saying it's loading, and the longest the old screen stays before the next shows its spinner.
+// Moving on: how long the next question may wait for its first pictures (about a screenful of them), and a pick
+// for its poster (as long as the shuffle waits for its cards), when the tapped answer starts saying it's loading,
+// and the longest the old screen stays before the next shows its own spinner.
 const IMAGE_WAIT = 250;
 const FIRST_IMAGES = 18;
+const POSTER_WAIT = 600;
 const SLOW = 300;
 const MAX_WAIT = 1500;
 
@@ -49,6 +51,14 @@ export function nextUrl(step: WizardStep, c: Criteria, value: string) {
  */
 export async function prepare(qc: QueryClient, url: string): Promise<string> {
   const { pathname, searchParams } = new URL(url, window.location.origin);
+  if (pathname === '/pick') {
+    const { picks } = await qc.fetchQuery(recommendationsQuery(criteriaFrom(searchParams), searchParams.get('like')));
+    const first = picks[0]?.movie;
+    // The poster is the reveal itself, so it's waited for; the backdrop fades in whenever it's ready.
+    if (first?.fanartUrl) new Image().src = first.fanartUrl;
+    await preloadImages([first?.posterUrl], POSTER_WAIT);
+    return url;
+  }
   const step = /^\/ask\/([a-z]+)$/.exec(pathname)?.[1];
   if (!isStep(step)) return url;
   const answers = answersBefore(step, criteriaFrom(searchParams));
@@ -64,6 +74,11 @@ export interface Going {
   id: string;
   slow: boolean;
 }
+
+/** The tapped answer stays pressed while the next screen loads, and says it's loading once that takes a moment. */
+export type Tapped = 'pressed' | 'slow' | null;
+export const tapped = (going: Going | null, id: string): Tapped =>
+  going?.id === id ? (going.slow ? 'slow' : 'pressed') : null;
 
 /**
  * Moves on once the next screen has loaded (see `prepare`), so it arrives with its answers instead of a spinner.

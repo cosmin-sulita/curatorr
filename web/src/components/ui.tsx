@@ -52,6 +52,15 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
+/** Over something tapped whose screen takes a moment to open, like the avatar's on "Who's watching?". */
+export function Pending({ className = 'rounded-2xl' }: { className?: string }) {
+  return (
+    <span className={clsx('absolute inset-0 grid place-items-center bg-ink/60', className)}>
+      <Spinner className="size-7 text-white" />
+    </span>
+  );
+}
+
 /** True when the browser already holds this image (it completes at once), so it needn't fade in. */
 export function isCached(src: string | null | undefined) {
   if (!src) return false;

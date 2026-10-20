@@ -160,7 +160,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const together = people.length > 1;
   const [asking, setAsking] = useState<ForWhomKind | null>(null);
 
-  const [queue, setQueue] = useState<Pick[] | null>(null);
+  // Picks loaded before the screen opened show on its first frame.
+  const [queue, setQueue] = useState<Pick[] | null>(() => data?.picks ?? null);
   const shown = useRef(new Set<number>());
   const [swiped, setSwiped] = useState(hasSwiped);
   useEffect(() => setQueue(data?.picks ?? null), [data]);
