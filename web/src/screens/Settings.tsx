@@ -523,7 +523,7 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             >
               {editing === 'plex' ? (
                 <>
-                  <PlexConnect signedIn={data.plex.signedIn} onDone={() => syncAfter('Plex connected')} />
+                  <PlexConnect signedIn={data.plex.signedIn} saved={data.plex} onDone={() => syncAfter('Plex connected')} />
                   <div className="mt-3">{cancel}</div>
                 </>
               ) : editing === 'jellyfin' ? (

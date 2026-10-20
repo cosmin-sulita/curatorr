@@ -8,10 +8,19 @@ import { LibraryPicker, UserImport } from './MediaServer';
 
 type Stage = 'signin' | 'server' | 'libraries' | 'users';
 
-/** Sign in with Plex → pick server → pick libraries → import Plex Home users. */
-export function PlexConnect({ signedIn, onDone }: { signedIn: boolean; onDone: () => void }) {
+/** Sign in with Plex → pick server → pick libraries → import Plex Home users. `saved`: the server and libraries so far. */
+export function PlexConnect({
+  signedIn,
+  saved,
+  onDone,
+}: {
+  signedIn: boolean;
+  saved?: { machineId: string | null; sectionIds: string[] };
+  onDone: () => void;
+}) {
   const [stage, setStage] = useState<Stage>(signedIn ? 'server' : 'signin');
   const [libraries, setLibraries] = useState<ServerLibrary[]>([]);
+  const [machineId, setMachineId] = useState<string | null>(null);
   const signIn = usePlexSignIn('setup', () => setStage('server'));
 
   if (stage === 'signin') {
@@ -41,8 +50,9 @@ export function PlexConnect({ signedIn, onDone }: { signedIn: boolean; onDone: (
   if (stage === 'server') {
     return (
       <ServerPicker
-        onPicked={(libs) => {
+        onPicked={(libs, machine) => {
           setLibraries(libs);
+          setMachineId(machine);
           setStage('libraries');
         }}
         onSignInAgain={() => setStage('signin')}
@@ -54,6 +64,8 @@ export function PlexConnect({ signedIn, onDone }: { signedIn: boolean; onDone: (
     return (
       <LibraryPicker
         libraries={libraries}
+        // Every Plex server numbers its libraries from 1, so the saved ones only mean something on the same server.
+        initial={saved && saved.machineId === machineId ? saved.sectionIds : undefined}
         onSave={(sectionIds) => api('/api/setup/plex/libraries', { json: { sectionIds } })}
         onSaved={() => setStage('users')}
         onBack={() => setStage('server')}
@@ -65,7 +77,13 @@ export function PlexConnect({ signedIn, onDone }: { signedIn: boolean; onDone: (
   return <UserImport server="plex" onDone={onDone} />;
 }
 
-function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: ServerLibrary[]) => void; onSignInAgain: () => void }) {
+function ServerPicker({
+  onPicked,
+  onSignInAgain,
+}: {
+  onPicked: (libs: ServerLibrary[], machineId: string) => void;
+  onSignInAgain: () => void;
+}) {
   const servers = useQuery({
     queryKey: ['plex-servers'],
     queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers'),
@@ -87,7 +105,7 @@ function ServerPicker({ onPicked, onSignInAgain }: { onPicked: (libs: ServerLibr
     setError(null);
     try {
       const res = await api<{ libraries: ServerLibrary[] }>('/api/setup/plex/server', { json: target });
-      onPicked(res.libraries);
+      onPicked(res.libraries, target.machineId);
     } catch (err) {
       setError(errorMessage(err));
     } finally {

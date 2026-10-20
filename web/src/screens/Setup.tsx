@@ -128,7 +128,7 @@ function ServerStep({
     const back = { onClick: () => setServer(null), label: 'Back to Plex or Jellyfin' };
     return server === 'plex' ? (
       <Panel title="Connect Plex" back={back}>
-        <PlexConnect signedIn={Boolean(settings?.plex.signedIn)} onDone={onDone} />
+        <PlexConnect signedIn={Boolean(settings?.plex.signedIn)} saved={settings?.plex} onDone={onDone} />
       </Panel>
     ) : (
       <Panel title="Connect Jellyfin" back={back}>

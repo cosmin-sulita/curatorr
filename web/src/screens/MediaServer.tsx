@@ -7,21 +7,27 @@ import { api, errorMessage, type ServerLibrary } from '../lib/api';
 
 // Setting up Plex and Jellyfin ends the same way: their movie libraries, then their users as profiles.
 
-/** Choose the libraries that hold the Radarr movies; all of them to start with. */
+/** Choose the libraries that hold the Radarr movies: the ones chosen before, or all of them to start with. */
 export function LibraryPicker({
   libraries,
+  initial,
   onSave,
   onSaved,
   onBack,
   backLabel,
 }: {
   libraries: ServerLibrary[];
+  /** The libraries chosen before, when changing the connection. With none of them on this server, all are ticked. */
+  initial?: string[];
   onSave: (keys: string[]) => Promise<unknown>;
   onSaved: () => void;
   onBack: () => void;
   backLabel: string;
 }) {
-  const [selected, setSelected] = useState(() => new Set(libraries.map((l) => l.key)));
+  const [selected, setSelected] = useState(() => {
+    const kept = libraries.filter((l) => initial?.includes(l.key));
+    return new Set((kept.length ? kept : libraries).map((l) => l.key));
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

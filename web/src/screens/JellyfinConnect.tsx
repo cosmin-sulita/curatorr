@@ -26,6 +26,8 @@ export function JellyfinConnect({ saved, onDone }: { saved: SettingsResponse['je
     return (
       <LibraryPicker
         libraries={libraries}
+        // Jellyfin's library ids are unique, so another server's never match.
+        initial={saved?.libraryIds}
         onSave={(libraryIds) => api('/api/setup/jellyfin/libraries', { json: { libraryIds } })}
         onSaved={() => setStage('users')}
         onBack={() => setStage('connect')}
