@@ -30,7 +30,7 @@ import { RatingBadges } from '../components/Ratings';
 import { ForWhom, type ForWhomKind } from '../components/ForWhom';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, buttonClass, Img, Notice, Spinner } from '../components/ui';
+import { Button, buttonClass, Img, isCached, Notice, Spinner } from '../components/ui';
 import {
   errorMessage,
   removeFromWatchlist,
@@ -583,8 +583,15 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
           </div>
         </div>
 
+        {/* The other picks fade in just after the details when they first appear, not again on each pass. */}
         {!shuffling && rest.length > 0 && (
-          <section className="mt-14 mb-6" aria-labelledby="more-picks">
+          <motion.section
+            className="mt-14 mb-6"
+            aria-labelledby="more-picks"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.15, duration: 0.35 }}
+          >
             <h2 id="more-picks" className="font-display text-3xl">
               {data?.like ? `More like ${data.like.title}` : (shelf?.more ?? 'Other good picks')}
             </h2>
@@ -631,7 +638,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 </li>
               ))}
             </ul>
-          </section>
+          </motion.section>
         )}
         <div className="h-40 md:hidden" aria-hidden />
       </Shell>
@@ -690,24 +697,28 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 function Backdrop({ src }: { src: string | null }) {
   return (
     <div className="fixed inset-0 z-0 overflow-hidden" aria-hidden>
-      <AnimatePresence initial={false}>
-        {src && (
-          <motion.img
-            key={src}
-            src={src}
-            alt=""
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="absolute inset-0 h-[75vh] w-full object-cover [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:h-full md:[mask-image:none]"
-          />
-        )}
-      </AnimatePresence>
+      <AnimatePresence initial={false}>{src && <BackdropImage key={src} src={src} />}</AnimatePresence>
       <div className="absolute inset-0 bg-gradient-to-b from-ink/40 via-ink/85 to-ink md:from-ink/30 md:via-ink/75" />
       <div className="absolute inset-0 hidden bg-gradient-to-r from-ink via-ink/75 to-transparent md:block" />
       {/* Keeps the header readable when the fanart is bright. */}
       <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-ink/80 to-transparent md:h-40 md:from-ink/90" />
     </div>
+  );
+}
+
+/** Fades in once it has loaded (at once when it already has), so a slow backdrop eases in instead of popping in. */
+function BackdropImage({ src }: { src: string }) {
+  const [loaded, setLoaded] = useState(() => isCached(src));
+  return (
+    <motion.img
+      src={src}
+      alt=""
+      initial={{ opacity: 0 }}
+      animate={{ opacity: loaded ? 1 : 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6 }}
+      onLoad={() => setLoaded(true)}
+      className="absolute inset-0 h-[75vh] w-full object-cover [mask-image:linear-gradient(to_bottom,black_55%,transparent)] md:h-full md:[mask-image:none]"
+    />
   );
 }
