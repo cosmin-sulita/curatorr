@@ -179,6 +179,16 @@ export const NEXT_PART_BONUS = 4;
 const MIN_RESULTS = 6;
 const MAX_RESULTS = 12;
 
+/**
+ * The parts of a pick's score: its rating (a saga's average, to start one), how strongly it matches the theme and
+ * mood answers, the season's holiday, the next part of a saga, taste, a request or the watchlist, a new arrival,
+ * skips, earlier evenings it was shown, and the daily shuffle.
+ */
+export const SCORE_PARTS = ['quality', 'answers', 'season', 'saga', 'taste', 'wanted', 'arrival', 'skip', 'shown', 'jitter'] as const;
+export type ScorePart = (typeof SCORE_PARTS)[number];
+/** What each part adds to a pick's score; before rounding, they add up to it. */
+export type ScoreParts = Record<ScorePart, number>;
+
 export interface RankedMovie {
   movie: Movie;
   score: number;
@@ -186,6 +196,8 @@ export interface RankedMovie {
   /** 0 = matches everything, 1 = matches theme or mood, 2 = genre/time only. */
   tier: number;
   reasons: Reason[];
+  /** Where the score came from, so `npm run eval` can weigh each part. */
+  parts?: ScoreParts;
 }
 
 /** Small deterministic hash → [0, 1). Keeps the order stable for a day, then rotates it. */
@@ -433,20 +445,21 @@ export function matchesShelf(m: Movie, shelf: string | null | undefined, now: nu
 
 /** Skip and shown penalties, the request or watchlist bonus, the newly added bonus and the daily jitter. */
 export function personalAdjustment(m: Movie, s: ProfileSignals, opts: RankOptions) {
-  let delta = 0;
   const skip = s.skips.get(m.id);
-  if (skip && opts.now - skip.last < SKIP_WINDOW * skip.count) delta -= SKIP_PENALTY;
   const shown = s.shownEvenings.get(m.id) ?? 0;
-  delta -= (SHOWN_PENALTY * shown * (shown + 1)) / 2;
   const onWatchlist = s.wanted.has(m.id);
   const requested = s.requested.has(m.id);
-  // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.
-  delta += requested ? REQUEST_BONUS : onWatchlist ? WATCHLIST_BONUS : 0;
   const days = s.othersRequested.has(m.id) ? null : daysInLibrary(m, opts.now);
-  const added = days == null ? 0 : ADDED_BONUS * Math.exp(-days / ADDED_FADE_DAYS);
-  delta += added;
-  delta += (seededUnit(`${opts.seed}|${s.day}|${m.id}`) * 2 - 1) * JITTER;
-  return { delta, onWatchlist, requested, addedDaysAgo: added >= ADDED_CHIP_BONUS ? days : null };
+  const parts = {
+    skip: skip && opts.now - skip.last < SKIP_WINDOW * skip.count ? -SKIP_PENALTY : 0,
+    shown: -(SHOWN_PENALTY * shown * (shown + 1)) / 2,
+    // Seerr can auto-request Watchlist items, so the two bonuses don't stack: it's one wish.
+    wanted: requested ? REQUEST_BONUS : onWatchlist ? WATCHLIST_BONUS : 0,
+    arrival: days == null ? 0 : ADDED_BONUS * Math.exp(-days / ADDED_FADE_DAYS),
+    jitter: (seededUnit(`${opts.seed}|${s.day}|${m.id}`) * 2 - 1) * JITTER,
+  };
+  const delta = parts.skip + parts.shown + parts.wanted + parts.arrival + parts.jitter;
+  return { delta, parts, onWatchlist, requested, addedDaysAgo: parts.arrival >= ADDED_CHIP_BONUS ? days : null };
 }
 
 /** Who wants a movie, when several watch together: who requested it, and whose watchlist it's on. */
@@ -571,35 +584,41 @@ export function rankMovies(
   const ranked = base.map((m): RankedMovie => {
     const quality = qualityScore(m.ratings);
     const sagaReasons: Reason[] = [];
-    let score = quality;
+    let rating = quality;
+    let saga = 0;
 
-    const parts = m.saga ? sagas.owned.get(m.saga.id) : undefined;
-    if (startingSaga && parts && m.saga) {
+    const owned = m.saga ? sagas.owned.get(m.saga.id) : undefined;
+    if (startingSaga && owned && m.saga) {
       // Judge a saga by all of its parts, not just the first.
-      const totals = sagaTotals(parts);
-      score = totals.quality;
+      const totals = sagaTotals(owned);
+      rating = totals.quality;
       sagaReasons.push({ kind: 'saga', label: `Start of ${m.saga.title}` });
       sagaReasons.push({
         kind: 'saga',
         label:
-          parts.length === m.saga.parts
-            ? `${parts.length} parts, ${formatRuntime(totals.runtime)} in all`
-            : `${parts.length} of ${m.saga.parts} parts in your library`,
+          owned.length === m.saga.parts
+            ? `${owned.length} parts, ${formatRuntime(totals.runtime)} in all`
+            : `${owned.length} of ${m.saga.parts} parts in your library`,
       });
     } else if (sagas.next.has(m.id) && m.saga) {
       // Also covers a later part pulled in for a sequel: it continues a saga already started.
-      score += NEXT_PART_BONUS;
+      saga = NEXT_PART_BONUS;
       sagaReasons.push({ kind: 'saga', label: `Next in ${m.saga.title}` });
     } else if (startsFor.has(m.id) && m.saga) {
       sagaReasons.push({ kind: 'saga', label: `Start of ${m.saga.title}` });
     }
-    if (c.theme) score += MAX_THEME_BONUS * tagStrength(m.themes[c.theme]);
-    if (c.mood) score += MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]);
-    if (season && onHoliday(m, season)) score += SEASON_BONUS;
-    score += taste.get(m.id) ?? 0;
-
+    const theme = c.theme ? MAX_THEME_BONUS * tagStrength(m.themes[c.theme]) : 0;
+    const mood = c.mood ? MAX_MOOD_BONUS * tagStrength(m.moods[c.mood]) : 0;
     const adj = personalAdjustment(m, signals, opts);
-    score += adj.delta;
+    const parts: ScoreParts = {
+      quality: rating,
+      answers: theme + mood,
+      season: season && onHoliday(m, season) ? SEASON_BONUS : 0,
+      saga,
+      taste: taste.get(m.id) ?? 0,
+      ...adj.parts,
+    };
+    const score = rating + saga + theme + mood + parts.season + parts.taste + adj.delta;
 
     // On "Just arrived" every new arrival says when it came, also once its bonus no longer would.
     const listedNew = c.shelf === JUST_ARRIVED.id && arrivedLately(m, opts.now);
@@ -612,6 +631,7 @@ export function rankMovies(
       quality,
       tier: tierOf(m),
       reasons: [...personal, ...reasonsFor(m, c)],
+      parts,
     };
   });
 

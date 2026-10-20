@@ -316,6 +316,22 @@ describe('rankMovies', () => {
     const m = movie({ ratings: { rt: 60, imdb: 7.7 } });
     expect(rank([m])[0]!.reasons).toContainEqual({ kind: 'rating', label: '7.7 on IMDb' });
   });
+
+  it('keeps what each part of the score added', () => {
+    // A requested heist that arrived two days ago and was shown yesterday.
+    const m = movie({ themes: { heist: 4 }, ratings: { rt: 80, imdb: 7 }, arrivedAt: new Date(NOW - 2 * DAY).toISOString() });
+    const shown: FeedbackEvent[] = [{ movieId: m.id, kind: 'shown', createdAt: NOW - DAY }];
+    const [r] = rankMovies([m], { theme: 'heist' }, shown, { now: NOW, seed: 'test', requested: new Set([m.id]) });
+    const parts = r!.parts!;
+    expect(parts.quality).toBe(qualityScore(m.ratings));
+    expect(parts.answers).toBeGreaterThan(0);
+    expect(parts.wanted).toBeGreaterThan(0);
+    expect(parts.arrival).toBeGreaterThan(0);
+    expect(parts.shown).toBeLessThan(0);
+    expect([parts.season, parts.saga, parts.taste, parts.skip]).toEqual([0, 0, 0, 0]);
+    const total = Object.values(parts).reduce((a, b) => a + b, 0);
+    expect(Math.round(total * 10) / 10).toBe(r!.score);
+  });
 });
 
 describe('the daily shuffle', () => {
