@@ -161,7 +161,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`watchLink` in `web/src/lib/format.ts`). Desktop opens Plex Web. "Watch on Jellyfin" opens Jellyfin's web app everywhere: its apps take no links.
   - Copy names the server through `serverName()`, which says "Plex" when there is none, so the demo and the README screenshots are unchanged.
-  - The wizard only offers answers matching at least 3 movies and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
+  - The wizard only offers answers matching at least 3 movies, never one matching every movie left (that's "no preference"), and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - **Watching together:**
     - It starts from a **Watching together** button on "Who's watching?", where the device's profile starts ticked, and lasts until 4 am.
     - In the header, the group shows as stacked avatars.

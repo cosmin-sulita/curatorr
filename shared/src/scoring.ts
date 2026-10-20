@@ -732,6 +732,8 @@ export function wizardOptions(
 ): WizardOptionsResponse {
   const pool = candidatesBefore(eligible, step, c);
   const total = pool.length;
+  /** An answer worth offering keeps enough movies and leaves some out: one that keeps them all is "no preference". */
+  const narrows = (count: number) => count >= MIN_OPTION_COUNT && count < total;
   let options: WizardOption[] = [];
   let shelves: WizardOption[] | undefined;
 
@@ -753,7 +755,7 @@ export function wizardOptions(
   } else if (step === 'theme') {
     const used = new Set<number>();
     options = THEMES.map((t) => ({ t, movies: pool.filter((m) => (m.themes[t.id] ?? 0) > 0) }))
-      .filter(({ movies }) => movies.length >= MIN_OPTION_COUNT)
+      .filter(({ movies }) => narrows(movies.length))
       .sort((a, b) => b.movies.length - a.movies.length)
       .map(({ t, movies }) => ({
         id: t.id,
@@ -765,7 +767,7 @@ export function wizardOptions(
   } else if (step === 'mood') {
     const used = new Set<number>();
     options = MOODS.map((md) => ({ md, movies: pool.filter((m) => (m.moods[md.id] ?? 0) > 0) }))
-      .filter(({ movies }) => movies.length >= MIN_OPTION_COUNT)
+      .filter(({ movies }) => narrows(movies.length))
       .map(({ md, movies }) => ({
         id: md.id,
         label: md.label,
@@ -780,9 +782,7 @@ export function wizardOptions(
       movies: pool.filter((m) => (t.id === 'saga' ? opts.sagaStarters?.has(m.id) : matchesTime(m, t.id))),
     }))
       // "Any length" is always offered; one saga is enough to offer starting it.
-      .filter(({ t, movies }) =>
-        t.id === 'saga' ? movies.length > 0 : t.maxRuntime == null || movies.length >= MIN_OPTION_COUNT,
-      )
+      .filter(({ t, movies }) => (t.id === 'saga' ? movies.length > 0 : t.maxRuntime == null || narrows(movies.length)))
       .map(({ t, movies }) => ({
         id: t.id,
         label: t.label,

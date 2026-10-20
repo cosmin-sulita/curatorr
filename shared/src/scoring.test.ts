@@ -414,7 +414,11 @@ describe('wizardOptions', () => {
   });
 
   it('leads each theme with a different poster when it can', () => {
-    const movies = [100, 95, 90, 85].map((rt) => movie({ themes: { space: 2, aliens: 2 }, ratings: { rt } }));
+    // And one with neither theme, so both answers narrow the list.
+    const movies = [
+      ...[100, 95, 90, 85].map((rt) => movie({ themes: { space: 2, aliens: 2 }, ratings: { rt } })),
+      movie({ ratings: { rt: 50 } }),
+    ];
     const res = wizardOptions(movies, 'theme', {}, { image });
     const leads = res.options.map((o) => o.images[0]);
     expect(leads).toHaveLength(2);
@@ -440,6 +444,17 @@ describe('wizardOptions', () => {
       ...Array.from({ length: 4 }, () => movie()),
     ];
     expect(wizardOptions(movies, 'mood', {}, { image }).skip).toBe(true);
+  });
+
+  it("doesn't offer an answer that matches every movie left", () => {
+    // All of these are Edge of Your Seat, so that answer would narrow nothing.
+    const movies = [
+      ...Array.from({ length: 8 }, () => movie({ moods: { edge: 3, dark: 3 } })),
+      ...Array.from({ length: 7 }, () => movie({ moods: { edge: 3, light: 3 } })),
+    ];
+    const res = wizardOptions(movies, 'mood', {}, { image });
+    expect(res.options.map((o) => o.id)).toEqual(['light', 'dark']);
+    expect(res.skip).toBe(false);
   });
 
   it('keeps the time question when one shorter option exists', () => {
