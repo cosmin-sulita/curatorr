@@ -71,11 +71,15 @@ const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood:
 
 // Each query's options live in one place, so loading a screen ahead of time uses the very key the screen reads.
 
+/** The questions are kept a while after leaving them, so coming back from a pick shows them at once. */
+const KEEP_QUESTIONS = 30 * 60_000;
+
 export const wizardQuery = (step: WizardStep, criteria: Criteria) =>
   queryOptions({
     queryKey: ['wizard', step, criteria],
     queryFn: () => api<WizardOptionsResponse>(withQuery(`/api/wizard/${step}`, criteriaParams(criteria))),
     staleTime: 60_000,
+    gcTime: KEEP_QUESTIONS,
   });
 
 export function useWizardOptions(step: WizardStep, criteria: Criteria) {
@@ -102,6 +106,8 @@ export const likeSeedsQuery = (q: string) =>
     queryKey: ['like', q],
     queryFn: () => api<LikeSeed[]>(withQuery('/api/like', { q })),
     staleTime: 60_000,
+    // The genre question waits for these (for the "Something like…" card's posters).
+    gcTime: KEEP_QUESTIONS,
   });
 
 export function useLikeSeeds(q: string, enabled = true) {

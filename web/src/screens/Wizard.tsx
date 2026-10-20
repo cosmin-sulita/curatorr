@@ -12,7 +12,7 @@ import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
-import { answersBefore, criteriaFrom, nextUrl } from '../lib/wizard';
+import { answersBefore, criteriaFrom, nextUrl, useAdvance, type Going } from '../lib/wizard';
 
 const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   genre: { title: 'What kind of movie tonight?', any: 'Surprise me' },
@@ -23,24 +23,25 @@ const COPY: Record<WizardStep, { title: string; any: string | null }> = {
 
 export function WizardScreen({ step, search }: { step: WizardStep; search: URLSearchParams }) {
   const criteria = answersBefore(step, criteriaFrom(search));
-  const { data, isLoading, error, refetch } = useWizardOptions(step, criteria);
+  const { data, error, refetch } = useWizardOptions(step, criteria);
   // Fetched alongside the genres, and waited for, so the "Something like…" card appears with its posters
   // rather than growing under the thumb when they arrive. A failure only leaves the posters out.
   const seeds = useLikeSeeds('', step === 'genre');
   const seedsPending = step === 'genre' && seeds.isPending;
   const { data: status } = useStatus();
   const index = STEP_ORDER.indexOf(step);
+  const { go, going } = useAdvance();
 
+  // Answers normally move past a question with no real choice before it shows; this covers opening one directly.
   useEffect(() => {
     if (data?.skip) navigate(nextUrl(step, criteria, 'any'), { replace: true });
   }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const choose = (value: string) => navigate(nextUrl(step, criteria, value));
+  const choose = (value: string) => go(value, nextUrl(step, criteria, value));
   // "Surprise me" skips the rest of the questions, and the pick lands after a quick shuffle.
   const chooseAny = () => {
     if (step !== 'genre') return choose('any');
-    requestSurprise();
-    navigate(withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' }));
+    go('any', withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' }), requestSurprise);
   };
   const genreLabel = criteria.genre && criteria.genre !== 'any' ? genreById.get(criteria.genre)?.label : null;
 
@@ -82,9 +83,16 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
   const ready = Boolean(data && !data.skip && !seedsPending);
   const anyLabel = COPY[step].any;
+  const anyGoing = going?.id === 'any';
   const anyButton = (className?: string) => (
-    <Button variant={step === 'genre' ? 'primary' : 'secondary'} size="lg" className={className} onClick={chooseAny}>
-      {step === 'genre' && <Shuffle className="size-5" />}
+    <Button
+      variant={step === 'genre' ? 'primary' : 'secondary'}
+      size="lg"
+      className={clsx(className, anyGoing && 'scale-[0.98]')}
+      loading={anyGoing && going.slow}
+      onClick={chooseAny}
+    >
+      {step === 'genre' && !(anyGoing && going.slow) && <Shuffle className="size-5" />}
       {anyLabel}
     </Button>
   );
@@ -104,32 +112,23 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
           </ol>
         </div>
 
-        <motion.section
-          key={step + JSON.stringify(criteria)}
-          initial={{ opacity: 0, x: 28 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-          className="pt-6"
-        >
-          {/* The question appears with its answers, so a skipped step never flashes. */}
-          {data && ready && (
-            <>
-              <h1 className="font-display text-[44px] sm:text-6xl">{COPY[step].title}</h1>
-              <p className="mt-3 text-muted">
-                {plural(data.total, genreLabel ? `${genreLabel} movie` : 'movie')} to choose from
-              </p>
-              {/* Desktop: "no preference" before the list, not after it. */}
-              {anyLabel && <div className="mt-6 hidden md:block">{anyButton()}</div>}
-            </>
-          )}
+        {/* The question slides in with its answers. Until they're here (opened directly, a slow server), a spinner
+            holds the place. */}
+        {data && ready ? (
+          <motion.section
+            key={step + JSON.stringify(criteria)}
+            initial={{ opacity: 0, x: 28 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+            className="pt-6"
+          >
+            <h1 className="font-display text-[44px] sm:text-6xl">{COPY[step].title}</h1>
+            <p className="mt-3 text-muted">
+              {plural(data.total, genreLabel ? `${genreLabel} movie` : 'movie')} to choose from
+            </p>
+            {/* Desktop: "no preference" before the list, not after it. */}
+            {anyLabel && <div className="mt-6 hidden md:block">{anyButton()}</div>}
 
-          {(isLoading || data?.skip || seedsPending) && (
-            <div className="grid place-items-center py-24">
-              <Spinner className="size-8" />
-            </div>
-          )}
-
-          {data && ready && (
             <div className="mt-8">
               {step === 'genre' && <InstallHint />}
               {step === 'genre' && <LikeCard seeds={seeds.data} />}
@@ -137,51 +136,91 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
                 <GenreGrid
                   shelves={data.shelves ?? []}
                   options={data.options}
-                  onShelf={(shelf) => navigate(withQuery('/pick', { shelf }))}
+                  going={going}
+                  onShelf={(shelf) => go(`shelf:${shelf}`, withQuery('/pick', { shelf }))}
                   onChoose={choose}
                 />
               )}
-              {step === 'theme' && <ThemeList options={data.options} onChoose={choose} />}
-              {step === 'mood' && <MoodGrid options={data.options} onChoose={choose} />}
-              {step === 'time' && <TimeList options={data.options} onChoose={choose} />}
+              {step === 'theme' && <ThemeList options={data.options} going={going} onChoose={choose} />}
+              {step === 'mood' && <MoodGrid options={data.options} going={going} onChoose={choose} />}
+              {step === 'time' && <TimeList options={data.options} going={going} onChoose={choose} />}
               {anyLabel && <div className="h-28 md:hidden" aria-hidden />}
             </div>
-          )}
-        </motion.section>
+          </motion.section>
+        ) : (
+          <div className="grid place-items-center pt-30 pb-24">
+            <Spinner className="size-8" />
+          </div>
+        )}
       </Shell>
 
-      {/* Phones: "no preference" stays under the thumb, however long the list. */}
+      {/* Phones: "no preference" stays under the thumb, however long the list, and from one question to the next. */}
       {ready && anyLabel && <BottomBar>{anyButton('w-full')}</BottomBar>}
     </>
   );
 }
 
-type OptionsProps = { options: WizardOption[]; onChoose: (id: string) => void };
+type OptionsProps = { options: WizardOption[]; going: Going | null; onChoose: (id: string) => void };
+
+/** The tapped answer stays pressed while the next screen loads, and says it's loading once that takes a moment. */
+type Tapped = 'pressed' | 'slow' | null;
+const tapped = (going: Going | null, id: string): Tapped => (going?.id === id ? (going.slow ? 'slow' : 'pressed') : null);
+const pressedRing = (state: Tapped) => (state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line');
+
+/** Like the avatar's on "Who's watching?" while a profile opens. */
+function Pending() {
+  return (
+    <span className="absolute inset-0 grid place-items-center rounded-2xl bg-ink/60">
+      <Spinner className="size-7 text-white" />
+    </span>
+  );
+}
 
 /** The genres, led by the shortcuts (Just arrived, the season's movies), which go straight to a pick. */
 function GenreGrid({
   shelves,
   options,
+  going,
   onShelf,
   onChoose,
 }: OptionsProps & { shelves: WizardOption[]; onShelf: (id: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {shelves.map((o) => (
-        <GenreTile key={`shelf-${o.id}`} option={o} onClick={() => onShelf(o.id)} icon />
+        <GenreTile
+          key={`shelf-${o.id}`}
+          option={o}
+          state={tapped(going, `shelf:${o.id}`)}
+          onClick={() => onShelf(o.id)}
+          icon
+        />
       ))}
       {options.map((o) => (
-        <GenreTile key={o.id} option={o} onClick={() => onChoose(o.id)} />
+        <GenreTile key={o.id} option={o} state={tapped(going, o.id)} onClick={() => onChoose(o.id)} />
       ))}
     </div>
   );
 }
 
-function GenreTile({ option: o, onClick, icon = false }: { option: WizardOption; onClick: () => void; icon?: boolean }) {
+function GenreTile({
+  option: o,
+  state,
+  onClick,
+  icon = false,
+}: {
+  option: WizardOption;
+  state: Tapped;
+  onClick: () => void;
+  icon?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
-      className="group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]"
+      className={clsx(
+        'group relative aspect-[16/10] overflow-hidden rounded-2xl text-left transition active:scale-[0.98]',
+        pressedRing(state),
+        state && 'scale-[0.98]',
+      )}
     >
       <Img src={o.images[0]} className="absolute inset-0 size-full object-cover grayscale transition duration-500 group-hover:scale-105" />
       <span className="absolute inset-0 mix-blend-multiply" style={{ backgroundColor: o.color }} />
@@ -196,6 +235,7 @@ function GenreTile({ option: o, onClick, icon = false }: { option: WizardOption;
         <span className="font-display text-[26px] text-white drop-shadow sm:text-3xl">{o.label}</span>
         <span className="pb-1 text-xs font-medium text-white/70 tabular-nums">{o.count}</span>
       </span>
+      {state === 'slow' && <Pending />}
     </button>
   );
 }
@@ -215,74 +255,98 @@ function LikeCard({ seeds }: { seeds: LikeSeed[] | undefined }) {
   );
 }
 
-function ThemeList({ options, onChoose }: OptionsProps) {
+function ThemeList({ options, going, onChoose }: OptionsProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChoose(o.id)}
-          className="flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]"
-        >
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
-            <TagIcon name={o.icon} className="size-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block leading-snug font-semibold text-balance">{o.label}</span>
-            <span className="block text-sm text-muted">{plural(o.count, 'movie')}</span>
-          </span>
-          <PosterFan images={o.images} />
-        </button>
-      ))}
+      {options.map((o) => {
+        const state = tapped(going, o.id);
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChoose(o.id)}
+            className={clsx(
+              'relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left transition hover:bg-raised active:scale-[0.99]',
+              pressedRing(state),
+              state && 'scale-[0.99]',
+            )}
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
+              <TagIcon name={o.icon} className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block leading-snug font-semibold text-balance">{o.label}</span>
+              <span className="block text-sm text-muted">{plural(o.count, 'movie')}</span>
+            </span>
+            <PosterFan images={o.images} />
+            {state === 'slow' && <Pending />}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function MoodGrid({ options, onChoose }: OptionsProps) {
+function MoodGrid({ options, going, onChoose }: OptionsProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChoose(o.id)}
-          className="group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition active:scale-[0.99]"
-        >
-          <Img src={o.images[0]} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
-          <span className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/20" />
-          <span className="relative flex items-center gap-3">
-            <TagIcon name={o.icon} className="size-7 text-indigo-300" />
-            <span>
-              <span className="block font-display text-3xl">{o.label}</span>
-              <span className="block text-sm text-muted">
-                {o.description} ({o.count})
+      {options.map((o) => {
+        const state = tapped(going, o.id);
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChoose(o.id)}
+            className={clsx(
+              'group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left transition active:scale-[0.99]',
+              pressedRing(state),
+              state && 'scale-[0.99]',
+            )}
+          >
+            <Img src={o.images[0]} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
+            <span className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/20" />
+            <span className="relative flex items-center gap-3">
+              <TagIcon name={o.icon} className="size-7 text-indigo-300" />
+              <span>
+                <span className="block font-display text-3xl">{o.label}</span>
+                <span className="block text-sm text-muted">
+                  {o.description} ({o.count})
+                </span>
               </span>
             </span>
-          </span>
-        </button>
-      ))}
+            {state === 'slow' && <Pending />}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function TimeList({ options, onChoose }: OptionsProps) {
+function TimeList({ options, going, onChoose }: OptionsProps) {
   return (
     <div className="grid gap-3">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChoose(o.id)}
-          className="flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]"
-        >
-          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
-            <TagIcon name={o.icon} className="size-6" />
-          </span>
-          <span className="flex-1">
-            <span className="block font-display text-[28px]">{o.label}</span>
-            <span className="block text-sm text-muted">{o.description}</span>
-          </span>
-          <span className="text-sm text-muted tabular-nums">{plural(o.count, o.id === 'saga' ? 'saga' : 'movie')}</span>
-        </button>
-      ))}
+      {options.map((o) => {
+        const state = tapped(going, o.id);
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChoose(o.id)}
+            className={clsx(
+              'relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left transition hover:bg-raised active:scale-[0.99]',
+              pressedRing(state),
+              state && 'scale-[0.99]',
+            )}
+          >
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
+              <TagIcon name={o.icon} className="size-6" />
+            </span>
+            <span className="flex-1">
+              <span className="block font-display text-[28px]">{o.label}</span>
+              <span className="block text-sm text-muted">{o.description}</span>
+            </span>
+            <span className="text-sm text-muted tabular-nums">{plural(o.count, o.id === 'saga' ? 'saga' : 'movie')}</span>
+            {state === 'slow' && <Pending />}
+          </button>
+        );
+      })}
     </div>
   );
 }
