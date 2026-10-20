@@ -391,7 +391,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                 Look again
               </Button>
             )}
-            <Button variant="ghost" onClick={() => navigate('/')}>
+            <Button variant="ghost" onClick={() => navigate('/', { back: true })}>
               <RotateCcw className="size-4" /> Start over
             </Button>
           </div>

@@ -36,7 +36,8 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
     // Nothing may widen the page sideways: phones zoom the whole screen out to fit it.
     <div className="min-h-dvh overflow-x-clip">
       <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-4 pt-safe pb-3 sm:px-6">
-        <Link to="/" aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
+        {/* Home is a step back to the start: the first question comes in from the left. */}
+        <Link to="/" back aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
           <Wordmark />
         </Link>
         <nav className="flex items-center gap-1">

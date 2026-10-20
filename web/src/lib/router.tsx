@@ -42,14 +42,15 @@ export const justArrived = (ms = 300) => performance.now() - arrivedAt < ms;
 /** Pure, so it's safe to read while rendering. */
 export const navigationDirection = () => direction;
 
-export function navigate(to: string, opts: { replace?: boolean } = {}) {
+/** `back`: the move goes back to an earlier screen, like the logo going home, so it slides in as Back does. */
+export function navigate(to: string, opts: { replace?: boolean; back?: boolean } = {}) {
   if (to === snapshot()) return;
   if (opts.replace) window.history.replaceState({ idx: place }, '', to);
   else {
     window.history.pushState({ idx: ++place }, '', to);
     arrivedAt = performance.now();
   }
-  direction = 'forward';
+  direction = opts.back ? 'back' : 'forward';
   window.dispatchEvent(new Event(NAV_EVENT));
   window.scrollTo({ top: 0 });
 }
@@ -60,12 +61,17 @@ export function useLocation() {
   return { path: url.pathname, search: url.searchParams, href };
 }
 
-export function Link({ to, onClick, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) {
+export function Link({
+  to,
+  back,
+  onClick,
+  ...rest
+}: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string; back?: boolean }) {
   const handle = (e: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
-    navigate(to);
+    navigate(to, { back });
   };
   return <a href={to} onClick={handle} {...rest} />;
 }
