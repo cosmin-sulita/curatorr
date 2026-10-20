@@ -2,6 +2,15 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.7 (2026-10-20)
+
+- fix(wizard): drop the purple ring from tapped answers and posters ([e8c7bd7](https://github.com/cosmin-sulita/curatorr/commit/e8c7bd7))
+- perf(profiles): load the first question's pictures while a profile is chosen ([4402317](https://github.com/cosmin-sulita/curatorr/commit/4402317))
+- perf(pictures): keep the whole library's pictures on the phone ([df51b05](https://github.com/cosmin-sulita/curatorr/commit/df51b05))
+- perf(pictures): show pictures already on the phone without fading them in ([140075a](https://github.com/cosmin-sulita/curatorr/commit/140075a))
+- perf(wizard): move on at once, with each answer's next screen loaded ahead ([4f5157f](https://github.com/cosmin-sulita/curatorr/commit/4f5157f))
+- fix(wizard): dim all three posters while a tapped theme loads ([372f86e](https://github.com/cosmin-sulita/curatorr/commit/372f86e))
+
 ## 1.3.6 (2026-10-20)
 
 - fix(settings): fold the webhook's set-up steps away once Radarr has called ([54f95ad](https://github.com/cosmin-sulita/curatorr/commit/54f95ad))
