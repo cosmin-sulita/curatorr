@@ -525,6 +525,20 @@ export class Store {
     for (const id of movieIds) insert.run(profileId, id, at);
   }
 
+  /**
+   * While marks update the media server (`syncToServer`), its watchlist and Curatorr's are one. So a movie that was on
+   * the server's when a read began (`before`) and isn't on it now (`after`) was taken off there, and loses its
+   * Watchlist marks here too. Only movies still in the library count: one Curatorr can't match any more hasn't left.
+   * Returns the movies taken off.
+   */
+  followWatchlistRemovals(profileId: number, before: Set<number>, after: number[]): number[] {
+    if (!this.get('app').syncToServer) return [];
+    const still = new Set(after);
+    const removed = [...before].filter((id) => !still.has(id) && this.movie(id));
+    for (const id of removed) this.deleteMarks(profileId, id, 'later');
+    return removed;
+  }
+
   addToWatchlist(profileId: number, movieId: number) {
     this.db
       .prepare('INSERT OR IGNORE INTO watchlist (profile_id, movie_id, added_at) VALUES (?, ?, ?)')

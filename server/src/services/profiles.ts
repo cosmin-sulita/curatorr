@@ -129,12 +129,18 @@ export async function syncPlexState(store: Store, row: ProfileRow, log: FastifyB
 
 async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
   if (!row.user_token) return;
+  // Before Plex is asked: a movie Curatorr adds while the answer is on its way wasn't taken off in Plex.
+  const before = store.watchlistIds(row.id);
   try {
     const guids = await getWatchlist(store.get('plex').clientId, row.user_token);
     const byGuid = new Map(store.movies().flatMap((m) => (m.plexGuid ? [[m.plexGuid, m.id] as const] : [])));
     const movieIds = guids.flatMap((g) => byGuid.get(g) ?? []);
     store.replaceWatchlist(row.id, movieIds);
-    log.info({ profile: row.name, watchlist: guids.length, inLibrary: movieIds.length }, 'watchlist synced');
+    const removed = store.followWatchlistRemovals(row.id, before, movieIds);
+    log.info(
+      { profile: row.name, watchlist: guids.length, inLibrary: movieIds.length, removed: removed.length },
+      'watchlist synced',
+    );
   } catch (err) {
     log.warn({ err, profile: row.name }, 'watchlist sync failed');
   }

@@ -9,12 +9,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { buildApp } from '../app.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
 import type { Store } from '../store.js';
+import { syncJellyfinState } from './jellyfin.js';
 
 const PUBLIC_URL = 'https://media.example.com';
 const SERVER_ID = 'server-1';
 const DAD = '1'.repeat(32);
 const KID = '2'.repeat(32);
 const RETIRED = '3'.repeat(32);
+const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
 
 interface FakeUser {
   id: string;
@@ -394,6 +396,14 @@ describe('Curatorr with Jellyfin, over the API', () => {
       expect(fake.state.marks).toEqual([]);
       await undo('Dad', seen.id);
       await undo('Dad', later.id);
+    });
+
+    it('takes a movie off the watchlist in Curatorr once it is no longer a favourite in Jellyfin', async () => {
+      expect((await mark('Dad', 6, 'later')).server).toBe('synced'); // Finding Nemo, a favourite in Jellyfin too
+      fake.state.userData[DAD]!['jf-nemo']!.IsFavorite = false; // no longer one, in a Jellyfin app
+      await syncJellyfinState(store, store.profileRow(profileId('Dad'))!, silent, true);
+      const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: profiles.Dad! } });
+      expect((res.json() as { movie: { id: number } }[]).map((h) => h.movie.id)).not.toContain(6);
     });
   });
 

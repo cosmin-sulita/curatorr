@@ -355,7 +355,9 @@ export async function getWatchlist(clientId: string, userToken: string): Promise
       const id = plexGuidId(m.guid);
       if (id) ids.push(id);
     }
-    const total = Number(body.MediaContainer?.totalSize ?? 0);
+    // A short page is the last, and so is one that reaches the size Plex gives, when it gives one. A read cut short
+    // would look like movies taken off the Watchlist.
+    const total = Number(body.MediaContainer?.totalSize); // NaN without one
     if (items.length < WATCHLIST_PAGE || start + WATCHLIST_PAGE >= total) break;
   }
   return ids;

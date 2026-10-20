@@ -46,6 +46,8 @@ export async function syncJellyfinState(store: Store, row: ProfileRow, log: Fast
 }
 
 async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
+  // Before Jellyfin is asked: a movie Curatorr adds while the answer is on its way wasn't taken off in Jellyfin.
+  const before = store.watchlistIds(row.id);
   try {
     // One read: every movie the person can open, with their marks.
     const items = await JellyfinClient.connected(store.get('jellyfin')!).movies({ userId: row.jellyfin_user_id! });
@@ -58,8 +60,15 @@ async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger) 
       if (item?.favorite) watchlist.push(movie.id);
     }
     store.replaceJellyfinState(row.id, { watched, watchlist, available: items }, Date.now());
+    const removed = store.followWatchlistRemovals(row.id, before, watchlist);
     log.info(
-      { profile: row.name, watched: watched.length, watchlist: watchlist.length, movies: items.length },
+      {
+        profile: row.name,
+        watched: watched.length,
+        watchlist: watchlist.length,
+        movies: items.length,
+        removed: removed.length,
+      },
       'Jellyfin state synced',
     );
   } catch (err) {

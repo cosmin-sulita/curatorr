@@ -9,11 +9,13 @@ import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
 import type { Store } from '../store.js';
+import { syncPlexState } from './profiles.js';
 
 const RADARR_KEY = 'radarr-key';
 const OWNER = 'owner-token';
 const MEMBER = 'member-token';
 const KID = 'kid-token'; // a managed user without a Watchlist
+const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
 
 const radarrMovies: RadarrMovie[] = [
   { id: 1, title: 'The Matrix', tmdbId: 603, hasFile: true, genres: ['Action'], ratings: { rottenTomatoes: { value: 83 } } },
@@ -41,6 +43,10 @@ describe('two-way Plex sync over the API', () => {
   let store: Store;
   const calls: Call[] = [];
   const watchlists = new Map<string, string[]>();
+  /** While set, a Watchlist read gets the list as it was when asked, but only once `release` settles. */
+  let watchlistHeld: { asked: () => void; release: Promise<void> } | null = null;
+  /** Plex leaves the Watchlist's size out of its answers. */
+  let watchlistSizeUnknown = false;
   const originalDiscover = PLEX_HOSTS.discover;
   const cookies: Record<string, string> = {};
 
@@ -82,7 +88,11 @@ describe('two-way Plex sync over the API', () => {
         const start = Number(url.searchParams.get('X-Plex-Container-Start') ?? 0);
         const size = Number(url.searchParams.get('X-Plex-Container-Size') ?? 20);
         const page = all.slice(start, start + size).map((id) => ({ guid: `plex://movie/${id}`, ratingKey: id }));
-        return json(200, { MediaContainer: { totalSize: all.length, size: page.length, Metadata: page } });
+        const total = watchlistSizeUnknown ? {} : { totalSize: all.length };
+        const body = { MediaContainer: { ...total, size: page.length, Metadata: page } };
+        if (!watchlistHeld) return json(200, body);
+        watchlistHeld.asked();
+        return void watchlistHeld.release.then(() => json(200, body));
       }
       json(404, {});
     });
@@ -280,5 +290,66 @@ describe('two-way Plex sync over the API', () => {
     store.addFeedback(id, 1, 'later', minutesAgo(1)); // The Matrix, saved in Curatorr
     store.replaceWatchlist(id, [2]); // read again: Heat has been there since it was first found
     expect((await watchlisted('Lists')).map((w) => w.movieId)).toEqual([1, 2, 3]);
+  });
+
+  it('takes a movie off the watchlist in Curatorr once it is taken off the Plex Watchlist in Plex', async () => {
+    const id = await newProfile('Unlisted', 'unlisted-token');
+    expect((await mark('Unlisted', 2, 'later')).server).toBe('synced'); // Heat, on the Plex Watchlist too
+    watchlists.set('unlisted-token', []); // taken off in a Plex app
+    await syncPlexState(store, store.profileRow(id)!, silent, true);
+    expect(await watchlisted('Unlisted')).toEqual([]);
+    expect((await picks('Unlisted')).picks.find((p) => p.movie.id === 2)!.onWatchlistOf).toEqual([]);
+  });
+
+  it('keeps what was saved in Curatorr when the owner turned updating Plex off', async () => {
+    const id = await newProfile('Kept', 'kept-token');
+    expect((await mark('Kept', 2, 'later')).server).toBe('synced');
+    store.update('app', { syncToServer: false });
+    watchlists.set('kept-token', []);
+    await syncPlexState(store, store.profileRow(id)!, silent, true);
+    expect((await watchlisted('Kept')).map((w) => w.movieId)).toEqual([2]);
+  });
+
+  it('keeps a movie saved in Curatorr while its Plex Watchlist was being read', async () => {
+    const id = await newProfile('Racing', 'racing-token');
+    let release!: () => void;
+    const asked = new Promise<void>((resolve) => {
+      watchlistHeld = { asked: resolve, release: new Promise<void>((r) => (release = r)) };
+    });
+    try {
+      const read = syncPlexState(store, store.profileRow(id)!, silent, true);
+      await asked; // Plex has answered "nothing on it", but the answer is still on its way
+      expect((await mark('Racing', 2, 'later')).server).toBe('synced');
+      release();
+      await read;
+    } finally {
+      watchlistHeld = null;
+    }
+    expect((await watchlisted('Racing')).map((w) => w.movieId)).toEqual([2]);
+  });
+
+  it('keeps a movie on the watchlist while its file is away from the library', async () => {
+    const id = await newProfile('Away', 'away-token');
+    expect((await mark('Away', 2, 'later')).server).toBe('synced'); // Heat, on the Plex Watchlist too
+    const library = store.movies();
+    store.replaceMovies(library.filter((m) => m.id !== 2), Date.now()); // Heat's file is being replaced, say
+    try {
+      await syncPlexState(store, store.profileRow(id)!, silent, true);
+    } finally {
+      store.replaceMovies(library, Date.now());
+    }
+    expect(await watchlisted('Away')).toEqual([{ movieId: 2, id: expect.any(Number) }]);
+  });
+
+  it('reads every page of a Plex Watchlist, even when Plex leaves out its size', async () => {
+    const id = await newProfile('Long', 'long-token');
+    watchlists.set('long-token', [...Array.from({ length: 150 }, (_, i) => `zz${i}`), 'aaa111']);
+    watchlistSizeUnknown = true;
+    try {
+      await syncPlexState(store, store.profileRow(id)!, silent, true);
+    } finally {
+      watchlistSizeUnknown = false;
+    }
+    expect([...store.watchlistIds(id)]).toEqual([1]);
   });
 });

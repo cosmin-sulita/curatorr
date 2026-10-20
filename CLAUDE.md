@@ -128,6 +128,10 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - answers who still has it.
 
   The pick stays on screen, and Undo marks `later` again.
+- **Taken off on the server:** while `syncToServer` is on, the media server's watchlist and Curatorr's are one. A profile read drops the `later` marks of movies that were on the server's watchlist when it began and aren't at its end (`Store.followWatchlistRemovals`).
+  - The snapshot is taken before asking the server, so a movie saved during the read isn't mistaken for a removal.
+  - Only movies still in the library count: one whose file is away keeps its mark.
+  - `getWatchlist` pages until a short page, since a read cut short would pass for removals.
 - **Watching together:**
   - `shown`, `skipped` and `accepted` are saved for every member, with one timestamp, so a group's pass also counts in each person's own picks (decided with the maintainer).
   - The marks are saved for the `profileIds` the "For whom?" sheet (`ForWhom`) returns: Seen it starts with nobody ticked, Watchlist and Never with everyone. Each mark is mirrored to that person's media server account.

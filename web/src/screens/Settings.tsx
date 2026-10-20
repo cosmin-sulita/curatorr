@@ -455,9 +455,17 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
               <span>
                 <span className="block font-medium">Update {name} when you mark movies</span>
                 <span className="block text-sm text-muted">
-                  {data.server === 'jellyfin'
-                    ? 'Seen it marks the movie played in Jellyfin. Watchlist adds it to your Jellyfin favourites.'
-                    : 'Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist.'}
+                  {data.server === 'jellyfin' ? (
+                    <>
+                      Seen it marks the movie played in Jellyfin. Watchlist adds it to your Jellyfin favourites, and a
+                      movie you remove from them leaves Curatorr's watchlist too.
+                    </>
+                  ) : (
+                    <>
+                      Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist, and a movie you
+                      take off there leaves Curatorr's watchlist too.
+                    </>
+                  )}
                 </span>
               </span>
               <Toggle
