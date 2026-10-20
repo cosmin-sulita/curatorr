@@ -10,6 +10,9 @@
  *   npm run eval -- --compare run.json  compares with a saved run, watch by watch, with 95% intervals
  *   npm run eval -- --evenings 30       how many evenings the staleness check simulates
  *   npm run eval -- --like heat         explains one movie's "Something like…" list: what each pick shares with it
+ *   npm run eval -- --weights taste=0   weighs parts of the picks' score differently (0 leaves one out), to compare
+ *   npm run eval -- --parts             what each part of the score does: its spread, its signal, how often it decides
+ *   npm run eval -- --watch heat        replays each evening the profile watched a movie: its questions, their top 12
  *
  * Each watch is replayed on the evening it happened: the library as it was (by when each file arrived,
  * or Radarr's added date in copies from before that was stored), the earlier watches, requests and
@@ -32,8 +35,10 @@ import { parseArgs } from 'node:util';
 import {
   JUST_ARRIVED,
   NEXT_PART_BONUS,
+  SCORE_PARTS,
   allowedFor,
   arrivalTime,
+  genreById,
   isSurprise,
   libraryIndex,
   matchesShelf,
@@ -43,17 +48,21 @@ import {
   qualityScore,
   rankMovies,
   rankSimilar,
+  seasonById,
   seenEchoes,
   similarity,
   surpriseOrder,
   tagMovie,
   themeById,
+  topRanked,
   wizardOptions,
   type Criteria,
   type FeedbackEvent,
   type FeedbackKind,
   type Movie,
   type RankedMovie,
+  type ScorePart,
+  type ScoreParts,
   type Signature,
 } from '@curatorr/shared';
 import { config } from '../config.js';
@@ -69,6 +78,9 @@ const { values } = parseArgs({
     compare: { type: 'string' },
     evenings: { type: 'string', default: '60' },
     like: { type: 'string' },
+    weights: { type: 'string' },
+    parts: { type: 'boolean' },
+    watch: { type: 'string' },
   },
 });
 
@@ -88,6 +100,21 @@ const FRESH = 30 * DAY;
 /** Profiles with fewer replayable watches than this are skipped. */
 const MIN_WATCHES = 20;
 const EVENINGS = Number(values.evenings) || 60;
+
+/** `--weights taste=0,arrival=2`: each named part of the picks' score times its weight; the others as they are. */
+const weights = new Map(
+  (values.weights ?? '')
+    .split(',')
+    .filter(Boolean)
+    .map((pair) => {
+      const [, part, weight] = /^(\w+)=(-?\d+(?:\.\d+)?)$/.exec(pair.trim()) ?? [];
+      if (!part || !(SCORE_PARTS as readonly string[]).includes(part)) {
+        console.error(`--weights takes part=weight pairs, the parts being ${SCORE_PARTS.join(', ')}.`);
+        process.exit(1);
+      }
+      return [part as ScorePart, Number(weight)] as const;
+    }),
+);
 
 // ---------------------------------------------------------------------------
 // The database, read once
@@ -164,6 +191,17 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
 // ---------------------------------------------------------------------------
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
+const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)));
+/** Half the width of a mean's 95% interval. */
+const margin = (xs: number[]) => (1.96 * sd(xs)) / Math.sqrt(xs.length);
+/** The share of the others that `xs[i]` is above, ties counting half: 0.5 says nothing about it. */
+function beats(xs: number[], i: number) {
+  let wins = 0;
+  xs.forEach((x, j) => {
+    if (j !== i) wins += xs[i]! > x ? 1 : xs[i] === x ? 0.5 : 0;
+  });
+  return wins / (xs.length - 1);
+}
 function quantile(xs: number[], q: number) {
   const s = [...xs].sort((a, b) => a - b);
   if (!s.length) return NaN;
@@ -228,11 +266,31 @@ function wizardPaths(p: Picking): { c: Criteria; weight: number; skipped: string
   return out;
 }
 
+/** A pick's score with its parts weighed as `--weights` says, and `without` left out, rounded as `rankMovies` does. */
+function weighed(parts: ScoreParts, without?: ScorePart) {
+  const score = SCORE_PARTS.reduce((sum, part) => (part === without ? sum : sum + parts[part] * (weights.get(part) ?? 1)), 0);
+  return Math.round(score * 10) / 10;
+}
+
 /** The picks in the order the pick screen shows them: "Surprise me" deals the best ones in a drawn order. */
 const rank = (p: Picking, c: Criteria, limit?: number) => {
-  const ranked = rankMovies(p.eligible, c, p.ctx.feedback, limit ? { ...p.opts, limit } : p.opts);
+  // Weighed differently, the order changes, so every match is ranked before the list is cut.
+  const upTo = weights.size ? Infinity : limit;
+  let ranked = rankMovies(p.eligible, c, p.ctx.feedback, upTo ? { ...p.opts, limit: upTo } : p.opts);
+  if (weights.size) ranked = topRanked(ranked.map((r) => ({ ...r, score: weighed(r.parts!) })), limit);
   return isSurprise(c) ? surpriseOrder(ranked, p.opts) : ranked;
 };
+
+/** The answers of a question, as the wizard words them. */
+const answers = (c: Criteria) =>
+  [
+    c.shelf && (c.shelf === JUST_ARRIVED.id ? JUST_ARRIVED.label : (seasonById.get(c.shelf)?.label ?? c.shelf)),
+    c.genre && (genreById.get(c.genre)?.label ?? c.genre),
+    c.theme && (themeById.get(c.theme)?.label ?? c.theme),
+    c.mood && (moodById.get(c.mood)?.label ?? c.mood),
+  ]
+    .filter(Boolean)
+    .join(' + ') || 'no answers';
 
 // ---------------------------------------------------------------------------
 // Would it have suggested what the profile watched?
@@ -259,6 +317,40 @@ interface Watch {
   fresh: boolean;
   offered: boolean;
   results: Partial<Record<Family, Result>>;
+  /** With `--parts`: what each part of the score did on each of its questions. */
+  parts: PartRecord[];
+}
+
+/** What one part of the score did on one question: its spread over the matches, what it alone says of the watched movie. */
+interface PartRecord {
+  part: ScorePart | 'score';
+  sd: number;
+  /** The share of the other matches the watched movie beats on this part alone; null when it isn't among them. */
+  alone: number | null;
+  /** Whether leaving the part out changes the first pick, and the share of the top 12 that stays. */
+  decides?: boolean;
+  kept?: number;
+}
+
+/** What each part of the score did on one question, `exact` being its matches in the order shown. */
+function partRecords(p: Picking, c: Criteria, exact: RankedMovie[], pos: number): PartRecord[] {
+  const alone = (xs: number[]) => (pos < 0 || xs.length < 2 ? null : beats(xs, pos));
+  const top = new Set(exact.slice(0, 12).map((r) => r.movie.id));
+  const scores = exact.map((r) => r.score);
+  const out: PartRecord[] = [{ part: 'score', sd: sd(scores), alone: alone(scores) }];
+  for (const part of SCORE_PARTS) {
+    const sorted = [...exact].sort((a, b) => weighed(b.parts!, part) - weighed(a.parts!, part));
+    const without = isSurprise(c) ? surpriseOrder(sorted, p.opts) : sorted;
+    const xs = exact.map((r) => r.parts![part]);
+    out.push({
+      part,
+      sd: sd(xs),
+      alone: alone(xs),
+      decides: without[0]!.movie.id !== exact[0]!.movie.id,
+      kept: without.slice(0, 12).filter((r) => top.has(r.movie.id)).length / Math.min(12, exact.length),
+    });
+  }
+  return out;
 }
 
 /** The questions the wizard offered that evening that the watched movie answers, and its shortcuts. */
@@ -312,12 +404,14 @@ function replay(profileId: number): Watch[] {
       fresh: arrivalTime(m) != null && w.viewed_at! - arrived(m) <= FRESH,
       offered: p.eligible.some((x) => x.id === m.id),
       results: {},
+      parts: [],
     };
     const byFamily = new Map<Family, Result[]>();
     for (const { family, c } of questions(p, m)) {
       const exact = rank(p, c, Infinity).filter((r) => r.tier === 0);
       const n = exact.length;
       const pos = exact.findIndex((r) => r.movie.id === m.id);
+      if (values.parts && n) watch.parts.push(...partRecords(p, c, exact, pos));
       const rated = [...exact].sort((a, b) => qualityScore(b.movie.ratings) - qualityScore(a.movie.ratings));
       const posRated = rated.findIndex((r) => r.movie.id === m.id);
       const result: Result =
@@ -370,6 +464,45 @@ function scoreTable(watches: Watch[]) {
           `${num(mean(rs.map((r) => r.rrRandom))).padStart(8)}`,
       );
     }
+  }
+}
+
+/** `--parts`: what each part of the score does over every question replayed, and the watches that ranked lowest. */
+function partsTable(watches: Watch[]) {
+  heading('What each part of the score does, over every question replayed, among its matches:');
+  console.log(
+    `  ${'part'.padEnd(10)}${'varies'.padStart(8)}${'spread'.padStart(8)}${'alone, fresh'.padStart(16)}` +
+      `${'alone, backlog'.padStart(16)}${'decides first'.padStart(15)}${'top 12 kept'.padStart(13)}`,
+  );
+  for (const part of ['score', ...SCORE_PARTS] as const) {
+    const rows = watches.flatMap((w) => w.parts.filter((r) => r.part === part).map((r) => ({ ...r, fresh: w.fresh })));
+    if (!rows.length) continue;
+    const varies = rows.filter((r) => r.sd > 1e-9);
+    const alone = (fresh: boolean) => {
+      const xs = varies.flatMap((r) => (r.fresh === fresh && r.alone != null ? [r.alone] : []));
+      return xs.length ? `${num(mean(xs), 2)} ±${num(margin(xs), 2)}` : '–';
+    };
+    const decided = rows.flatMap((r) => (r.decides == null ? [] : [r]));
+    console.log(
+      `  ${part.padEnd(10)}${pct(varies.length / rows.length).padStart(8)}${num(mean(varies.map((r) => r.sd)), 1).padStart(8)}` +
+        `${alone(true).padStart(16)}${alone(false).padStart(16)}` +
+        `${(decided.length ? pct(mean(decided.map((r) => Number(r.decides)))) : '–').padStart(15)}` +
+        `${(decided.length ? pct(mean(decided.map((r) => r.kept!))) : '–').padStart(13)}`,
+    );
+  }
+  console.log(
+    '  varies: share of questions where it differs between matches; spread: its SD there; alone: the share of the other\n' +
+      '  matches the watched movie beats on it alone (0.5 says nothing), with a 95% margin; decides first: questions whose\n' +
+      '  first pick changes without it; top 12 kept: the share of the top 12 that stays without it.',
+  );
+  const lowest = watches
+    .filter((w) => w.offered && w.results.genre)
+    .sort((a, b) => b.results.genre!.pctl - a.results.genre!.pctl)
+    .slice(0, 10);
+  console.log('  ranked lowest on their genre questions (explain one with --watch):');
+  for (const w of lowest) {
+    const m = movieById.get(Number(w.key.split('|')[0]))!;
+    console.log(`    ${day(w.at)}  rank pct ${pct(w.results.genre!.pctl).padStart(4)}  ${name(m)}${w.fresh ? ', fresh' : ''}`);
   }
 }
 
@@ -560,6 +693,51 @@ function explainLike(profileId: number, query: string) {
 }
 
 // ---------------------------------------------------------------------------
+// One watch, explained
+// ---------------------------------------------------------------------------
+
+/** A question's top 12 with each part of their score, and the watched movie (▸) wherever it ranked. */
+function printParts(exact: RankedMovie[], pos: number) {
+  const cell = (x: number) => (Math.abs(x) < 0.05 ? '·' : x.toFixed(1)).padStart(8);
+  console.log(`  ${'#'.padStart(5)}${'score'.padStart(8)}${SCORE_PARTS.map((part) => part.padStart(8)).join('')}`);
+  const row = (r: RankedMovie, i: number) =>
+    console.log(
+      `  ${i === pos ? '▸' : ' '}${String(i + 1).padStart(4)}${r.score.toFixed(1).padStart(8)}` +
+        `${SCORE_PARTS.map((part) => cell(r.parts![part])).join('')}  ${name(r.movie)}`,
+    );
+  exact.slice(0, 12).forEach(row);
+  if (pos >= 12) row(exact[pos]!, pos);
+}
+
+/** `--watch`: each evening the profile watched a movie, replayed: its questions, where it ranked, and what ranked above it. */
+function explainWatch(profileId: number, query: string) {
+  const q = fold(query);
+  const found = movies.filter((m) => fold(m.title).includes(q));
+  const m = found.find((x) => fold(x.title) === q) ?? found[0];
+  if (!m) {
+    console.log(`No movie title contains "${query}".`);
+    return;
+  }
+  const profile = profiles.find((x) => x.id === profileId)!;
+  const evenings = watched.filter((w) => w.profile_id === profileId && w.movie_id === m.id && w.viewed_at != null);
+  if (!evenings.length) console.log(`\n${profile.name} has no dated watch of ${name(m)}.`);
+  for (const w of evenings) {
+    const at = w.viewed_at! - 60_000;
+    const p = picking(dataAt(profileId, at, [], m.id), at, { taste: true });
+    const fresh = arrivalTime(m) != null && w.viewed_at! - arrived(m) <= FRESH;
+    heading(`${profile.name} watched ${name(m)} on ${day(w.viewed_at!)}${fresh ? ', a fresh arrival' : ''}:`);
+    if (!p.eligible.some((x) => x.id === m.id)) console.log('  not offerable that evening (saga order, not in Plex)');
+    for (const { family, c } of questions(p, m)) {
+      const exact = rank(p, c, Infinity).filter((r) => r.tier === 0);
+      const pos = exact.findIndex((r) => r.movie.id === m.id);
+      console.log(`\n  ${answers(c)}: ${pos < 0 ? 'not ranked' : `ranked ${pos + 1}`} of ${exact.length}`);
+      // The questions that narrow least are the ones whose lists are worth reading.
+      if (['genre', 'Just arrived', 'Season'].includes(family)) printParts(exact, pos);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Saving and comparing runs
 // ---------------------------------------------------------------------------
 
@@ -625,9 +803,11 @@ console.log(`${movies.length} movies in ${file}`);
 console.log(`Library started ${day(libraryStart)}; latest activity ${day(copiedAt)}.`);
 
 const chosen = values.profile ? profiles.filter((p) => String(p.id) === values.profile) : profiles;
-if (values.like) {
-  if (chosen[0]) explainLike(chosen[0].id, values.like);
-  else console.log(`\nNo profile ${values.profile}.`);
+if (values.weights) console.log(`Parts of the score weighed: ${[...weights].map(([part, w]) => `${part} × ${w}`).join(', ')}.`);
+if (values.like || values.watch) {
+  if (!chosen[0]) console.log(`\nNo profile ${values.profile}.`);
+  else if (values.like) explainLike(chosen[0].id, values.like);
+  else explainWatch(chosen[0].id, values.watch!);
 } else {
   const runs = new Map<number, Watch[]>();
   const tooFew: string[] = [];
@@ -652,6 +832,7 @@ if (values.like) {
     } else {
       scoreTable(ws);
     }
+    if (values.parts) partsTable(ws);
     staleness(profile.id);
     tonight(profile.id);
     likeSummary(profile.id);
