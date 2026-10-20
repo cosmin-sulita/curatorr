@@ -11,7 +11,7 @@ import type {
   WizardOptionsResponse,
   WizardStep,
 } from '@curatorr/shared';
-import { warmImages } from '../components/ui';
+import { PICTURE, sized, warmImages } from '../components/ui';
 import { withQuery } from './router';
 
 export class ApiError extends Error {
@@ -90,9 +90,20 @@ export const wizardQuery = (step: WizardStep, criteria: Criteria) =>
     gcTime: KEEP_QUESTIONS,
   });
 
+/**
+ * The size a question shows its answers' pictures at: the first question's tiles, the themes' poster fans (PosterFan
+ * sizes every fan to PICTURE.fan), the mood cards as stored. The screens and what loads them ahead both go through
+ * here, so what's loaded ahead is what shows.
+ */
+export const questionPicture = <T extends string | undefined>(step: WizardStep, url: T): T =>
+  step === 'genre' ? sized(url, PICTURE.tile) : step === 'theme' ? sized(url, PICTURE.fan) : url;
+
 /** The pictures a question shows first: the first question's shortcuts, then the answers'. */
 export const firstPictures = (d: WizardOptionsResponse) =>
-  [...(d.shelves ?? []), ...d.options].flatMap((o) => o.images).slice(0, FIRST_PICTURES);
+  [...(d.shelves ?? []), ...d.options]
+    .flatMap((o) => o.images)
+    .slice(0, FIRST_PICTURES)
+    .map((url) => questionPicture(d.step, url));
 
 export function useWizardOptions(step: WizardStep, criteria: Criteria) {
   return useQuery(wizardQuery(step, criteria));
@@ -194,7 +205,7 @@ function newViewers(qc: ReturnType<typeof useQueryClient>) {
   const question = qc.fetchQuery(wizardQuery('genre', {})).then((d) => warmImages(firstPictures(d), 'high'));
   const seeds = qc
     .fetchQuery(likeSeedsQuery(''))
-    .then((s) => warmImages(s.flatMap((m) => (m.posterUrl ? [m.posterUrl] : [])).slice(0, 3), 'high'));
+    .then((s) => warmImages(s.flatMap((m) => (m.posterUrl ? [sized(m.posterUrl, PICTURE.fan)] : [])).slice(0, 3), 'high'));
   return Promise.all([question, seeds].map((p) => p.catch(() => {}))).then(() =>
     qc.invalidateQueries({ queryKey: ['status'] }),
   );

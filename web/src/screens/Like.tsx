@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { Button, Img, Notice, Pending, Spinner } from '../components/ui';
+import { Button, Img, Notice, Pending, PICTURE, sized, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
@@ -109,7 +109,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
                   >
                     <span className={clsx('relative block transition', state && 'scale-[0.98]')}>
                       <Img
-                        src={m.posterUrl}
+                        src={sized(m.posterUrl, PICTURE.grid)}
                         className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
                       />
                       {state === 'slow' && <Pending className="rounded-xl" />}

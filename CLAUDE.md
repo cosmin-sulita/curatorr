@@ -117,6 +117,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
   - `/pick` takes the full criteria, `shelf=<id>` for a shortcut, or `like=<movie id>` for "Something like…" (picked on `/like`, whose search also lives in the URL). `App.tsx` chooses the screen from `/api/status`: setup, profiles, wizard, like, pick, settings, or one of the profile's lists (`/settings/watchlist`, `/settings/seen` or `/settings/never`).
   - The service worker caches the app shell and images. `/api/*` is network-only.
   - TMDB pictures load with CORS everywhere (`CROSS_ORIGIN` in `components/ui.tsx`), so the service worker keeps them at their real size in `tmdb-pictures`, enough for a whole library. A new way of loading one must do the same, or the picture downloads twice.
+  - Each place shows a picture at the width it needs (`PICTURE` and `sized` in `components/ui.tsx`): poster fans w185, the first question's tiles w780, poster grids w342. The mood cards and the pick's poster, rail and backdrop keep the stored w1280/w500. Decoding costs memory by a picture's size, and a long theme list holds about a hundred fan posters (decided with the maintainer, replacing one size per movie). What loads a screen ahead must ask for the size it shows (`questionPicture` in `lib/api.ts`).
 
 ### Feedback model
 

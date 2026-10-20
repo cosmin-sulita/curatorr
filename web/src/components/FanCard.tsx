@@ -1,17 +1,18 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import { Link } from '../lib/router';
-import { Img } from './ui';
+import { Img, PICTURE, sized } from './ui';
 
 /** How each poster leans, by how many there are: three fan out like a hand of cards, two lean apart, one stands. */
 const TILTS = [[''], ['-rotate-6 translate-x-2', 'rotate-6 -translate-x-2'], ['-rotate-6 translate-x-4', 'z-10', 'rotate-6 -translate-x-4']];
 
 /**
  * Up to three posters, centred in the room three take, so cards stacked above each other line up. `isolate` keeps
- * the middle poster's lift inside the fan, so a loading overlay on the card covers all three.
+ * the middle poster's lift inside the fan, so a loading overlay on the card covers all three. Small posters, at a fan's
+ * size (questionPicture in lib/api.ts loads the themes' ones ahead at the same size).
  */
 export function PosterFan({ images }: { images: string[] }) {
-  const shown = images.slice(0, 3);
+  const shown = images.slice(0, 3).map((src) => sized(src, PICTURE.fan));
   const tilt = TILTS[shown.length - 1] ?? [];
   return (
     <span className="-mr-2 isolate flex w-30 shrink-0 items-center justify-center sm:w-33" aria-hidden>

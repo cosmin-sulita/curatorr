@@ -72,6 +72,19 @@ export type Priority = 'high' | 'low';
 export const CROSS_ORIGIN = 'anonymous';
 
 /**
+ * TMDB widths for the places a picture shows: what a 3× phone screen needs there, no more. Decoding costs memory by a
+ * picture's size, not by how small it shows: a 500 px poster in a 40-point fan takes 7× what a 185 px one does, and a
+ * long theme list holds about a hundred of them. The mood cards, and the pick's poster, rail and backdrop, use the
+ * stored sizes (w1280 backdrops, w500 posters).
+ */
+export const PICTURE = { fan: 'w185', tile: 'w780', grid: 'w342' } as const;
+
+/** The same TMDB picture at another width. Pictures from elsewhere (Radarr's proxy, the demo's drawings) stay as they are. */
+export function sized<T extends string | null | undefined>(url: T, width: string): T {
+  return (url ? url.replace(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+\//, `$1${width}/`) : url) as T;
+}
+
+/**
  * A picture from somewhere that doesn't allow CORS fails to load with it: asks for it again without, once, rather
  * than losing it. False when it was already asked for without, so the picture is missing.
  */

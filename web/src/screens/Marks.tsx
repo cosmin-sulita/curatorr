@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, Img, Notice, Spinner } from '../components/ui';
+import { Button, Img, Notice, PICTURE, sized, Spinner } from '../components/ui';
 import {
   errorMessage,
   removeFromWatchlist,
@@ -241,7 +241,10 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
                   exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.18 } }}
                   className="flex flex-col"
                 >
-                  <Img src={h.movie.posterUrl} className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line" />
+                  <Img
+                    src={sized(h.movie.posterUrl, PICTURE.grid)}
+                    className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line"
+                  />
                   <span className="mt-2 line-clamp-2 text-sm font-medium">{h.movie.title}</span>
                   {h.movie.year && <span className="text-xs text-muted">{h.movie.year}</span>}
                   {/* At the foot of the row, so the buttons line up whether a title takes one line or two. */}
