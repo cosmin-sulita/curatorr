@@ -55,6 +55,8 @@ The demo library's keywords are tidy, and real TMDB keywords aren't. To tune the
 
 Measure a ranking change rather than tuning it by feel: save a run with `npm run eval -- --save run.json` before the change, then compare with `npm run eval -- --compare run.json` after it.
 
+To find where the ranking falls short, `npm run eval -- --parts` shows what each part of the score does: its spread, how well it alone picks out what was watched, and how often it decides the first pick. `npm run eval -- --weights taste=0 --compare run.json` measures a change of weight without touching the code, and `npm run eval -- --watch <title>` replays the evenings a movie was watched, with every part of its questions' top 12. These reports show your profiles' names and what they watched: keep both out of commits and issues.
+
 ## Releases
 
 For maintainers:
