@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { vibrate } from '../lib/format';
+import { preloadImages } from './ui';
 
 // Gaps between cards, easing out so the deck visibly slows before the pick lands.
 const GAPS = [70, 75, 85, 100, 125, 160, 220];
@@ -19,17 +20,6 @@ function shuffled<T>(items: T[]) {
     [out[i], out[j]] = [out[j]!, out[i]!];
   }
   return out;
-}
-
-function preload(urls: string[]) {
-  const all = Promise.all(
-    urls.map((src) => {
-      const img = new Image();
-      img.src = src;
-      return img.decode().catch(() => {});
-    }),
-  );
-  return Promise.race([all, new Promise((resolve) => setTimeout(resolve, PRELOAD_CAP))]);
 }
 
 /**
@@ -52,7 +42,7 @@ export function PosterShuffle({ posters, final, onDone }: { posters: string[]; f
   useEffect(() => {
     let cancelled = false;
     const timers: number[] = [];
-    preload(deck.cards.filter((src): src is string => Boolean(src))).then(() => {
+    preloadImages(deck.cards, PRELOAD_CAP).then(() => {
       if (cancelled) return;
       // gaps[i] separates card i from card i + 1, so the loop ends at the moment the pick lands.
       let at = 0;

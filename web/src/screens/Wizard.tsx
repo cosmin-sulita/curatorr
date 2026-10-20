@@ -1,4 +1,4 @@
-import { STEP_ORDER, genreById, type Criteria, type LikeSeed, type WizardOption, type WizardStep } from '@curatorr/shared';
+import { STEP_ORDER, genreById, type LikeSeed, type WizardOption, type WizardStep } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -12,6 +12,7 @@ import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
+import { answersBefore, criteriaFrom, nextUrl } from '../lib/wizard';
 
 const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   genre: { title: 'What kind of movie tonight?', any: 'Surprise me' },
@@ -19,33 +20,6 @@ const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   mood: { title: 'How should it feel?', any: 'Any mood is fine' },
   time: { title: 'How much time do you have?', any: null },
 };
-
-export function criteriaFrom(search: URLSearchParams): Criteria {
-  return {
-    genre: search.get('genre'),
-    theme: search.get('theme'),
-    mood: search.get('mood'),
-    time: search.get('time'),
-    shelf: search.get('shelf'),
-  };
-}
-
-/** Answers given before `step`; later answers are dropped when going back. */
-function answersBefore(step: WizardStep, c: Criteria): Criteria {
-  const out: Criteria = {};
-  for (const s of STEP_ORDER) {
-    if (s === step) break;
-    out[s] = c[s] ?? null;
-  }
-  return out;
-}
-
-function nextUrl(step: WizardStep, c: Criteria, value: string) {
-  const answers = { ...answersBefore(step, c), [step]: value };
-  const index = STEP_ORDER.indexOf(step);
-  const next = STEP_ORDER[index + 1];
-  return withQuery(next ? `/ask/${next}` : '/pick', answers);
-}
 
 export function WizardScreen({ step, search }: { step: WizardStep; search: URLSearchParams }) {
   const criteria = answersBefore(step, criteriaFrom(search));

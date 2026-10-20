@@ -43,7 +43,7 @@ import {
 import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
 import { navigate } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
-import { criteriaFrom } from './Wizard';
+import { criteriaFrom } from '../lib/wizard';
 
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
 

@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppStatus,
   Criteria,
@@ -69,31 +69,44 @@ export function useProfiles() {
 
 const criteriaParams = (c: Criteria) => ({ genre: c.genre, theme: c.theme, mood: c.mood, time: c.time, shelf: c.shelf });
 
-export function useWizardOptions(step: WizardStep, criteria: Criteria) {
-  return useQuery({
+// Each query's options live in one place, so loading a screen ahead of time uses the very key the screen reads.
+
+export const wizardQuery = (step: WizardStep, criteria: Criteria) =>
+  queryOptions({
     queryKey: ['wizard', step, criteria],
     queryFn: () => api<WizardOptionsResponse>(withQuery(`/api/wizard/${step}`, criteriaParams(criteria))),
     staleTime: 60_000,
   });
+
+export function useWizardOptions(step: WizardStep, criteria: Criteria) {
+  return useQuery(wizardQuery(step, criteria));
 }
 
 /** With `like` (a movie id), picks resemble that movie instead of matching the answers. */
-export function useRecommendations(criteria: Criteria, like?: string | null) {
-  return useQuery({
+export const recommendationsQuery = (criteria: Criteria, like?: string | null) =>
+  queryOptions({
     queryKey: ['recommendations', criteria, like ?? null],
     queryFn: () =>
       api<RecommendationsResponse>(withQuery('/api/recommendations', { ...criteriaParams(criteria), like })),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
+
+export function useRecommendations(criteria: Criteria, like?: string | null) {
+  return useQuery(recommendationsQuery(criteria, like));
 }
 
 /** Movies to start "Something like…" from: recently watched, or titles matching `q`. */
-export function useLikeSeeds(q: string, enabled = true) {
-  return useQuery({
+export const likeSeedsQuery = (q: string) =>
+  queryOptions({
     queryKey: ['like', q],
     queryFn: () => api<LikeSeed[]>(withQuery('/api/like', { q })),
     staleTime: 60_000,
+  });
+
+export function useLikeSeeds(q: string, enabled = true) {
+  return useQuery({
+    ...likeSeedsQuery(q),
     // Keep the last results on screen while the next search loads.
     placeholderData: keepPreviousData,
     enabled,

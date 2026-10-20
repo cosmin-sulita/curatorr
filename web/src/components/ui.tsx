@@ -53,11 +53,24 @@ export function Spinner({ className }: { className?: string }) {
 }
 
 /** True when the browser already holds this image (it completes at once), so it needn't fade in. */
-function isCached(src: string | null | undefined) {
+export function isCached(src: string | null | undefined) {
   if (!src) return false;
   const probe = new Image();
   probe.src = src;
   return probe.complete && probe.naturalWidth > 0;
+}
+
+/** Loads and decodes images ahead of showing them. Done when they all are, or after `capMs` at the latest. */
+export function preloadImages(urls: (string | null | undefined)[], capMs: number) {
+  const all = Promise.all(
+    urls.flatMap((src) => {
+      if (!src) return [];
+      const img = new Image();
+      img.src = src;
+      return [img.decode().catch(() => {})];
+    }),
+  );
+  return Promise.race([all, new Promise((resolve) => setTimeout(resolve, capMs))]);
 }
 
 /** An image that fades in when loaded and degrades to a tinted block when missing. */

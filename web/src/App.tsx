@@ -1,10 +1,11 @@
-import { STEP_ORDER, type AppStatus, type WizardStep } from '@curatorr/shared';
+import type { AppStatus } from '@curatorr/shared';
 import type { ReactNode } from 'react';
 import { CenteredState, Frame, Shell, Wordmark } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, isNetworkError, useStatus } from './lib/api';
 import { useLocation } from './lib/router';
+import { isStep } from './lib/wizard';
 import { LikeScreen } from './screens/Like';
 import { isMarkList, MarksScreen } from './screens/Marks';
 import { PickScreen } from './screens/Pick';
@@ -12,8 +13,6 @@ import { ProfilesScreen } from './screens/Profiles';
 import { SettingsScreen } from './screens/Settings';
 import { SetupScreen } from './screens/Setup';
 import { WizardScreen } from './screens/Wizard';
-
-const isStep = (s: string | undefined): s is WizardStep => STEP_ORDER.includes(s as WizardStep);
 
 export function App() {
   const { path, search } = useLocation();
