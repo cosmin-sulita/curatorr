@@ -110,10 +110,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
                     <span className={clsx('relative block transition', state && 'scale-[0.98]')}>
                       <Img
                         src={m.posterUrl}
-                        className={clsx(
-                          'aspect-[2/3] w-full rounded-xl object-cover transition group-hover:ring-2 group-hover:ring-accent-2',
-                          state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line',
-                        )}
+                        className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"
                       />
                       {state === 'slow' && <Pending className="rounded-xl" />}
                     </span>

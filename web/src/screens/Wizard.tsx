@@ -195,8 +195,6 @@ type OptionsProps = {
   onTouch: (id: string) => void;
 };
 
-const pressedRing = (state: Tapped) => (state ? 'ring-2 ring-accent-2' : 'ring-1 ring-line');
-
 /** The genres, led by the shortcuts (Just arrived, the season's movies), which go straight to a pick. */
 function GenreGrid({
   shelves,
@@ -244,8 +242,7 @@ function GenreTile({
       onPointerDown={onTouch}
       onClick={onClick}
       className={clsx(
-        'group relative aspect-[16/10] overflow-hidden rounded-2xl text-left transition active:scale-[0.98]',
-        pressedRing(state),
+        'group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]',
         state && 'scale-[0.98]',
       )}
     >
@@ -293,8 +290,7 @@ function ThemeList({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left transition hover:bg-raised active:scale-[0.99]',
-              pressedRing(state),
+              'relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]',
               state && 'scale-[0.99]',
             )}
           >
@@ -325,8 +321,7 @@ function MoodGrid({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left transition active:scale-[0.99]',
-              pressedRing(state),
+              'group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition active:scale-[0.99]',
               state && 'scale-[0.99]',
             )}
           >
@@ -360,8 +355,7 @@ function TimeList({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left transition hover:bg-raised active:scale-[0.99]',
-              pressedRing(state),
+              'relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]',
               state && 'scale-[0.99]',
             )}
           >
