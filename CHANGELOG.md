@@ -2,6 +2,13 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.8 (2026-10-20)
+
+- style(app): wrap the new lines past 120 characters ([c1af416](https://github.com/cosmin-sulita/curatorr/commit/c1af416))
+- perf(server): compress the questions and picks sent to the app ([de74c59](https://github.com/cosmin-sulita/curatorr/commit/de74c59))
+- fix(app): bring the first question in from the left when going home ([aaddc0b](https://github.com/cosmin-sulita/curatorr/commit/aaddc0b))
+- perf(pictures): load each picture at the size its card shows ([44b9a3b](https://github.com/cosmin-sulita/curatorr/commit/44b9a3b))
+
 ## 1.3.7 (2026-10-20)
 
 - fix(wizard): drop the purple ring from tapped answers and posters ([e8c7bd7](https://github.com/cosmin-sulita/curatorr/commit/e8c7bd7))
