@@ -1,9 +1,10 @@
 import { STEP_ORDER, type Criteria, type WizardStep } from '@curatorr/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useReducedMotionConfig } from 'motion/react';
 import { useRef, useState } from 'react';
 import { preloadImages } from '../components/ui';
 import { recommendationsQuery, wizardQuery } from './api';
-import { justArrived, navigate, withQuery } from './router';
+import { justArrived, navigate, navigationDirection, withQuery } from './router';
 
 // Moving on: how long the next question may wait for its first pictures (about a screenful of them), and a pick
 // for its poster (as long as the shuffle waits for its cards), when the tapped answer starts saying it's loading,
@@ -67,6 +68,17 @@ export async function prepare(qc: QueryClient, url: string): Promise<string> {
   const images = [...(data.shelves ?? []), ...data.options].flatMap((o) => o.images);
   await preloadImages(images.slice(0, FIRST_IMAGES), IMAGE_WAIT);
   return url;
+}
+
+/**
+ * Where a screen slides in from: the right going forward, the left going back. Not at all when the browser already
+ * animated the move, and with reduced motion it only fades (starting off to the side would jump into place).
+ */
+export function useEntrance() {
+  const reduceMotion = useReducedMotionConfig();
+  const direction = navigationDirection();
+  if (direction === 'none') return false;
+  return { opacity: 0, x: reduceMotion ? 0 : direction === 'back' ? -28 : 28 };
 }
 
 /** The answer that was tapped, while its screen loads; `slow` once that takes a moment. */

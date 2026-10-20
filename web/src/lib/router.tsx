@@ -18,22 +18,38 @@ function subscribe(callback: () => void) {
 
 const snapshot = () => window.location.pathname + window.location.search;
 
+/** How the latest move happened: forward, back, or with an animation of the browser's own (Safari's swipe back). */
+export type Direction = 'forward' | 'back' | 'none';
+
+// Each entry's place in history, to tell Back from forward when the browser moves through it.
+const placeOf = (state: unknown) => (state as { idx?: number } | null)?.idx ?? 0;
+let place = placeOf(window.history.state);
+let direction: Direction = 'forward';
 // When the screen last changed: the second tap of a double tap mustn't act on the screen the first one opened.
 let arrivedAt = 0;
-window.addEventListener('popstate', () => {
+
+window.addEventListener('popstate', (e) => {
   arrivedAt = performance.now();
+  const idx = placeOf(e.state);
+  const animated = (e as PopStateEvent & { hasUAVisualTransition?: boolean }).hasUAVisualTransition;
+  direction = animated ? 'none' : idx < place ? 'back' : 'forward';
+  place = idx;
 });
 
 /** True for a moment after moving to another screen (Back included), so the taps that matter can wait it out. */
 export const justArrived = (ms = 300) => performance.now() - arrivedAt < ms;
 
+/** Pure, so it's safe to read while rendering. */
+export const navigationDirection = () => direction;
+
 export function navigate(to: string, opts: { replace?: boolean } = {}) {
   if (to === snapshot()) return;
-  if (opts.replace) window.history.replaceState(null, '', to);
+  if (opts.replace) window.history.replaceState({ idx: place }, '', to);
   else {
-    window.history.pushState(null, '', to);
+    window.history.pushState({ idx: ++place }, '', to);
     arrivedAt = performance.now();
   }
+  direction = 'forward';
   window.dispatchEvent(new Event(NAV_EVENT));
   window.scrollTo({ top: 0 });
 }

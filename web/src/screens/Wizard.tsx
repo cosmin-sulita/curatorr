@@ -12,7 +12,16 @@ import { plural } from '../lib/format';
 import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
-import { answersBefore, criteriaFrom, nextUrl, tapped, useAdvance, type Going, type Tapped } from '../lib/wizard';
+import {
+  answersBefore,
+  criteriaFrom,
+  nextUrl,
+  tapped,
+  useAdvance,
+  useEntrance,
+  type Going,
+  type Tapped,
+} from '../lib/wizard';
 
 const COPY: Record<WizardStep, { title: string; any: string | null }> = {
   genre: { title: 'What kind of movie tonight?', any: 'Surprise me' },
@@ -31,6 +40,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   const { data: status } = useStatus();
   const index = STEP_ORDER.indexOf(step);
   const { go, going } = useAdvance();
+  const entrance = useEntrance();
 
   // Answers normally move past a question with no real choice before it shows; this covers opening one directly.
   useEffect(() => {
@@ -117,7 +127,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
         {data && ready ? (
           <motion.section
             key={step + JSON.stringify(criteria)}
-            initial={{ opacity: 0, x: 28 }}
+            initial={entrance}
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 34 }}
             className="pt-6"
