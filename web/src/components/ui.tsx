@@ -2,7 +2,7 @@ import type { BlobatarOptions } from 'blobatar';
 import { blobatarUri } from 'blobatar/uri';
 import clsx from 'clsx';
 import { LoaderCircle } from 'lucide-react';
-import { useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
 
 /** `selected`: a toggle that's on, like the Watchlist button on a pick that's already on the watchlist. */
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'selected';
@@ -97,16 +97,29 @@ export function warmImages(urls: (string | null | undefined)[], priority: Priori
   }
 }
 
+/** A picture that arrives this soon after it's shown came from the device's storage, not the network. */
+const QUICK_MS = 100;
+
 /** An image that fades in when loaded and degrades to a tinted block when missing. */
 export function Img({
   src,
   className,
   alt = '',
+  style,
   ...rest
 }: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null }) {
   // Starting out loaded means a preloaded or just-shown image appears at once instead of fading in.
   const [loaded, setLoaded] = useState(() => isCached(src));
+  const [shownAt] = useState(() => performance.now());
+  // One read from storage appears at once too, after the app was closed for instance: its change to visible skips
+  // the transitions (the caller's included), which come back a frame later for hovers.
+  const [instant, setInstant] = useState(false);
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!instant) return;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setInstant(false)));
+    return () => cancelAnimationFrame(frame);
+  }, [instant]);
   if (!src || failed) return <div className={clsx('bg-raised', className)} aria-hidden />;
   return (
     <img
@@ -114,8 +127,12 @@ export function Img({
       src={src}
       alt={alt}
       decoding="async"
-      onLoad={() => setLoaded(true)}
+      onLoad={() => {
+        if (!loaded && performance.now() - shownAt < QUICK_MS) setInstant(true);
+        setLoaded(true);
+      }}
       onError={() => setFailed(true)}
+      style={instant ? { ...style, transition: 'none' } : style}
       className={clsx('bg-raised transition-opacity duration-500', loaded ? 'opacity-100' : 'opacity-0', className)}
     />
   );
