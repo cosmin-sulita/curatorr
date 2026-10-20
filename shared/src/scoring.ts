@@ -793,12 +793,12 @@ export function wizardOptions(
       }));
   }
 
-  // A step is pointless when the pool is tiny or there is no real choice to make.
+  // A step is pointless once the picks can show every movie left, or when there is no real choice to make.
   // Time always has "any length", so a single shorter option is still a choice;
   // a theme/mood question with one answer is not worth asking.
   const narrowing = options.filter((o) => o.count < total);
   const minChoices = step === 'time' ? 1 : 2;
-  const skip = step !== 'genre' && (total <= MIN_OPTION_COUNT || narrowing.length < minChoices);
+  const skip = step !== 'genre' && (total <= MAX_RESULTS || narrowing.length < minChoices);
 
   return shelves ? { step, total, options, skip, shelves } : { step, total, options, skip };
 }

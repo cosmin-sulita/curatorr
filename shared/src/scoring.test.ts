@@ -428,20 +428,20 @@ describe('wizardOptions', () => {
 
   it('computes themes within the chosen genre', () => {
     const movies = [
-      ...Array.from({ length: 4 }, () => movie({ genres: ['Horror'], themes: { zombies: 2 } })),
+      ...Array.from({ length: 8 }, () => movie({ genres: ['Horror'], themes: { zombies: 2 } })),
       ...Array.from({ length: 4 }, () => movie({ genres: ['Comedy'], themes: { heist: 2 } })),
-      ...Array.from({ length: 3 }, () => movie({ genres: ['Horror'], themes: { vampires: 2 } })),
+      ...Array.from({ length: 6 }, () => movie({ genres: ['Horror'], themes: { vampires: 2 } })),
     ];
     const res = wizardOptions(movies, 'theme', { genre: 'Horror' }, { image });
-    expect(res.total).toBe(7);
+    expect(res.total).toBe(14);
     expect(res.options.map((o) => o.id)).toEqual(['zombies', 'vampires']);
     expect(res.skip).toBe(false);
   });
 
   it('skips a theme or mood question with only one real answer', () => {
     const movies = [
-      ...Array.from({ length: 4 }, () => movie({ moods: { edge: 3 } })),
-      ...Array.from({ length: 4 }, () => movie()),
+      ...Array.from({ length: 8 }, () => movie({ moods: { edge: 3 } })),
+      ...Array.from({ length: 8 }, () => movie()),
     ];
     expect(wizardOptions(movies, 'mood', {}, { image }).skip).toBe(true);
   });
@@ -459,15 +459,23 @@ describe('wizardOptions', () => {
 
   it('keeps the time question when one shorter option exists', () => {
     const movies = [
-      ...Array.from({ length: 4 }, () => movie({ runtime: 95 })),
-      ...Array.from({ length: 4 }, () => movie({ runtime: 150 })),
+      ...Array.from({ length: 8 }, () => movie({ runtime: 95 })),
+      ...Array.from({ length: 8 }, () => movie({ runtime: 150 })),
     ];
     expect(wizardOptions(movies, 'time', {}, { image }).skip).toBe(false);
   });
 
   it('skips a step that would not narrow anything', () => {
-    const movies = Array.from({ length: 6 }, () => movie({ runtime: 90 }));
+    const movies = Array.from({ length: 16 }, () => movie({ runtime: 90 }));
     expect(wizardOptions(movies, 'time', {}, { image }).skip).toBe(true);
+  });
+
+  it('stops asking once the picks would show every movie left', () => {
+    // Two real answers either way; only the number of movies left differs.
+    const movies = (count: number) =>
+      Array.from({ length: count }, (_, i) => movie({ moods: i % 2 ? { dark: 3 } : { light: 3 } }));
+    expect(wizardOptions(movies(12), 'mood', {}, { image }).skip).toBe(true);
+    expect(wizardOptions(movies(13), 'mood', {}, { image }).skip).toBe(false);
   });
 });
 

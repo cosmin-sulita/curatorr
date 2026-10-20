@@ -44,7 +44,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
     - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals), and `overviewExclude` does the same for the plot ("haunted by his past" isn't Supernatural); some themes need two signals (`threshold: 3`).
     - `tagger.fixtures.ts` holds real movies with clear-cut expected tags. Keep it passing and add a case when you fix a mis-tag.
-  - `scoring.ts`: `eligibleMovies`, `rankMovies` and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice). `rankMovies` starts from the quality score and adds:
+  - `scoring.ts`: `eligibleMovies`, `rankMovies` and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice or once the picks can show every movie left). `rankMovies` starts from the quality score and adds:
     - the theme/mood bonus, taste points (`tastePoints`) and the new-arrival bonus (`arrivalTime`: the file's `arrivedAt`, else `addedAt`);
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
@@ -161,7 +161,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - Toasts appear at the top on phones and at the bottom on desktop, and every mark or skip offers Undo.
   - On phones, "Watch on Plex" opens `https://watch.plex.tv/movie/<slug>`, because the redesigned Plex apps ignore `plex://` links (`watchLink` in `web/src/lib/format.ts`). Desktop opens Plex Web. "Watch on Jellyfin" opens Jellyfin's web app everywhere: its apps take no links.
   - Copy names the server through `serverName()`, which says "Plex" when there is none, so the demo and the README screenshots are unchanged.
-  - The wizard only offers answers matching at least 3 movies, never one matching every movie left (that's "no preference"), and auto-skips questions with no real choice. "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
+  - The wizard only offers answers matching at least 3 movies, never one matching every movie left (that's "no preference"), and auto-skips questions with no real choice. Once 12 or fewer movies are left (`MAX_RESULTS`, one list of picks) it asks nothing more, so "Start a saga" isn't offered then (decided with the maintainer). "Start a saga" is an answer to the time question. "Surprise me" goes straight to a pick, drawn from the ten best and the same all evening.
   - **Watching together:**
     - It starts from a **Watching together** button on "Who's watching?", where the device's profile starts ticked, and lasts until 4 am.
     - In the header, the group shows as stacked avatars.
