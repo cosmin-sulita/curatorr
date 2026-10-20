@@ -1,9 +1,9 @@
 import type { AppStatus, MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
+import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { FanCard } from '../components/FanCard';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
@@ -203,6 +203,11 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
   const [renewing, setRenewing] = useState<'ask' | 'busy' | null>(null);
   const address = `${window.location.origin}/api/radarr/webhook?token=${webhook.token}`;
   const called = lastCall(webhook);
+  // Once Radarr has called, the steps are done with: they fold away until asked for. A new address, which has to be
+  // pasted into Radarr again, brings them back, since Radarr hasn't called it yet.
+  const [showSteps, setShowSteps] = useState(false);
+  const folded = Boolean(called) && !showSteps;
+  const stepsId = useId();
 
   const copy = async () => {
     let copied = false;
@@ -249,14 +254,28 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
         </p>
       }
     >
-      <ol className="space-y-1 text-sm text-muted">
-        {WEBHOOK_STEPS.map((step, i) => (
-          <li key={step} className="flex gap-2">
-            <span className="w-4 shrink-0 text-faint tabular-nums">{i + 1}.</span>
-            <span>{step}</span>
-          </li>
-        ))}
-      </ol>
+      {called && (
+        <Button
+          variant="ghost"
+          className="-mt-2 -ml-4"
+          aria-expanded={!folded}
+          aria-controls={stepsId}
+          onClick={() => setShowSteps(!showSteps)}
+        >
+          How to set it up
+          <ChevronDown className={clsx('size-4 transition-transform', !folded && 'rotate-180')} aria-hidden />
+        </Button>
+      )}
+      {!folded && (
+        <ol id={stepsId} className={clsx('space-y-1 text-sm text-muted', called && 'mt-1')}>
+          {WEBHOOK_STEPS.map((step, i) => (
+            <li key={step} className="flex gap-2">
+              <span className="w-4 shrink-0 text-faint tabular-nums">{i + 1}.</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      )}
       {/* The whole address, wrapped: a phone would only show its start in a field. A tap selects it all. */}
       <p
         ref={field}
@@ -264,9 +283,11 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
       >
         {breakable(address)}
       </p>
-      <p className="mt-1.5 text-xs text-faint">
-        If Radarr reaches Curatorr at another address, keep the part from /api/radarr/webhook on.
-      </p>
+      {!folded && (
+        <p className="mt-1.5 text-xs text-faint">
+          If Radarr reaches Curatorr at another address, keep the part from /api/radarr/webhook on.
+        </p>
+      )}
       {/* Keyed, so each row gets buttons of its own instead of the others fading into them. */}
       {renewing === 'ask' ? (
         <div key="ask" className="mt-4 flex flex-wrap items-center gap-3">

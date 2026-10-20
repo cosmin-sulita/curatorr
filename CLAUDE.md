@@ -186,7 +186,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
       - The Watchlist is the one picks use: the `later` marks plus the media server's watchlist (its movies in the library), from `GET /api/hidden`, newest first. Server entries are dated by when Curatorr first saw them there (`watchlist.added_at`, migration v10), and one with no mark has `id: null`.
       - The Watchlist's Remove calls `DELETE /api/watchlist/:movieId`, as "On watchlist" does on a pick. A movie the server keeps (marks don't update it, or it couldn't be reached) stays on the page.
     - **Connections:** Radarr, Plex or Jellyfin, and Seerr are rows in one card, each with a quiet Change that opens its form in place, with Cancel.
-    - **Webhook:** Radarr's webhook is a card of its own, after Library.
+    - **Webhook:** Radarr's webhook is a card of its own, after Library. Once Radarr has called, its set-up steps fold away behind "How to set it up"; a new address brings them back.
 - **Touch targets:** keep them at 44pt or more. Toggles get their hit area from a `::before` box.
 
 ## Checking UI changes
