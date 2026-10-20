@@ -2,6 +2,26 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.3.5 (2026-10-20)
+
+- fix(profiles): keep the spinner away when choosing a profile for the first time ([3a48cfb](https://github.com/cosmin-sulita/curatorr/commit/3a48cfb))
+- fix(picks): open a Something like… pick tapped while the search is still updating ([3c209c1](https://github.com/cosmin-sulita/curatorr/commit/3c209c1))
+- docs(claude): describe how the wizard moves on ([b639338](https://github.com/cosmin-sulita/curatorr/commit/b639338))
+- fix(wizard): bring the previous question in from the left when going back ([7365c22](https://github.com/cosmin-sulita/curatorr/commit/7365c22))
+- fix(app): ignore the second tap of a double tap once the next screen is up ([af284b7](https://github.com/cosmin-sulita/curatorr/commit/af284b7))
+- fix(profiles): open the first question ready after choosing who's watching ([998d7ce](https://github.com/cosmin-sulita/curatorr/commit/998d7ce))
+- fix(picks): ease the backdrop and the other picks in instead of popping them in ([4419672](https://github.com/cosmin-sulita/curatorr/commit/4419672))
+- fix(picks): open a pick with its poster already in place ([62ca368](https://github.com/cosmin-sulita/curatorr/commit/62ca368))
+- fix(wizard): show each question with its answers, without a spinner or the bottom bar blinking in between ([b3ab2a1](https://github.com/cosmin-sulita/curatorr/commit/b3ab2a1))
+- refactor(web): share the wizard's addresses, queries and image preloading ([748092e](https://github.com/cosmin-sulita/curatorr/commit/748092e))
+- docs(eval): list the --parts, --weights and --watch reports ([81798e2](https://github.com/cosmin-sulita/curatorr/commit/81798e2))
+- fix(wizard): stop asking once a dozen movies or fewer are left ([af1018e](https://github.com/cosmin-sulita/curatorr/commit/af1018e))
+- fix(wizard): don't offer an answer that matches every movie left ([566448e](https://github.com/cosmin-sulita/curatorr/commit/566448e))
+- fix(picks): lean more on what you asked for, what just arrived and the next part of your saga ([5aff350](https://github.com/cosmin-sulita/curatorr/commit/5aff350))
+- fix(picks): favour new arrivals that someone else in the household requested ([9054928](https://github.com/cosmin-sulita/curatorr/commit/9054928))
+- chore(eval): measure what each part of the score does ([b359c0e](https://github.com/cosmin-sulita/curatorr/commit/b359c0e))
+- refactor(scoring): keep what each part of a pick's score adds ([4a645ce](https://github.com/cosmin-sulita/curatorr/commit/4a645ce))
+
 ## 1.3.4 (2026-10-16)
 
 - fix(images): show pictures straight away again, as before 1.3.3 ([9f17290](https://github.com/cosmin-sulita/curatorr/commit/9f17290))
