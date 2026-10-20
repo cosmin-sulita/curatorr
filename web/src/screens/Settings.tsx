@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { FanCard } from '../components/FanCard';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
@@ -275,21 +275,25 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
 
 /**
  * A service Curatorr connects to: its name, where it is, and a quiet button to change it (these change rarely).
- * `children` go under it: the form while it's being changed, or a notice.
+ * `children` go under it: the form while it's being changed (`editing`), or a notice. `row` names it for focus.
  */
 function Connection({
+  row,
   name,
   detail,
   action,
+  editing = false,
   children,
 }: {
+  row: string;
   name: string;
   detail: ReactNode;
   action?: ReactNode;
+  editing?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <li className="py-4 first:pt-0 last:pb-0">
+    <li data-row={row} className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="font-medium">{name}</h3>
@@ -298,10 +302,21 @@ function Connection({
         {/* Centred on the name, with the ghost button's padding hanging out, so its label ends where switches do. */}
         {action && <div className="-mt-2.5 -mr-4 shrink-0">{action}</div>}
       </div>
-      {children && <div className="mt-4">{children}</div>}
+      {children && (
+        <div
+          className="mt-4 focus:outline-none"
+          // An open form takes focus (see AdminSettings), so that Tab leads into it.
+          {...(editing ? { 'data-form': '', tabIndex: -1, role: 'group', 'aria-label': `Change ${name}` } : {})}
+        >
+          {children}
+        </div>
+      )}
     </li>
   );
 }
+
+/** The Connections row a form opens in: Plex and Jellyfin share the media server's. */
+const rowOf = (e: Editing) => (e === 'radarr' || e === 'seerr' ? e : 'server');
 
 /**
  * Disconnecting Seerr forgets its API key and the requests read from it, with nothing to undo, so it asks first,
@@ -337,6 +352,21 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
   const toast = useToast();
   const [editing, setEditing] = useState<Editing | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Opening or closing a form takes away the button that was pressed, and focus with it. Keyboard and screen reader
+  // users then carry on in the form, and on its row's button once it closes, rather than at the top of the page.
+  const wasEditing = useRef<Editing | null>(null);
+  useEffect(() => {
+    const closed = wasEditing.current;
+    wasEditing.current = editing;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const which = editing ?? closed;
+    const row = which && document.querySelector(`[data-row="${rowOf(which)}"]`);
+    if (!row) return;
+    // The row's own button comes first in it: Change, or Connect.
+    const target = row.querySelector<HTMLElement>(editing ? '[data-form]' : 'button');
+    target?.focus({ preventScroll: true });
+  }, [editing]);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['settings'] });
@@ -524,8 +554,10 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
         <Section title="Connections">
           <ul className="divide-y divide-line">
             <Connection
+              row="radarr"
               name="Radarr"
               detail={data.radarr?.url ?? 'Not connected'}
+              editing={editing === 'radarr'}
               action={editing !== 'radarr' && change('radarr', 'Radarr', data.radarr ? 'Change' : 'Connect')}
             >
               {editing === 'radarr' && (
@@ -545,8 +577,10 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             </Connection>
 
             <Connection
+              row="server"
               name={data.server ? name : 'Media server'}
               detail={serverDescription(data)}
+              editing={editing === 'plex' || editing === 'jellyfin'}
               action={
                 // Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here.
                 editing !== data.server &&
@@ -576,7 +610,9 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
             </Connection>
 
             <Connection
+              row="seerr"
               name="Seerr"
+              editing={editing === 'seerr'}
               detail={
                 seerr ? (
                   <>
