@@ -98,11 +98,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}', '**/archivo-latin-wdth-*.woff2'],
         runtimeCaching: [
           {
-            // Loaded with CORS (CROSS_ORIGIN in components/ui.tsx), so each is kept at its real size. Each movie can come
-            // in up to five sizes (PICTURE in components/ui.tsx, plus the pick's poster and backdrop): every one of a
-            // 750-movie library's would be about 270 MB, though small sizes for many movies and big ones for picks is
-            // what fills it. The name changed with CORS, since a CORS request can't use the opaque copies the old store
-            // held (main.tsx deletes it).
+            // Loaded with CORS (CROSS_ORIGIN in components/ui.tsx), so each is kept at its real size. A movie
+            // can come in up to five sizes (PICTURE in components/ui.tsx, plus the pick's poster and backdrop):
+            // every one of a 750-movie library's would be about 270 MB, though small sizes for many movies and
+            // big ones for picks is what fills it. The name changed with CORS, since a CORS request can't use
+            // the opaque copies the old store held (main.tsx deletes it).
             urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
             handler: 'CacheFirst',
             options: {

@@ -205,7 +205,10 @@ function newViewers(qc: ReturnType<typeof useQueryClient>) {
   const question = qc.fetchQuery(wizardQuery('genre', {})).then((d) => warmImages(firstPictures(d), 'high'));
   const seeds = qc
     .fetchQuery(likeSeedsQuery(''))
-    .then((s) => warmImages(s.flatMap((m) => (m.posterUrl ? [sized(m.posterUrl, PICTURE.fan)] : [])).slice(0, 3), 'high'));
+    .then((s) => {
+      const posters = s.flatMap((m) => (m.posterUrl ? [sized(m.posterUrl, PICTURE.fan)] : [])).slice(0, 3);
+      warmImages(posters, 'high');
+    });
   return Promise.all([question, seeds].map((p) => p.catch(() => {}))).then(() =>
     qc.invalidateQueries({ queryKey: ['status'] }),
   );

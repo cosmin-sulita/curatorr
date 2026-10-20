@@ -79,7 +79,10 @@ export const CROSS_ORIGIN = 'anonymous';
  */
 export const PICTURE = { fan: 'w185', tile: 'w780', grid: 'w342' } as const;
 
-/** The same TMDB picture at another width. Pictures from elsewhere (Radarr's proxy, the demo's drawings) stay as they are. */
+/**
+ * The same TMDB picture at another width. Pictures from elsewhere (Radarr's proxy, the demo's drawings) stay as they
+ * are.
+ */
 export function sized<T extends string | null | undefined>(url: T, width: string): T {
   return (url ? url.replace(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+\//, `$1${width}/`) : url) as T;
 }

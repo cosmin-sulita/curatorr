@@ -48,10 +48,27 @@ describe('compressed answers', () => {
   });
 
   it('compresses only the picking answers: never Settings, setup or sign-ins, which hold secrets', () => {
-    for (const url of ['/api/wizard/genre', '/api/wizard/theme?genre=Drama', '/api/recommendations?like=3', '/api/like?q=heat', '/api/hidden']) {
+    const picking = [
+      '/api/wizard/genre',
+      '/api/wizard/theme?genre=Drama',
+      '/api/recommendations?like=3',
+      '/api/like?q=heat',
+      '/api/hidden',
+    ];
+    for (const url of picking) {
       expect(compressible(url), url).toBe(true);
     }
-    for (const url of ['/api/settings', '/api/setup/radarr', '/api/jellyfin/login', '/api/plex/servers', '/api/status', '/api/profiles', '/api/likes', '/api/image/1/poster']) {
+    const others = [
+      '/api/settings',
+      '/api/setup/radarr',
+      '/api/jellyfin/login',
+      '/api/plex/servers',
+      '/api/status',
+      '/api/profiles',
+      '/api/likes',
+      '/api/image/1/poster',
+    ];
+    for (const url of others) {
       expect(compressible(url), url).toBe(false);
     }
   });
