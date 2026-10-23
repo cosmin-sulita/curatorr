@@ -1,11 +1,19 @@
-import { STEP_ORDER, dayStart, shelfById, type Criteria } from '@curatorr/shared';
+import { STEP_ORDER, allowedFor, dayStart, shelfById, type Criteria } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
 import { applyMark, isServerMark, revertMark, type ServerSyncResult } from '../services/mediaServer.js';
-import { likeSeeds, onWatchlistOf, optionsFor, recommendFor, similarFor, toDTO } from '../services/recommend.js';
+import {
+  likeSeeds,
+  limitsFor,
+  onWatchlistOf,
+  optionsFor,
+  recommendFor,
+  similarFor,
+  toDTO,
+} from '../services/recommend.js';
 import { requireGroup, requireProfile } from '../session.js';
-import type { ProfileRow } from '../store.js';
+import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
 const optional = z
   .string()
@@ -33,6 +41,15 @@ function markedFor(group: ProfileRow[], profileIds?: number[]): ProfileRow[] {
   const targets = wanted.flatMap((id) => group.find((r) => r.id === id) ?? []);
   if (!targets.length || targets.length < wanted.length) throw new HttpError(400, 'Mark it for someone watching');
   return targets;
+}
+
+/**
+ * Nobody marks or lists a movie their parental limits keep from them, or that their Jellyfin account can't
+ * open: it would show on their lists, and on their media server. Each person is checked alone, so a grown-up
+ * watching with a kid still marks for themselves.
+ */
+function allowedForEach(store: Store, movie: StoredMovie, rows: ProfileRow[]) {
+  if (!rows.every((row) => allowedFor(movie, limitsFor(store, [row])))) throw new HttpError(404, 'Movie not found');
 }
 
 /** "Something like…": the movie the picks should resemble. */
@@ -88,6 +105,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (!movie) throw new HttpError(404, 'Movie not found');
     const personal = body.kind === 'seen' || body.kind === 'never' || body.kind === 'later';
     const targets = personal ? markedFor(group, body.profileIds) : group;
+    allowedForEach(store, movie, targets);
     const at = Date.now();
     const ids = targets.map((row) => store.addFeedback(row.id, movie.id, body.kind, at));
     // Played on one account, so the others get it marked watched once that account shows it (together.ts).
@@ -142,8 +160,10 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const body = parse(z.object({ profileIds: z.array(z.number().int()).max(20).optional() }), req.body ?? {});
     const movie = store.movie(movieId);
     if (!movie) throw new HttpError(404, 'Movie not found');
+    const targets = markedFor(group, body.profileIds);
+    allowedForEach(store, movie, targets);
     const results = await Promise.all(
-      markedFor(group, body.profileIds).map(async (row): Promise<ServerSyncResult> => {
+      targets.map(async (row): Promise<ServerSyncResult> => {
         const { serverSynced } = store.deleteMarks(row.id, movie.id, 'later');
         const onServer = store.watchlistIds(row.id).has(movie.id);
         if (!onServer || !(serverSynced || store.get('app').syncToServer)) return 'skipped';
@@ -168,9 +188,12 @@ export const pickRoutes: RouteModule = (app, { store }) => {
       .map((w) => ({ id: null, movieId: w.movieId, kind: 'later' as const, createdAt: w.addedAt }));
     // Stable, so the server's order breaks ties. Entries saved before Curatorr dated them go last.
     const newestFirst = [...marks, ...onServer].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    // Not what the profile's limits keep from it, also when it was listed before they applied.
+    const limits = limitsFor(store, [profile]);
     return newestFirst.flatMap((h) => {
       const movie = store.movie(h.movieId);
-      return movie ? [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: toDTO(store, movie) }] : [];
+      if (!movie || !allowedFor(movie, limits)) return [];
+      return [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: toDTO(store, movie) }];
     });
   });
 };

@@ -128,6 +128,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
 
 The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `later`.
 - **Names:** `later` is the internal name for the UI's **Watchlist** button. Don't rename the kind, the DB or the API.
+- **Limits:** nobody marks or lists a movie their limits keep from them (`limitsFor` in `recommend.ts`, checked per person in `routes/picks.ts`): `POST /api/feedback` and `DELETE /api/watchlist/:movieId` answer 404 for it, and `GET /api/hidden` leaves it out.
 - **Undo:** `DELETE /api/feedback/:id` deletes the row for `shown`, `skipped` and `accepted`. For the marks (`seen`, `never`, `later`) it removes every mark of that kind for the movie and reverts the media server only if Curatorr changed it.
 - **On watchlist:** each pick carries `onWatchlistOf`, who among those picking has it on their watchlist (the media server's, or `later` marks). Once that's everyone, the Watchlist button reads "On watchlist", and tapping it calls `DELETE /api/watchlist/:movieId`, which:
   - deletes the `later` marks;

@@ -297,6 +297,73 @@ describe('API (demo data)', () => {
   });
 });
 
+describe("a profile's parental limits in its marks and lists (demo data)", () => {
+  let dir: string;
+  let app: Awaited<ReturnType<typeof buildApp>>['app'];
+  let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
+  const ids: Record<string, number> = {};
+  const cookies: Record<string, string> = {};
+
+  beforeAll(async () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-limits-'));
+    ({ app, ctx } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    for (const p of (await app.inject({ method: 'GET', url: '/api/profiles' })).json() as Profile[]) {
+      ids[p.name] = p.id;
+      const res = await app.inject({ method: 'POST', url: `/api/profiles/${p.id}/select` });
+      cookies[p.name] = String(res.headers['set-cookie']).split(';')[0]!;
+    }
+  });
+
+  afterAll(async () => {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const movieId = (title: string) => ctx.store.movies().find((m) => m.title === title)!.id;
+  const lists = async (name: string) => {
+    const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: cookies[name]! } });
+    return (res.json() as { kind: string; movie: { title: string } }[]).map((h) => `${h.kind} ${h.movie.title}`).sort();
+  };
+
+  it("won't mark a movie outside the profile's parental limits", async () => {
+    // Kids may see G and PG; The Godfather is R.
+    const godfather = movieId('The Godfather');
+    for (const kind of ['shown', 'skipped', 'seen', 'never', 'accepted', 'later']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/feedback',
+        headers: { cookie: cookies.Kids! },
+        payload: { movieId: godfather, kind },
+      });
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error).toBe('Movie not found');
+    }
+    expect(ctx.store.feedback(ids.Kids!).filter((e) => e.movieId === godfather)).toEqual([]);
+    const allowed = await app.inject({
+      method: 'POST',
+      url: '/api/feedback',
+      headers: { cookie: cookies.Kids! },
+      payload: { movieId: movieId('Finding Nemo'), kind: 'later' },
+    });
+    expect(allowed.statusCode).toBe(200);
+  });
+
+  it('leaves movies outside its limits out of its lists, and its watchlist alone', async () => {
+    // Marks and a media server watchlist from before the limit applied.
+    ctx.store.addFeedback(ids.Kids!, movieId('The Godfather'), 'never');
+    ctx.store.addFeedback(ids.Kids!, movieId('Up'), 'seen');
+    ctx.store.addToWatchlist(ids.Kids!, movieId('Alien'));
+    ctx.store.addFeedback(ids.Alex!, movieId('The Godfather'), 'never');
+    expect(await lists('Kids')).toEqual(['later Finding Nemo', 'seen Up']);
+    expect(await lists('Alex')).toEqual(['never The Godfather']);
+
+    const alien = movieId('Alien');
+    const res = await app.inject({ method: 'DELETE', url: `/api/watchlist/${alien}`, headers: { cookie: cookies.Kids! } });
+    expect(res.statusCode).toBe(404);
+    expect(ctx.store.watchlistIds(ids.Kids!).has(alien)).toBe(true);
+  });
+});
+
 describe('the web app', () => {
   let web: string;
   let dir: string;

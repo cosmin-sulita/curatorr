@@ -129,6 +129,23 @@ describe('watching together (demo data)', () => {
     ctx.store.deleteFeedback(ids.Kids!, kidsOwn);
   });
 
+  it('marks a movie for whoever in the group may see it, and never for a kid it is too old for', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Kids']));
+    const godfather = movieId('The Godfather');
+    const later = (profileIds: (number | undefined)[]) => feedback(cookie, { movieId: godfather, kind: 'later', profileIds });
+    expect((await later([ids.Alex, ids.Kids])).statusCode).toBe(404);
+    expect((await feedback(cookie, { movieId: godfather, kind: 'skipped' })).statusCode).toBe(404);
+    expect(kinds('Kids', godfather)).toEqual([]);
+
+    // Alex's own lists still work while watching with Kids: Remove, and its Undo.
+    expect((await later([ids.Alex])).statusCode).toBe(200);
+    const removed = await app.inject({ method: 'DELETE', url: `/api/watchlist/${godfather}`, headers: { cookie } });
+    expect(removed.json()).toEqual({ server: 'skipped', onWatchlistOf: [] });
+    expect((await feedback(cookie, { movieId: godfather, kind: 'later' })).statusCode).toBe(200);
+    expect(kinds('Alex', godfather)).toEqual(['later']);
+    await app.inject({ method: 'DELETE', url: `/api/watchlist/${godfather}`, headers: { cookie } });
+  });
+
   it('takes a movie off the watchlists of the people named, and only theirs', async () => {
     const cookie = cookiesOf(await together(['Alex', 'Sam']));
     const bride = movieId('The Princess Bride');

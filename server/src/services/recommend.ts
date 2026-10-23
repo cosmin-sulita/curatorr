@@ -45,6 +45,17 @@ function allowedCerts(restriction: string | null): Set<string> | null {
   return certs ? new Set(certs) : null;
 }
 
+/**
+ * What these profiles may all see, for `allowedFor`: the strictest parental limits, and with Jellyfin the movies
+ * every one of them can open. Picks get the same from `picking`.
+ */
+export function limitsFor(store: Store, rows: ProfileRow[]): Pick<ProfileContext, 'allowedCerts' | 'available'> {
+  return {
+    allowedCerts: intersection(rows.map((r) => allowedCerts(r.restriction_profile))),
+    available: intersection(rows.map((r) => store.availableMovies(r))),
+  };
+}
+
 /** Everything ranking needs to know about a profile. `npm run eval` builds it for earlier moments too. */
 export interface ProfileData {
   profileId: number;

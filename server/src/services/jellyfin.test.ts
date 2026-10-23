@@ -436,6 +436,13 @@ describe('Curatorr with Jellyfin, over the API', () => {
       expect(fake.state.marks[1]).toEqual({ route: 'UserFavoriteItems', method: 'POST', item: 'jf-matrix', user: DAD });
     });
 
+    it("won't mark a movie the person can't open in Jellyfin", async () => {
+      // Finding Nemo is rated for kids, but it's in a library the kid can't open.
+      const res = await post(app, '/api/feedback', { movieId: 6, kind: 'later' }, profiles.Kid);
+      expect(res.statusCode).toBe(404);
+      expect(fake.state.marks).toEqual([]);
+    });
+
     it('sends nothing to Jellyfin when the owner turned syncing off', async () => {
       store.update('app', { syncToServer: false });
       const seen = await mark('Dad', 6, 'seen');
