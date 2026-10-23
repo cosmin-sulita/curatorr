@@ -70,24 +70,33 @@ function usableKeywords(m: Movie): Set<string> {
   return out;
 }
 
+/** Document frequency to rarity, from each movie's usable keywords. */
+function idfOf(keywords: Set<string>[]): Map<string, number> {
+  const df = new Map<string, number>();
+  for (const set of keywords) for (const k of set) df.set(k, (df.get(k) ?? 0) + 1);
+  const n = keywords.length;
+  return new Map([...df].map(([k, count]) => [k, Math.log(1 + n / count)]));
+}
+
 /** How telling each keyword is: one shared by a handful of movies says more than one most movies have. */
 export function keywordIdf(library: Movie[]): Map<string, number> {
-  const df = new Map<string, number>();
-  for (const m of library) for (const k of usableKeywords(m)) df.set(k, (df.get(k) ?? 0) + 1);
-  const n = library.length;
-  return new Map([...df].map(([k, count]) => [k, Math.log(1 + n / count)]));
+  return idfOf(library.map(usableKeywords));
 }
 
 /** A tag only exists once it passes its threshold, so having it counts for half. */
 const tagWeight = (score: number) => 0.5 + 0.5 * tagStrength(score);
 
-export function signature(m: Movie, idf: Map<string, number>): Signature {
+function signatureOf(m: Movie, keywords: Set<string>, idf: Map<string, number>): Signature {
   const sig: Signature = new Map();
-  for (const k of usableKeywords(m)) sig.set(`k:${k}`, idf.get(k) ?? 0);
+  for (const k of keywords) sig.set(`k:${k}`, idf.get(k) ?? 0);
   for (const [id, score] of Object.entries(m.themes)) sig.set(`t:${id}`, THEME_WEIGHT * tagWeight(score));
   for (const [id, score] of Object.entries(m.moods)) sig.set(`m:${id}`, MOOD_WEIGHT * tagWeight(score));
   for (const g of m.genres) sig.set(`g:${g}`, GENRE_WEIGHT);
   return sig;
+}
+
+export function signature(m: Movie, idf: Map<string, number>): Signature {
+  return signatureOf(m, usableKeywords(m), idf);
 }
 
 export function norm(s: Signature) {
@@ -100,6 +109,13 @@ export interface IndexEntry {
   movie: Movie;
   sig: Signature;
   norm: number;
+  /** The keywords it counts, for what it shares with another movie. */
+  keywords: Set<string>;
+}
+
+function indexEntry(m: Movie, keywords: Set<string>, idf: Map<string, number>): IndexEntry {
+  const sig = signatureOf(m, keywords, idf);
+  return { movie: m, sig, norm: norm(sig), keywords };
 }
 
 /** A library's keyword rarity and every movie's signature. */
@@ -116,13 +132,9 @@ const indexes = new WeakMap<Movie[], LibraryIndex>();
 export function libraryIndex(library: Movie[]): LibraryIndex {
   let index = indexes.get(library);
   if (!index) {
-    const idf = keywordIdf(library);
-    const entries = new Map(
-      library.map((m) => {
-        const sig = signature(m, idf);
-        return [m.id, { movie: m, sig, norm: norm(sig) }] as const;
-      }),
-    );
+    const keywords = library.map(usableKeywords);
+    const idf = idfOf(keywords);
+    const entries = new Map(library.map((m, i) => [m.id, indexEntry(m, keywords[i]!, idf)] as const));
     const norms = [...entries.values()].map((e) => e.norm).filter((n) => n > 0).sort((a, b) => a - b);
     index = { idf, entries, typicalNorm: norms[Math.floor(norms.length / 2)] ?? 0 };
     indexes.set(library, index);
@@ -135,10 +147,15 @@ export function libraryIndex(library: Movie[]): LibraryIndex {
  * counts as that long: a movie TMDB knows little about isn't all about the one thing it shares.
  */
 export function similarity(a: Signature, b: Signature, minNorm = 0): number {
+  return cosine(a, norm(a), b, norm(b), minNorm);
+}
+
+/** `similarity` with both lengths known, as the library's index keeps them. */
+function cosine(a: Signature, aNorm: number, b: Signature, bNorm: number, minNorm: number): number {
   const [small, large] = a.size <= b.size ? [a, b] : [b, a];
   let dot = 0;
   for (const [feature, w] of small) dot += w * (large.get(feature) ?? 0);
-  const n = Math.max(norm(a), minNorm) * Math.max(norm(b), minNorm);
+  const n = Math.max(aNorm, minNorm) * Math.max(bNorm, minNorm);
   return n ? dot / n : 0;
 }
 
@@ -188,52 +205,64 @@ export function rankSimilar(
   opts: RankOptions,
 ): RankedMovie[] {
   const { idf, entries, typicalNorm } = libraryIndex(library);
-  const signatureOf = (m: Movie) => entries.get(m.id)?.sig ?? signature(m, idf);
-  const likedSig = signatureOf(liked);
-  const likedKeywords = usableKeywords(liked);
+  // Every movie is in its library's index; one that isn't is worked out on the spot.
+  const entryOf = (m: Movie) => entries.get(m.id) ?? indexEntry(m, usableKeywords(m), idf);
+  const likedEntry = entryOf(liked);
   const signals = profileSignals(feedback, opts);
   const sagas = opts.sagas ?? emptySagaState();
 
   const candidates = eligible.flatMap((m) => {
     if (m.id === liked.id || (liked.saga && m.saga?.id === liked.saga.id)) return [];
-    const sim = similarity(likedSig, signatureOf(m), typicalNorm);
-    return sim > 0 ? [{ m, sim }] : [];
+    const entry = entryOf(m);
+    const sim = cosine(likedEntry.sig, likedEntry.norm, entry.sig, entry.norm, typicalNorm);
+    return sim > 0 ? [{ m, entry, sim }] : [];
   });
   const best = Math.max(0, ...candidates.map((c) => c.sim));
   const strongSim = STRONG_SHARE * best;
 
-  const ranked = candidates.map(({ m, sim }): RankedMovie => {
-    const shared: Shared = {
-      themes: sharedTags(liked.themes, m.themes),
-      moods: sharedTags(liked.moods, m.moods),
-      keywords: [...usableKeywords(m)]
-        .filter((k) => likedKeywords.has(k))
-        .sort((x, y) => (idf.get(y) ?? 0) - (idf.get(x) ?? 0)),
-    };
+  // The chips are only worked out for the picks that are returned, a dozen of a library's worth.
+  type Detail = { entry: IndexEntry; adj: ReturnType<typeof personalAdjustment>; next: boolean };
+  const details = new Map<RankedMovie, Detail>();
+  const ranked = candidates.map(({ m, entry, sim }): RankedMovie => {
     const quality = qualityScore(m.ratings);
     const adj = personalAdjustment(m, signals, opts);
     let score = SIMILARITY_POINTS * (sim / best) + QUALITY_SHARE * quality + adj.delta;
-
-    const sagaReasons: Reason[] = [];
-    if (sagas.next.has(m.id) && m.saga) {
-      score += NEXT_PART_BONUS;
-      sagaReasons.push({ kind: 'saga', label: `Next in ${m.saga.title}` });
-    }
+    const next = Boolean(sagas.next.has(m.id) && m.saga);
+    if (next) score += NEXT_PART_BONUS;
 
     // A shared genre or mood alone, or one small thing in common, makes only a loose match.
-    const strong = sim >= strongSim && (shared.themes.length > 0 || shared.keywords.length >= 2);
-    return {
-      movie: m,
-      score: Math.round(score * 10) / 10,
-      quality,
-      tier: strong ? 0 : 1,
-      reasons: [
-        ...wantedReasons(adj, opts.wantedBy?.get(m.id)),
-        ...sagaReasons,
-        ...addedReasons(adj),
-        ...tagReasons(shared),
-      ],
-    };
+    const sharesTheme = Object.keys(m.themes).some((id) => (liked.themes[id] ?? 0) > 0);
+    const strong = sim >= strongSim && (sharesTheme || countShared(likedEntry.keywords, entry.keywords) >= 2);
+    const r: RankedMovie = { movie: m, score: Math.round(score * 10) / 10, quality, tier: strong ? 0 : 1, reasons: [] };
+    details.set(r, { entry, adj, next });
+    return r;
   });
-  return topRanked(ranked, opts.limit);
+
+  const top = topRanked(ranked, opts.limit);
+  for (const r of top) {
+    const { entry, adj, next } = details.get(r)!;
+    const m = r.movie;
+    const shared: Shared = {
+      themes: sharedTags(liked.themes, m.themes),
+      moods: sharedTags(liked.moods, m.moods),
+      keywords: [...entry.keywords]
+        .filter((k) => likedEntry.keywords.has(k))
+        .sort((x, y) => (idf.get(y) ?? 0) - (idf.get(x) ?? 0)),
+    };
+    const sagaReasons: Reason[] = next ? [{ kind: 'saga', label: `Next in ${m.saga!.title}` }] : [];
+    r.reasons = [
+      ...wantedReasons(adj, opts.wantedBy?.get(m.id)),
+      ...sagaReasons,
+      ...addedReasons(adj),
+      ...tagReasons(shared),
+    ];
+  }
+  return top;
+}
+
+/** How many of `b` are in `a`. */
+function countShared(a: Set<string>, b: Set<string>) {
+  let n = 0;
+  for (const k of b) if (a.has(k)) n++;
+  return n;
 }

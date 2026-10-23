@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { sagaState } from './sagas.js';
-import type { RankOptions } from './scoring.js';
-import { rankSimilar } from './similar.js';
-import type { FeedbackEvent, Movie, Ratings } from './types.js';
+import { emptySagaState, sagaState } from './sagas.js';
+import {
+  NEXT_PART_BONUS,
+  addedReasons,
+  personalAdjustment,
+  profileSignals,
+  qualityScore,
+  topRanked,
+  wantedReasons,
+  type RankOptions,
+  type RankedMovie,
+} from './scoring.js';
+import { libraryIndex, norm, rankSimilar, signature, type Signature } from './similar.js';
+import { keywordPhrases, tagMovie } from './tagger.js';
+import { TAGGED_MOVIES } from './tagger.fixtures.js';
+import { moodById, themeById, type MoodDef, type ThemeDef } from './taxonomy.js';
+import type { FeedbackEvent, Movie, Ratings, Reason } from './types.js';
 
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
@@ -201,5 +214,144 @@ describe('rankSimilar', () => {
       [close.id, 0],
       [wanted.id, 0],
     ]);
+  });
+});
+
+describe('"Something like…" over a whole library', () => {
+  /** Today's ranking, kept to prove the faster one gives the same lists: it works out every candidate's chips. */
+  function referenceRankSimilar(
+    eligible: Movie[],
+    liked: Movie,
+    library: Movie[],
+    feedback: FeedbackEvent[],
+    opts: RankOptions,
+  ) {
+    const { idf, entries, typicalNorm } = libraryIndex(library);
+    const signatureOf = (m: Movie) => entries.get(m.id)?.sig ?? signature(m, idf);
+    const usable = (m: Movie) =>
+      new Set([...signature(m, idf).keys()].filter((k) => k.startsWith('k:')).map((k) => k.slice(2)));
+    const similarityOf = (a: Signature, b: Signature) => {
+      const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+      let dot = 0;
+      for (const [feature, w] of small) dot += w * (large.get(feature) ?? 0);
+      const n = Math.max(norm(a), typicalNorm) * Math.max(norm(b), typicalNorm);
+      return n ? dot / n : 0;
+    };
+    const sharedTags = (a: Record<string, number>, b: Record<string, number>) =>
+      Object.keys(b)
+        .filter((id) => (a[id] ?? 0) > 0)
+        .sort((x, y) => Math.min(a[y]!, b[y]!) - Math.min(a[x]!, b[x]!));
+    const termsOf = (def: ThemeDef | MoodDef | undefined) =>
+      [...(def?.strong ?? []), ...(def?.weak ?? [])].map((t) => t.toLowerCase());
+    const tagReasons = (shared: { themes: string[]; moods: string[]; keywords: string[] }): Reason[] => {
+      const covered = new Set([
+        ...shared.themes.flatMap((id) => termsOf(themeById.get(id))),
+        ...shared.moods.flatMap((id) => termsOf(moodById.get(id))),
+      ]);
+      const keywords = shared.keywords.filter((k) => ![...keywordPhrases(k)].some((p) => covered.has(p)));
+      return [
+        ...shared.themes.slice(0, 2).map((id): Reason => ({ kind: 'theme', label: themeById.get(id)?.label ?? id })),
+        ...keywords.slice(0, 2).map((k): Reason => ({ kind: 'keyword', label: k[0]!.toUpperCase() + k.slice(1) })),
+        ...shared.moods.slice(0, 1).map((id): Reason => ({ kind: 'mood', label: moodById.get(id)?.label ?? id })),
+      ].slice(0, 4);
+    };
+    const likedSig = signatureOf(liked);
+    const likedKeywords = usable(liked);
+    const signals = profileSignals(feedback, opts);
+    const sagas = opts.sagas ?? emptySagaState();
+    const candidates = eligible.flatMap((m) => {
+      if (m.id === liked.id || (liked.saga && m.saga?.id === liked.saga.id)) return [];
+      const sim = similarityOf(likedSig, signatureOf(m));
+      return sim > 0 ? [{ m, sim }] : [];
+    });
+    const best = Math.max(0, ...candidates.map((c) => c.sim));
+    const ranked = candidates.map(({ m, sim }): RankedMovie => {
+      const shared = {
+        themes: sharedTags(liked.themes, m.themes),
+        moods: sharedTags(liked.moods, m.moods),
+        keywords: [...usable(m)]
+          .filter((k) => likedKeywords.has(k))
+          .sort((x, y) => (idf.get(y) ?? 0) - (idf.get(x) ?? 0)),
+      };
+      const quality = qualityScore(m.ratings);
+      const adj = personalAdjustment(m, signals, opts);
+      let score = 100 * (sim / best) + 0.3 * quality + adj.delta;
+      const sagaReasons: Reason[] = [];
+      if (sagas.next.has(m.id) && m.saga) {
+        score += NEXT_PART_BONUS;
+        sagaReasons.push({ kind: 'saga', label: `Next in ${m.saga.title}` });
+      }
+      const strong = sim >= 0.4 * best && (shared.themes.length > 0 || shared.keywords.length >= 2);
+      return {
+        movie: m,
+        score: Math.round(score * 10) / 10,
+        quality,
+        tier: strong ? 0 : 1,
+        reasons: [
+          ...wantedReasons(adj, opts.wantedBy?.get(m.id)),
+          ...sagaReasons,
+          ...addedReasons(adj),
+          ...tagReasons(shared),
+        ],
+      };
+    });
+    return topRanked(ranked, opts.limit);
+  }
+
+  const DAY = 86_400_000;
+  // The tagging fixtures as a library, with ratings, a saga, new arrivals and some history to rank by.
+  const library = TAGGED_MOVIES.map((t, i) =>
+    movie({
+      title: t.title,
+      genres: t.genres,
+      keywords: t.keywords,
+      overview: t.overview,
+      runtime: t.runtime,
+      ...tagMovie(t),
+      ratings: { rt: 40 + ((i * 37) % 60), imdb: 5 + ((i * 13) % 40) / 10 },
+      saga: i % 9 === 0 ? { id: 77, title: 'Saga', part: i / 9 + 1, parts: 8 } : null,
+      arrivedAt: i % 5 === 0 ? new Date(NOW - i * DAY).toISOString() : null,
+    }),
+  );
+  const feedback: FeedbackEvent[] = library.flatMap((m, i) =>
+    i % 7 === 0
+      ? [{ movieId: m.id, kind: 'skipped' as const, createdAt: NOW - 2 * DAY }]
+      : i % 4 === 0
+        ? [{ movieId: m.id, kind: 'shown' as const, createdAt: NOW - 5 * DAY }]
+        : [],
+  );
+  const opts = {
+    now: NOW,
+    seed: 'test',
+    watchlist: new Set([library[3]!.id, library[10]!.id]),
+    requested: new Set([library[5]!.id]),
+    sagas: sagaState(library, new Set([library[0]!.id])),
+  };
+
+  it('gives the same picks, scores, matches and chips as before, from every movie', () => {
+    for (const liked of library) {
+      for (const limit of [undefined, 1000]) {
+        const want = referenceRankSimilar(library, liked, library, feedback, { ...opts, limit });
+        expect(rankSimilar(library, liked, library, feedback, { ...opts, limit })).toEqual(want);
+      }
+    }
+  });
+
+  it("ranks from what the library's index worked out, without reading each candidate's keywords again", () => {
+    let reads = 0;
+    const counted = (keywords: string[]) =>
+      new Proxy(keywords, {
+        get(target, prop, receiver) {
+          reads++;
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+    const liked = movie({ keywords: ['heist', 'bank robbery'] });
+    const eligible = Array.from({ length: 30 }, (_, i) => movie({ keywords: counted(['heist', `clue ${i}`]) }));
+    const all = [liked, ...eligible];
+    libraryIndex(all); // worked out once per library, which the store keeps until the next sync
+    reads = 0;
+    expect(rankSimilar(eligible, liked, all, [], { now: NOW, seed: 'test' })).toHaveLength(12);
+    expect(reads).toBe(0);
   });
 });
