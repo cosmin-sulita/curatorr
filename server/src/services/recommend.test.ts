@@ -3,11 +3,19 @@ import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { tasteEvents, type Criteria } from '@curatorr/shared';
+import { tasteEvents, type Criteria, type TasteProfile } from '@curatorr/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db.js';
-import { Store, type StoredMovie } from '../store.js';
-import { ensurePlexIds, likeSeeds, profileData, recommendFor, similarFor } from './recommend.js';
+import { Store, type ProfileRow, type StoredMovie } from '../store.js';
+import {
+  ensurePlexIds,
+  likeSeeds,
+  optionsFor,
+  pickingFor,
+  profileData,
+  recommendFor,
+  similarFor,
+} from './recommend.js';
 
 let nextId = 1;
 function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
@@ -213,6 +221,87 @@ describe('looking up Plex ids for picks', () => {
     expect(Object.fromEntries(store.movies().map((m) => [m.plexRatingKey, m.plexSlug]))).toEqual({ 1: null, 2: 'two' });
     await ensurePlexIds(store, store.movies());
     expect(counter.requests).toBe(3);
+  });
+});
+
+describe('picking for a whole screen of answers', () => {
+  /** Four movies, and Alex and Sam. */
+  function home() {
+    const store = tempStore();
+    const films = Array.from({ length: 4 }, (_, i) => movie({ title: `Film ${i + 1}` }));
+    store.replaceMovies(films, Date.now());
+    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
+    // The first read of the Plex settings saves their defaults, a write of its own.
+    store.get('plex');
+    return { store, films, alex, sam };
+  }
+  // Each request reads its profiles anew.
+  const fresh = (store: Store, ...rows: ProfileRow[]) => rows.map((r) => store.profileRow(r.id)!);
+
+  it('works a group out once for all the answers of a screen, each at its own moment', () => {
+    const { store, alex } = home();
+    const now = Date.now();
+    const first = pickingFor(store, fresh(store, alex), now);
+    const again = pickingFor(store, fresh(store, alex), now + 1000);
+    expect(again.picking.eligible).toBe(first.picking.eligible);
+    expect([first.picking.opts.now, again.picking.opts.now]).toEqual([now, now + 1000]);
+  });
+
+  it('changes the very next answer after a mark, an Undo, a profile read, a setting or a sync', async () => {
+    const { store, films, alex } = home();
+    const total = () => optionsFor(store, fresh(store, alex), 'genre', {}).total;
+    expect(total()).toBe(4);
+    store.addFeedback(alex.id, films[0]!.id, 'seen');
+    expect(total()).toBe(3);
+    store.deleteMarks(alex.id, films[0]!.id, 'seen');
+    expect(total()).toBe(4);
+    store.replaceWatched(alex.id, [{ movieId: films[1]!.id, viewedAt: Date.now() - 1000 }], Date.now());
+    expect(total()).toBe(3);
+    store.update('app', { includeWatched: true });
+    expect(total()).toBe(4);
+    store.replaceMovies([...films, movie({ title: 'Film 5' })], Date.now());
+    expect(total()).toBe(5);
+    store.replaceRequests([{ profileId: alex.id, movieId: films[2]!.id, requestedAt: Date.now() }]);
+    const requested = async () => {
+      const { picks } = await recommendFor(store, fresh(store, alex), {});
+      return picks.some((p) => p.reasons.some((r) => r.kind === 'requested'));
+    };
+    expect(await requested()).toBe(true);
+    store.update('app', { boostRequests: false });
+    expect(await requested()).toBe(false);
+  });
+
+  it('keeps a group apart from its members, and from the same people in another order', () => {
+    const { store, films, alex, sam } = home();
+    store.replaceWatchlist(alex.id, [films[0]!.id]);
+    store.replaceWatchlist(sam.id, [films[0]!.id]);
+    const now = Date.now();
+    const [a, ab, ba] = [[alex], [alex, sam], [sam, alex]].map((rows) => pickingFor(store, fresh(store, ...rows), now));
+    expect(new Set([a, ab, ba].map((p) => p!.picking.eligible)).size).toBe(3);
+    // The order says whose name comes first on a chip.
+    expect(ab!.picking.opts.wantedBy?.get(films[0]!.id)?.watchlist).toEqual(['Alex', 'Sam']);
+    expect(ba!.picking.opts.wantedBy?.get(films[0]!.id)?.watchlist).toEqual(['Sam', 'Alex']);
+  });
+
+  it("counts tonight's watch in taste from the next evening, with nothing written in between", () => {
+    const { store, films, alex } = home();
+    const evening = new Date(2026, 9, 20, 21).getTime();
+    store.replaceWatched(alex.id, [{ movieId: films[0]!.id, viewedAt: evening - 60 * 60 * 1000 }], evening);
+    const confidence = (now: number) =>
+      (pickingFor(store, fresh(store, alex), now, { taste: true }).picking.opts.taste as TasteProfile).confidence;
+    expect(confidence(evening)).toBe(0);
+    // 5 am, past the 4 am turnover: one watch of the ten that make taste count for half.
+    expect(confidence(evening + 8 * 60 * 60 * 1000)).toBeCloseTo(1 / 11, 10);
+  });
+
+  it('keeps four groups at most, dropping the one asked for longest ago', () => {
+    const { store } = home();
+    const people = ['A', 'B', 'C', 'D', 'E'].map((name) => store.profileRow(store.createLocalProfile(name, false))!);
+    const now = Date.now();
+    const first = people.map((p) => pickingFor(store, fresh(store, p), now).picking.eligible);
+    expect(pickingFor(store, fresh(store, people[4]!), now).picking.eligible).toBe(first[4]);
+    expect(pickingFor(store, fresh(store, people[0]!), now).picking.eligible).not.toBe(first[0]);
   });
 });
 

@@ -212,6 +212,14 @@ export class Store {
     this.pruneFeedback();
   }
 
+  /**
+   * Moves with every row inserted, updated or deleted through this connection, Curatorr's only one, so what's worked
+   * out from the database can be kept until the next write (see `pickingFor` in services/recommend.ts).
+   */
+  version(): number {
+    return (this.db.prepare('SELECT total_changes() AS n').get() as { n: number }).n;
+  }
+
   // ---- settings -----------------------------------------------------------
 
   get<K extends keyof SettingsShape>(key: K): SettingsShape[K] {

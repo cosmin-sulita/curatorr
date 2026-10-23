@@ -1,6 +1,7 @@
 import {
   RESTRICTION_CERTS,
   allowedFor,
+  dayStart,
   eligibleMovies,
   isSurprise,
   onServer,
@@ -277,9 +278,45 @@ export async function ensurePlexIds(store: Store, movies: StoredMovie[]) {
 /** The profiles picking: one, or several watching together. */
 const groupData = (store: Store, rows: ProfileRow[]) => rows.map((row) => profileData(store, row));
 
+/** A group's data, and what ranking needs from it at a moment (see `pickingFor`). */
+export interface Prepared {
+  group: ProfileData[];
+  picking: Picking;
+}
+
+/** The groups worked out last for each store, and the database version they were read at. */
+const prepared = new WeakMap<Store, { version: number; groups: Map<string, Prepared> }>();
+/** A profile with and without taste, and a group or two. */
+const KEEP_GROUPS = 4;
+
+/**
+ * `groupData` and `picking` for these profiles at `now`, worked out once for the dozens of requests a screen's
+ * look-ahead makes, each of which would read the profiles' whole history again. All of it is dropped at the next
+ * write to the database, so a mark, an Undo, a profile read, a sync or a setting changes the very next answer.
+ * Groups are kept apart in their order, which says whose name comes first on a chip, and with `taste` by evening,
+ * which is all taste depends on. Only `opts.now` is the request's own. In a library of 3,000 movies, a profile with
+ * heavy history holds about 1 MB, three watching together 2.5 MB.
+ */
+export function pickingFor(store: Store, rows: ProfileRow[], now: number, { taste = false } = {}): Prepared {
+  const version = store.version();
+  let kept = prepared.get(store);
+  if (!kept || kept.version !== version) prepared.set(store, (kept = { version, groups: new Map() }));
+  const key = `${rows.map((r) => r.id).join(',')}|${taste ? dayStart(now) : ''}`;
+  let found = kept.groups.get(key);
+  if (found) kept.groups.delete(key);
+  else {
+    const group = groupData(store, rows);
+    found = { group, picking: picking(group, now, { taste }) };
+    if (kept.groups.size >= KEEP_GROUPS) kept.groups.delete(kept.groups.keys().next().value!);
+  }
+  // The most recent last, so the first one is the one asked for longest ago.
+  kept.groups.set(key, found);
+  return { group: found.group, picking: { ...found.picking, opts: { ...found.picking.opts, now } } };
+}
+
 export function optionsFor(store: Store, rows: ProfileRow[], step: WizardStep, criteria: Criteria): WizardOptionsResponse {
   const now = Date.now();
-  const { ctx, eligible } = picking(groupData(store, rows), now);
+  const { ctx, eligible } = pickingFor(store, rows, now).picking;
   return wizardOptions(eligible, step, criteria, {
     image: (m, kind) => (kind === 'fanart' ? (m.fanartUrl ?? m.posterUrl) : (m.posterUrl ?? m.fanartUrl)),
     sagaStarters: ctx.sagas?.starters,
@@ -303,16 +340,14 @@ async function toResponse(store: Store, group: ProfileData[], ranked: RankedMovi
 }
 
 export async function recommendFor(store: Store, rows: ProfileRow[], criteria: Criteria): Promise<RecommendationsResponse> {
-  const group = groupData(store, rows);
-  const { ctx, eligible, opts } = picking(group, Date.now(), { taste: true });
+  const { group, picking: { ctx, eligible, opts } } = pickingFor(store, rows, Date.now(), { taste: true });
   const ranked = rankMovies(eligible, criteria, ctx.feedback, opts);
   return toResponse(store, group, isSurprise(criteria) ? surpriseOrder(ranked, opts) : ranked);
 }
 
 /** "Something like…": the eligible movies that share the most with one the profile loved. */
 export async function similarFor(store: Store, rows: ProfileRow[], likedId: number): Promise<RecommendationsResponse> {
-  const group = groupData(store, rows);
-  const { ctx, eligible, opts } = picking(group, Date.now());
+  const { group, picking: { ctx, eligible, opts } } = pickingFor(store, rows, Date.now());
   const liked = store.movie(likedId);
   if (!liked || !allowedFor(liked, ctx)) throw new HttpError(404, 'Movie not found');
   const ranked = rankSimilar(eligible, liked, store.movies(), ctx.feedback, opts);
@@ -328,13 +363,13 @@ const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').to
  * library, watched first. Only movies everyone may see.
  */
 export function likeSeeds(store: Store, rows: ProfileRow[], q = ''): LikeSeed[] {
+  const { group, picking: { ctx } } = pickingFor(store, rows, Date.now());
   const watchedAt = new Map<number, number>();
   const latest = (id: number, at: number) => watchedAt.set(id, Math.max(watchedAt.get(id) ?? 0, at));
-  for (const row of rows) {
-    for (const w of store.watchHistory(row.id)) latest(w.movieId, w.viewedAt ?? 0);
-    for (const e of store.feedback(row.id)) if (e.kind === 'seen') latest(e.movieId, e.createdAt);
+  for (const d of group) {
+    for (const w of d.watched) latest(w.movieId, w.viewedAt ?? 0);
+    for (const e of d.feedback) if (e.kind === 'seen') latest(e.movieId, e.createdAt);
   }
-  const { ctx } = picking(groupData(store, rows), Date.now());
   const movies = store.movies().filter((m) => allowedFor(m, ctx));
   const toSeed = (m: StoredMovie): LikeSeed => ({
     id: m.id,
