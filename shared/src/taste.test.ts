@@ -87,6 +87,20 @@ describe('tasteProfile', () => {
     const taste = tasteProfile([night, notebook, pick], tasteEvents(watchedAt([night, notebook], 10), []), NOW);
     expect(taste.because(pick)?.title).toBe('Night of the Living Dead');
   });
+
+  it("explains a pick only with a watched movie it may name, such as one everyone picking may see", () => {
+    const dawn = movie({ title: 'Dawn of the Dead', certification: 'R', keywords: ['zombie', 'outbreak', 'survival'], themes: { zombies: 6 } });
+    const shaun = movie({ title: 'Shaun of the Dead', certification: 'PG', keywords: ['zombie', 'pub'], themes: { zombies: 3 } });
+    const pick = zombie();
+    const library = [dawn, shaun, pick];
+    const events = tasteEvents(watchedAt([dawn, shaun], 10), []);
+    expect(tasteProfile(library, events, NOW).because(pick)?.title).toBe('Dawn of the Dead');
+    const notR = (m: Movie) => m.certification !== 'R';
+    const taste = tasteProfile(library, events, NOW, notR);
+    expect(taste.because(pick)?.title).toBe('Shaun of the Dead');
+    // What it likes stays the same.
+    expect(taste.affinity(pick)).toBe(tasteProfile(library, events, NOW).affinity(pick));
+  });
 });
 
 describe('tasteEvents', () => {

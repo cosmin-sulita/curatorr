@@ -61,6 +61,19 @@ describe('watching together (demo data)', () => {
     expect(withAlex).toBeLessThan(kidsAlone);
   });
 
+  it('only says "Because … watched" about movies everyone in the group may see', async () => {
+    const cookie = cookiesOf(await together(['Alex', 'Kids']));
+    const certification = new Map(ctx.store.movies().map((m) => [m.title, m.certification]));
+    const named: string[] = [];
+    for (const genre of ['Animation', 'Adventure', 'Family', 'Comedy']) {
+      const { picks } = await get<RecommendationsResponse>(`/api/recommendations?genre=${genre}`, cookie);
+      for (const r of picks.flatMap((p) => p.reasons)) if (r.kind === 'taste') named.push(r.label.replace(/^Because \S+ watched /, ''));
+    }
+    expect(named.length).toBeGreaterThan(0);
+    // Kids may see G and PG.
+    expect(named.filter((title) => !['G', 'PG'].includes(certification.get(title)!))).toEqual([]);
+  });
+
   it("keeps the device's own profile first when it's one of them", async () => {
     const sam = cookiesOf(await select('Sam'));
     const cookie = cookiesOf(await together(['Alex', 'Sam'], sam), sam);

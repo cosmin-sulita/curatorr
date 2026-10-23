@@ -184,10 +184,15 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
       taste: !taste
         ? undefined
         : members.length > 1
-          ? members.map((m) => ({ ...tasteProfile(d.movies, tasteEvents(m.watched, m.feedback), now), name: m.name }))
-          : tasteProfile(d.movies, tasteEvents(d.watched, d.feedback), now),
+          ? members.map((m) => ({ ...tasteOf(m), name: m.name }))
+          : tasteOf(d),
     },
   };
+
+  /** A member's taste. Its "Because … watched" chip only names movies everyone picking may see. */
+  function tasteOf(m: ProfileData) {
+    return tasteProfile(d.movies, tasteEvents(m.watched, m.feedback), now, (movie) => allowedFor(movie, limits));
+  }
 }
 
 /** Whose request, and whose watchlist, each movie someone in the group wants is. */

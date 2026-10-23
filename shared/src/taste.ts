@@ -70,9 +70,15 @@ function cosine(a: IndexEntry, b: Signature, bNorm: number) {
 
 /**
  * The profile's taste at `now`, from `events` over `library` (every movie, for keyword rarity).
- * Tonight's watches only count from tomorrow, so the picks stay put all evening.
+ * Tonight's watches only count from tomorrow, so the picks stay put all evening. `because` only names
+ * watched movies `explainable` allows, such as the ones everyone picking may see.
  */
-export function tasteProfile(library: Movie[], events: TasteEvent[], now: number): TasteProfile {
+export function tasteProfile(
+  library: Movie[],
+  events: TasteEvent[],
+  now: number,
+  explainable: (m: Movie) => boolean = () => true,
+): TasteProfile {
   const index = libraryIndex(library).entries;
   const since = dayStart(now);
   const vector: Signature = new Map();
@@ -101,7 +107,7 @@ export function tasteProfile(library: Movie[], events: TasteEvent[], now: number
       let best: Movie | null = null;
       let most = 0;
       for (const w of watched) {
-        if (w.entry.movie.id === m.id) continue;
+        if (w.entry.movie.id === m.id || !explainable(w.entry.movie)) continue;
         const share = w.weight * cosine(entry, w.entry.sig, w.entry.norm);
         if (share > most) {
           most = share;
