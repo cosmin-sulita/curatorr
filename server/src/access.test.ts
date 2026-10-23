@@ -131,6 +131,29 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     }
   });
 
+  it("refuses changes another site's page sends, even with the owner's cookie", async () => {
+    const from = (site?: string) => ({ cookie: owner, ...(site ? { 'sec-fetch-site': site } : {}) });
+    const rotate = (site?: string) => app.inject({ method: 'POST', url: '/api/settings/webhook', headers: from(site), payload: {} });
+    const before = store.get('radarrWebhook').token;
+    // A sibling subdomain is the same site, so the browser sends the cookies along.
+    for (const site of ['same-site', 'cross-site']) {
+      const res = await rotate(site);
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toEqual({ error: 'Requests from other sites are refused' });
+    }
+    const seerr = await app.inject({ method: 'DELETE', url: '/api/settings/seerr', headers: from('cross-site') });
+    expect(seerr.statusCode).toBe(403);
+    expect(store.get('radarrWebhook').token).toBe(before);
+
+    expect((await rotate('same-origin')).statusCode).toBe(200);
+    expect(store.get('radarrWebhook').token).not.toBe(before);
+    // Radarr calls without the header, and reading stays open: another site can't read the answer.
+    const { token } = store.get('radarrWebhook');
+    const webhook = await app.inject({ method: 'POST', url: `/api/radarr/webhook?token=${token}`, payload: { eventType: 'Test' } });
+    expect(webhook.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: from('cross-site') })).statusCode).toBe(200);
+  });
+
   it("tells browsers not to sniff Curatorr's responses or pass on its address", async () => {
     const res = await call(app, 'GET', '/api/status');
     expect(res.headers).toMatchObject({ 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin' });

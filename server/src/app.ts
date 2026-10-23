@@ -44,6 +44,14 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
   app.addHook('onSend', async (_req, reply) => {
     reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'same-origin');
   });
+  // Another site's page mustn't change anything here with the browser's cookies, and one on a sibling subdomain
+  // gets them sent along. Browsers say where a request comes from; Radarr's webhook doesn't, and it passes.
+  // Reading stays open to anyone, since no other site can read the answers.
+  app.addHook('onRequest', async (req) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+    const site = req.headers['sec-fetch-site'];
+    if (site === 'cross-site' || site === 'same-site') throw new HttpError(403, 'Requests from other sites are refused');
+  });
   // The picking answers go compressed to browsers that accept it; nothing holding a secret does (compress.ts).
   compressAnswers(app);
 
