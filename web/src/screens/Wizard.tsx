@@ -98,7 +98,10 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
                 : 'No downloaded movies were found in Radarr yet.'}
             </p>
             {status?.library.lastError && <Notice>{status.library.lastError}</Notice>}
-            <Link to="/settings" className="inline-flex min-h-11 items-center font-semibold text-indigo-300 hover:underline">
+            <Link
+              to="/settings"
+              className="press-dim inline-flex min-h-11 items-center font-semibold text-indigo-300 transition hover:underline"
+            >
               Open settings
             </Link>
           </CenteredState>
@@ -112,7 +115,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     <Button
       variant={step === 'genre' ? 'primary' : 'secondary'}
       size="lg"
-      className={clsx(className, anyGoing && 'scale-[0.98]')}
+      className={clsx(className, anyGoing && 'scale-[0.97]')}
       loading={anyGoing && going.slow}
       onPointerDown={() => warm(anyUrl)}
       onClick={chooseAny}
@@ -242,8 +245,8 @@ function GenreTile({
       onPointerDown={onTouch}
       onClick={onClick}
       className={clsx(
-        'group relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition active:scale-[0.98]',
-        state && 'scale-[0.98]',
+        'group press relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition',
+        state && 'scale-[0.97]',
       )}
     >
       <Img
@@ -293,8 +296,8 @@ function ThemeList({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]',
-              state && 'scale-[0.99]',
+              'press-row relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised',
+              state && 'scale-[0.985]',
             )}
           >
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
@@ -324,8 +327,8 @@ function MoodGrid({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'group relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition active:scale-[0.99]',
-              state && 'scale-[0.99]',
+              'group press-row relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition',
+              state && 'scale-[0.985]',
             )}
           >
             <Img src={o.images[0]} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
@@ -358,8 +361,8 @@ function TimeList({ options, going, onChoose, onTouch }: OptionsProps) {
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
             className={clsx(
-              'relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised active:scale-[0.99]',
-              state && 'scale-[0.99]',
+              'press-row relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised',
+              state && 'scale-[0.985]',
             )}
           >
             <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">

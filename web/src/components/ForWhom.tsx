@@ -76,7 +76,7 @@ export function ForWhom({
                   onClick={() => toggle(p.id)}
                   aria-pressed={on}
                   autoFocus={i === 0}
-                  className="flex w-20 flex-col items-center gap-2 rounded-2xl p-1 text-center"
+                  className="press flex w-20 flex-col items-center gap-2 rounded-2xl p-1 text-center transition"
                 >
                   <span className="relative">
                     <Avatar

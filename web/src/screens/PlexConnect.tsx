@@ -44,7 +44,12 @@ export function PlexConnect({
         {signIn.manualUrl && (
           <Notice tone="info">
             Your browser blocked the sign-in window.{' '}
-            <a className="font-semibold underline" href={signIn.manualUrl} target="_blank" rel="noreferrer">
+            <a
+              className="press-dim font-semibold underline transition"
+              href={signIn.manualUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               Open Plex sign-in
             </a>{' '}
             and come back here when you're done.
@@ -218,7 +223,12 @@ export function OwnerSignIn() {
       {signIn.manualUrl && (
         <p className="mt-3 text-sm text-muted">
           Pop-up blocked.{' '}
-          <a className="font-semibold text-indigo-300 underline" href={signIn.manualUrl} target="_blank" rel="noreferrer">
+          <a
+            className="press-dim font-semibold text-indigo-300 underline transition"
+            href={signIn.manualUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
             Open Plex sign-in
           </a>
         </p>

@@ -61,7 +61,7 @@ export function FanCard({
   );
   const card = 'flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 ring-1 ring-line';
   return to ? (
-    <Link to={to} className={clsx(className, card, 'transition hover:bg-raised active:scale-[0.99]')}>
+    <Link to={to} className={clsx(className, card, 'press-row transition hover:bg-raised')}>
       {content}
     </Link>
   ) : (

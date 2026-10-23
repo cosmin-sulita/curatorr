@@ -37,7 +37,7 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
     <div className="min-h-dvh overflow-x-clip">
       <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-4 pt-safe pb-3 sm:px-6">
         {/* Home is a step back to the start: the first question comes in from the left. */}
-        <Link to="/" back aria-label="Curatorr home" className="flex h-11 items-center rounded-lg">
+        <Link to="/" back aria-label="Curatorr home" className="press-dim flex h-11 items-center rounded-lg transition">
           <Wordmark />
         </Link>
         <nav className="flex items-center gap-1">
@@ -47,7 +47,7 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
               <Link
                 to="/settings"
                 aria-label={release ? `Settings. Curatorr ${release.version} is out` : 'Settings'}
-                className="relative grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
+                className="press-dim relative grid size-11 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
               >
                 <Settings className="size-5" />
                 {/* Settings says which version, and how to get it. */}
@@ -58,7 +58,7 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
               {profile && (
                 <Link
                   to="/profiles"
-                  className="flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
+                  className="press-dim flex items-center gap-2 rounded-full py-1.5 pr-1 pl-3 text-sm text-muted transition hover:bg-white/5 hover:text-fg"
                   aria-label={
                     people.length > 1
                       ? `Watching together: ${listNames(names)}. Change who's watching`
@@ -105,7 +105,7 @@ function UpdateChip() {
       animate={{ opacity: 1, scale: 1 }}
       onClick={applyUpdate}
       aria-label="A new version of Curatorr is ready. Reload to update"
-      className="group grid min-h-11 place-items-center rounded-full px-1"
+      className="group press-dim grid min-h-11 place-items-center rounded-full px-1 transition"
     >
       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/15 px-3 py-1.5 text-[13px] font-semibold text-indigo-200 ring-1 ring-indigo-400/40 transition group-hover:bg-indigo-500/25">
         <RefreshCw className="size-3.5" aria-hidden />
@@ -128,7 +128,7 @@ export function BackButton({ onClick, label = 'Back' }: { onClick?: () => void; 
       type="button"
       onClick={onClick ?? back}
       aria-label={label}
-      className="grid size-11 place-items-center rounded-full bg-surface text-fg ring-1 ring-line transition hover:bg-raised active:scale-95"
+      className="press grid size-11 place-items-center rounded-full bg-surface text-fg ring-1 ring-line transition hover:bg-raised"
     >
       <ChevronLeft className="size-5" aria-hidden />
     </button>

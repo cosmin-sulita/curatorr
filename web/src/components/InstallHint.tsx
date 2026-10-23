@@ -38,7 +38,7 @@ export function InstallHint() {
             <button
               onClick={dismissInstallHint}
               aria-label="Hide this tip"
-              className="-mt-1.5 grid size-11 shrink-0 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
+              className="press-dim -mt-1.5 grid size-11 shrink-0 place-items-center rounded-full text-muted transition hover:bg-white/5 hover:text-fg"
             >
               <X className="size-5" />
             </button>

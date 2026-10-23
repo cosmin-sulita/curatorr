@@ -252,7 +252,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
                     type="button"
                     onClick={(e) => unmark(h, e)}
                     aria-label={`${list.action} ${h.movie.title}`}
-                    className="mt-auto -ml-2 inline-flex h-11 items-center gap-1.5 self-start rounded-lg px-2 text-sm font-semibold text-muted transition hover:bg-white/5 hover:text-fg"
+                    className="press-dim mt-auto -ml-2 inline-flex h-11 items-center gap-1.5 self-start rounded-lg px-2 text-sm font-semibold text-muted transition hover:bg-white/5 hover:text-fg"
                   >
                     <list.ActionIcon className="size-4" aria-hidden />
                     {list.action}

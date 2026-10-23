@@ -175,7 +175,7 @@ function ServerOption({ name, onClick, children }: { name: string; onClick: () =
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-start gap-1 rounded-2xl bg-ink/60 p-4 text-left ring-1 ring-line transition hover:bg-white/5 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      className="press flex flex-col items-start gap-1 rounded-2xl bg-ink/60 p-4 text-left ring-1 ring-line transition hover:bg-white/5 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
     >
       <span className="text-lg font-semibold">{name}</span>
       <span className="text-sm text-muted">{children}</span>

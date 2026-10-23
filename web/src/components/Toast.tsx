@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <span className="text-fg">{toast.message}</span>
               {toast.action && (
                 <button
-                  className="grid min-h-11 shrink-0 place-items-center rounded-lg px-3 font-semibold text-indigo-300 hover:bg-white/5"
+                  className="press-dim grid min-h-11 shrink-0 place-items-center rounded-lg px-3 font-semibold text-indigo-300 transition hover:bg-white/5"
                   aria-keyshortcuts={toast.action === undo ? 'Control+Z Meta+Z' : undefined}
                   onClick={() => {
                     toast.action!.run();

@@ -11,8 +11,8 @@ type Size = 'sm' | 'md' | 'lg';
 /** Button styling, shared with links that look like buttons. */
 export function buttonClass(variant: Variant = 'secondary', size: Size = 'md', className?: string) {
   return clsx(
-    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none',
-    'disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]',
+    'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition select-none press',
+    'disabled:cursor-not-allowed disabled:opacity-50',
     size === 'sm' && 'h-9 px-3 text-sm',
     size === 'md' && 'h-11 px-4 text-[15px]',
     size === 'lg' && 'h-14 px-6 text-base',
@@ -217,7 +217,8 @@ export function Notice({ tone = 'error', children }: { tone?: 'error' | 'info'; 
     <p
       role={tone === 'error' ? 'alert' : 'status'}
       className={clsx(
-        'rounded-xl px-3.5 py-2.5 text-sm',
+        // Selectable, so an error can be copied into a search or an issue.
+        'selectable rounded-xl px-3.5 py-2.5 text-sm',
         tone === 'error' ? 'bg-red-500/10 text-red-300 ring-1 ring-red-500/25' : 'bg-accent/10 text-indigo-200 ring-1 ring-accent/25',
       )}
     >

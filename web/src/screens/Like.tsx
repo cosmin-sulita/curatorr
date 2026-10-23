@@ -105,9 +105,9 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
                   <button
                     onPointerDown={() => warm(pickUrl(m.id))}
                     onClick={() => choose(m.id)}
-                    className="group w-full text-left"
+                    className={clsx('group press w-full text-left transition', state && 'scale-[0.97]')}
                   >
-                    <span className={clsx('relative block transition', state && 'scale-[0.98]')}>
+                    <span className="relative block">
                       <Img
                         src={sized(m.posterUrl, PICTURE.grid)}
                         className="aspect-[2/3] w-full rounded-xl object-cover ring-1 ring-line transition group-hover:ring-2 group-hover:ring-accent-2"

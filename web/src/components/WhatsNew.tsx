@@ -57,11 +57,15 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
   const dialog = useRef<HTMLDivElement>(null);
   useScrollLock();
   useDialogFocus(dialog);
+  // Focus goes to the dialog rather than its button: it often opens on its own as the app starts, and a focused
+  // button would wear its keyboard ring before anyone has touched the app. Tab still leads to the button.
+  useEffect(() => dialog.current?.focus({ preventScroll: true }), []);
 
   return (
     <motion.div
       ref={dialog}
-      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md"
+      tabIndex={-1}
+      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md focus:outline-none"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -123,7 +127,7 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
           ))}
         </div>
 
-        <Button variant="primary" className="mt-6 w-full shrink-0" onClick={onClose} autoFocus>
+        <Button variant="primary" className="mt-6 w-full shrink-0" onClick={onClose}>
           Got it
         </Button>
       </motion.div>

@@ -30,11 +30,33 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
+    /* A quick second tap never zooms the page. Pinching still does. */
+    touch-action: manipulation;
   }
 
   body {
     min-height: 100dvh;
     overscroll-behavior-y: none;
+  }
+
+  /*
+   * Touch screens: holding a button, a poster or a label doesn't select it or open the "Save image" or link menu, as in
+   * an iPhone app. Fields keep both, and so does text that's there to be read or copied (`selectable`).
+   */
+  @media (pointer: coarse) {
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    input,
+    textarea,
+    .selectable {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
   }
 
   :focus-visible {
@@ -57,6 +79,32 @@
 
 @utility font-narrow {
   font-stretch: 85%;
+}
+
+/*
+ * Press feedback, as on iPhone controls: down the moment a finger lands, eased back on release (the element's own
+ * `transition` times the release). `press` for buttons, tiles, posters and avatars, `press-row` for rows and cards as
+ * wide as the screen, `press-dim` for bare icons and text links.
+ */
+@utility press {
+  &:active {
+    scale: 0.97;
+    transition-duration: 0s;
+  }
+}
+
+@utility press-row {
+  &:active {
+    scale: 0.985;
+    transition-duration: 0s;
+  }
+}
+
+@utility press-dim {
+  &:active {
+    opacity: 0.5;
+    transition-duration: 0s;
+  }
 }
 
 @utility bg-accent-gradient {

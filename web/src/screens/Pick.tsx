@@ -561,7 +561,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                     </ul>
                   )}
 
-                  <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-fg/85">{m.overview}</p>
+                  <p className="selectable mt-5 max-w-[62ch] text-[15px] leading-relaxed text-fg/85">{m.overview}</p>
                 </>
               )}
             </motion.div>
@@ -586,7 +586,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                     href={`https://www.youtube.com/watch?v=${m.trailerId}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted hover:text-fg"
+                    className="press-dim mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted transition hover:text-fg"
                   >
                     <Clapperboard className="size-4" /> Watch the trailer
                   </a>
@@ -616,7 +616,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               {/* relative: the screen-reader text is absolutely positioned, and the rail only clips it inside its card. */}
               {rest.map((p) => (
                 <li key={p.movie.id} className="relative w-28 shrink-0 snap-start sm:w-36">
-                  <button onClick={() => bringForward(p)} className="group w-full text-left">
+                  <button onClick={() => bringForward(p)} className="group press w-full text-left transition">
                     <span className="relative block">
                       <Img
                         src={p.movie.posterUrl}
@@ -673,7 +673,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                   key={key}
                   onClick={run}
                   className={clsx(
-                    'flex h-14 flex-col items-center justify-center gap-1 rounded-xl text-[13px] font-medium ring-1 active:scale-[0.97]',
+                    'press flex h-14 flex-col items-center justify-center gap-1 rounded-xl text-[13px] font-medium ring-1 transition',
                     on ? 'bg-indigo-500/15 text-indigo-100 ring-indigo-400/40' : 'bg-raised/80 text-fg ring-line',
                   )}
                 >
