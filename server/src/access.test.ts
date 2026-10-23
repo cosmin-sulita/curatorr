@@ -39,6 +39,7 @@ const PROFILE_ROUTES: [Method, string][] = [
   ['POST', '/api/feedback'],
   ['DELETE', '/api/feedback/1'],
   ['GET', '/api/hidden'],
+  ['GET', '/api/image/1/poster'],
 ];
 
 /** Routes anyone who reaches Curatorr may call. */
@@ -49,7 +50,6 @@ const PUBLIC_ROUTES: [Method, string][] = [
   ['POST', '/api/profiles/logout'],
   ['POST', '/api/profiles/together'],
   ['POST', '/api/admin/logout'],
-  ['GET', '/api/image/1/poster'],
   ['GET', '/api/avatar/x'],
   ['POST', '/api/jellyfin/login'],
 ];

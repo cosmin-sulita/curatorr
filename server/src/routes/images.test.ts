@@ -11,9 +11,10 @@ import type { StoredMovie } from '../store.js';
 const covers: Record<string, { type: string; body: string }> = {
   '/MediaCover/1/poster.jpg': { type: 'image/jpeg', body: 'JPEG' },
   '/MediaCover/2/poster.jpg': { type: 'text/html', body: '<script>alert(document.domain)</script>' },
+  '/MediaCover/3/poster.jpg': { type: 'image/jpeg', body: 'R-RATED' },
 };
 
-const movie = (id: number): StoredMovie => ({
+const movie = (id: number, certification = 'PG'): StoredMovie => ({
   id,
   tmdbId: id,
   imdbId: null,
@@ -21,7 +22,7 @@ const movie = (id: number): StoredMovie => ({
   year: 2000,
   overview: '',
   runtime: 100,
-  certification: 'PG',
+  certification,
   genres: ['Action'],
   keywords: [],
   themes: {},
@@ -47,6 +48,9 @@ describe("Radarr's images, through Curatorr", () => {
   let dir = '';
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
+  /** Profiles picked on a device: one without limits, and a younger kid's. */
+  let viewer = '';
+  let kid = '';
 
   beforeAll(async () => {
     radarr = createServer((req, res) => {
@@ -59,7 +63,10 @@ describe("Radarr's images, through Curatorr", () => {
     dir = mkdtempSync(path.join(tmpdir(), 'curatorr-images-'));
     ({ app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false }));
     ctx.store.set('radarr', { url: base, apiKey: 'radarr-key' });
-    ctx.store.replaceMovies([movie(1), movie(2)], Date.now());
+    ctx.store.replaceMovies([movie(1), movie(2), movie(3, 'R')], Date.now());
+    const picked = (id: number) => `curatorr_profile=${encodeURIComponent(app.signCookie(String(id)))}`;
+    viewer = picked(ctx.store.createLocalProfile('Viewer', false));
+    kid = picked(ctx.store.createLocalProfile('Kid', false, 'little_kid'));
   });
 
   afterAll(async () => {
@@ -68,14 +75,28 @@ describe("Radarr's images, through Curatorr", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const image = (id: number) => app.inject({ method: 'GET', url: `/api/image/${id}/poster` });
+  const image = (id: number, cookie = viewer) =>
+    app.inject({ method: 'GET', url: `/api/image/${id}/poster`, headers: { cookie } });
 
-  it('passes a poster through, for the browser to keep', async () => {
+  it('passes a poster through, for this browser alone to keep', async () => {
     const res = await image(1);
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('image/jpeg');
-    expect(res.headers['cache-control']).toMatch(/max-age=\d+/);
+    expect(res.headers['cache-control']).toBe('private, max-age=604800');
     expect(res.body).toBe('JPEG');
+  });
+
+  it('only shows a picture to a profile picked on this device', async () => {
+    const res = await image(1, '');
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toMatchObject({ needProfile: true });
+  });
+
+  it("doesn't show a movie's picture to a profile its parental limits keep the movie from", async () => {
+    const res = await image(3, kid);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'No image' });
+    expect((await image(3)).body).toBe('R-RATED');
   });
 
   it('serves whatever Radarr sends as an image, so a page from it never runs on Curatorr', async () => {

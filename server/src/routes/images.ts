@@ -1,3 +1,4 @@
+import { allowedFor } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
@@ -5,6 +6,8 @@ import { HttpError, UpstreamError } from '../http.js';
 import { demoArt } from '../demo.js';
 import { JellyfinClient } from '../integrations/jellyfin.js';
 import { RadarrClient } from '../integrations/radarr.js';
+import { limitsFor } from '../services/recommend.js';
+import { requireProfile } from '../session.js';
 
 const WEEK_S = 7 * 24 * 60 * 60;
 
@@ -24,18 +27,23 @@ function unavailable(log: FastifyBaseLogger) {
 }
 
 export const imageRoutes: RouteModule = (app, { store }) => {
-  /** Proxies Radarr's MediaCover images so the API key never reaches the browser. */
+  /**
+   * Proxies Radarr's MediaCover images so the API key never reaches the browser. Only for the profile picked
+   * on this device, and only of movies it may see; so only this browser keeps them.
+   */
   app.get('/api/image/:id/:kind', async (req, reply) => {
+    const profile = requireProfile(req, store);
     const { id, kind } = parse(z.object({ id: z.coerce.number().int(), kind: z.enum(['poster', 'fanart']) }), req.params);
     const movie = store.movie(id);
     const path = kind === 'poster' ? movie?.posterPath : movie?.fanartPath;
     const radarr = store.get('radarr');
-    if (!path || !radarr) throw new HttpError(404, 'No image');
+    const allowed = movie && allowedFor(movie, limitsFor(store, [profile]));
+    if (!allowed || !path || !radarr) throw new HttpError(404, 'No image');
 
     const res = await new RadarrClient(radarr.url, radarr.apiKey).image(path).catch(unavailable(req.log));
     return reply
       .header('content-type', imageType(res))
-      .header('cache-control', `public, max-age=${WEEK_S}`)
+      .header('cache-control', `private, max-age=${WEEK_S}`)
       .send(Buffer.from(await res.arrayBuffer()));
   });
 
