@@ -107,14 +107,29 @@ function isoDate(value: string | undefined): string | null {
   return t > 0 ? new Date(t).toISOString() : null;
 }
 
-/** Maps a Radarr movie to Curatorr's shape, including derived theme/mood tags. */
-export function fromRadarr(r: RadarrMovie): StoredMovie {
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * Maps a Radarr movie to Curatorr's shape, including derived theme/mood tags. `stored` is the movie as Curatorr has it:
+ * its tags are kept while what they're worked out from is unchanged, since tagging is most of a sync's work. They're
+ * the running vocabulary's, as `retag()` brings every movie up to date at startup.
+ */
+export function fromRadarr(r: RadarrMovie, stored?: StoredMovie): StoredMovie {
   const poster = r.images?.find((i) => i.coverType === 'poster');
   const fanart = r.images?.find((i) => i.coverType === 'fanart');
   const genres = r.genres ?? [];
   const keywords = (r.keywords ?? []).map((k) => k.toLowerCase());
   const overview = r.overview ?? '';
   const runtime = r.runtime && r.runtime > 0 ? r.runtime : null;
+  const unchanged =
+    stored &&
+    stored.overview === overview &&
+    stored.runtime === runtime &&
+    sameList(stored.genres, genres) &&
+    sameList(stored.keywords, keywords);
+  const tags = unchanged
+    ? { themes: stored.themes, moods: stored.moods }
+    : tagMovie({ genres, keywords, overview, runtime });
 
   const posterProxy = poster?.url ? `/api/image/${r.id}/poster` : null;
   const fanartProxy = fanart?.url ? `/api/image/${r.id}/fanart` : null;
@@ -130,7 +145,7 @@ export function fromRadarr(r: RadarrMovie): StoredMovie {
     certification: r.certification?.trim() || null,
     genres,
     keywords,
-    ...tagMovie({ genres, keywords, overview, runtime }),
+    ...tags,
     ratings: {
       rt: rating(r.ratings?.rottenTomatoes),
       imdb: rating(r.ratings?.imdb),

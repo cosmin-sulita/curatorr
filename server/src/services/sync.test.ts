@@ -206,6 +206,22 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(store.movie(1)!.plexSlug).toBe('the-matrix');
   });
 
+  it("keeps the tags of movies that didn't change, and tags again the one that did", async () => {
+    // Tags only a change to a movie's genres, keywords, plot or runtime should redo.
+    store.updateTags([1, 2].map((id) => ({ id, themes: { kept: 4 }, moods: {} })));
+    const heat = radarrMovies[1]!;
+    const keywords = heat.keywords;
+    heat.keywords = [...keywords!, 'los angeles'];
+    try {
+      await new LibrarySync(store, silent).run();
+      expect(store.movie(1)!.themes).toEqual({ kept: 4 });
+      expect(store.movie(2)!.themes).toHaveProperty('heist');
+    } finally {
+      heat.keywords = keywords;
+      new LibrarySync(store, silent).retag();
+    }
+  });
+
   it('keeps the first arrival when an upgrade replaces the file', async () => {
     const [matrix, heat] = radarrMovies;
     heat!.movieFile = { dateAdded: '2026-06-01T08:00:00Z' }; // a better copy
@@ -306,6 +322,27 @@ describe('library sync against fake Radarr and Plex servers', () => {
     await expect(new LibrarySync(store, silent).run()).rejects.toThrow(/unauthorized/);
     expect(store.get('sync').error).toMatch(/Radarr: unauthorized/);
     expect(store.movies()).toHaveLength(3);
+  });
+});
+
+describe('tagging a movie from Radarr', () => {
+  const heat = radarrMovies[1]!;
+  const stored = { ...fromRadarr(heat), themes: { kept: 4 }, moods: { kept: 2 } };
+
+  it('reuses its stored tags while its genres, keywords, plot and runtime are as stored', () => {
+    expect(fromRadarr(heat, stored)).toMatchObject({ themes: { kept: 4 }, moods: { kept: 2 } });
+    // Radarr's capitals don't matter: keywords are kept in lowercase.
+    expect(fromRadarr({ ...heat, keywords: ['Heist', 'Bank Robbery'] }, stored).themes).toEqual({ kept: 4 });
+  });
+
+  it('tags it again once any of them changed', () => {
+    const changes: Partial<RadarrMovie>[] = [
+      { genres: ['Crime', 'Drama'] },
+      { keywords: ['heist', 'bank robbery', 'los angeles'] },
+      { overview: 'A crew plans one last job.' },
+      { runtime: 170 },
+    ];
+    for (const change of changes) expect(fromRadarr({ ...heat, ...change }, stored).themes).toHaveProperty('heist');
   });
 });
 

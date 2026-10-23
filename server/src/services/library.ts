@@ -84,7 +84,9 @@ export class LibrarySync {
     try {
       const client = new RadarrClient(radarr.url, radarr.apiKey);
       const raw = await client.movies();
-      const movies: StoredMovie[] = raw.filter((m) => m.hasFile).map(fromRadarr);
+      // Movies whose genres, keywords, plot and runtime haven't changed keep their tags: tagging is the slow part.
+      const stored = new Map(this.store.movies().map((m) => [m.id, m]));
+      const movies: StoredMovie[] = raw.filter((m) => m.hasFile).map((m) => fromRadarr(m, stored.get(m.id)));
       // Collections give each saga's full part list; without them only owned parts are counted.
       const collections = await client.collections().catch((err) => {
         this.log.warn({ err }, 'could not read Radarr collections; numbering owned parts only');
