@@ -94,6 +94,18 @@ interface SettingsShape {
   radarrWebhook: RadarrWebhookInfo;
   /** The newest release on GitHub when Curatorr last looked (services/updates.ts). */
   latestVersion: string | null;
+  /** Wrong passwords given for each Jellyfin administrator in Settings sign-in (routes/jellyfin.ts), by user id. */
+  jellyfinMisses: Record<string, JellyfinMisses>;
+}
+
+/**
+ * Settings sign-ins Curatorr counted as wrong for a Jellyfin administrator: how many, the last one's time, and
+ * when Jellyfin last saw them sign in as the count began (null when it didn't say).
+ */
+export interface JellyfinMisses {
+  count: number;
+  at: number;
+  lastLoginAt: number | null;
 }
 
 const defaults = (): SettingsShape => ({
@@ -117,6 +129,7 @@ const defaults = (): SettingsShape => ({
   seerrSync: { at: null, requests: 0, profiles: 0, error: null },
   radarrWebhook: { token: newWebhookToken(), at: null, event: null, title: null },
   latestVersion: null,
+  jellyfinMisses: {},
 });
 
 // ---------------------------------------------------------------------------

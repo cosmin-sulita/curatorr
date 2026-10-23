@@ -86,6 +86,19 @@ function fakeJellyfin() {
     signIns: 0,
     version: '12.0.1',
     usersStatus: 200,
+    /** What sign-ins answer while Jellyfin isn't answering them normally. */
+    authStatus: 200,
+    /**
+     * Jellyfin's lockout, as 12.2 does it: a user's "maximum login attempts before lockout" (-1, never, unless
+     * set), their wrong passwords since the last right one, and the users it disabled for it.
+     */
+    lockoutAfter: {} as Record<string, number>,
+    wrongPasswords: {} as Record<string, number>,
+    lockedOut: new Set<string>(),
+    /** When each user last signed in, in Jellyfin's seven-decimal dates. */
+    lastLogin: {} as Record<string, string>,
+    /** Users whose details leave out the lockout policy and the last sign-in. */
+    bare: new Set<string>(),
   };
   const reset = () => {
     state.users = [DAD_USER, KID_USER, RETIRED_USER];
@@ -95,15 +108,37 @@ function fakeJellyfin() {
     state.marks.length = 0;
     state.version = '12.0.1';
     state.usersStatus = 200;
+    state.authStatus = 200;
+    state.lockoutAfter = {};
+    state.wrongPasswords = {};
+    state.lockedOut.clear();
+    state.bare.clear();
   };
   reset();
+  /** Sign-ins get later dates even within one millisecond. */
+  let lastStamp = 0;
+  const stamp = () => {
+    lastStamp = Math.max(Date.now(), lastStamp + 1);
+    return new Date(lastStamp).toISOString().replace('Z', '0000Z');
+  };
 
-  const dto = (u: FakeUser) => ({
-    Id: u.id,
-    Name: u.name,
-    PrimaryImageTag: u.imageTag,
-    Policy: { IsAdministrator: u.admin, IsDisabled: Boolean(u.disabled), MaxParentalRating: u.maxParentalRating },
-  });
+  const dto = (u: FakeUser) => {
+    const bare = state.bare.has(u.id);
+    return {
+      Id: u.id,
+      Name: u.name,
+      PrimaryImageTag: u.imageTag,
+      ...(bare ? {} : { LastLoginDate: state.lastLogin[u.id] }),
+      Policy: {
+        IsAdministrator: u.admin,
+        IsDisabled: Boolean(u.disabled) || state.lockedOut.has(u.id),
+        MaxParentalRating: u.maxParentalRating,
+        ...(bare
+          ? {}
+          : { LoginAttemptsBeforeLockout: state.lockoutAfter[u.id] ?? -1, InvalidLoginAttemptCount: state.wrongPasswords[u.id] ?? 0 }),
+      },
+    };
+  };
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, 'http://x');
@@ -128,9 +163,22 @@ function fakeJellyfin() {
     if (url.pathname === '/System/Info/Public') return jf(200, { Id: SERVER_ID, ServerName: 'Home', Version: state.version });
     if (url.pathname === '/Users/AuthenticateByName' && req.method === 'POST') {
       state.signIns++;
+      if (state.authStatus !== 200) return jf(state.authStatus, {});
       const body = JSON.parse(await readBody(req));
-      const user = state.users.find((u) => u.name === body.Username && u.password === body.Pw && !u.disabled);
-      if (!user) return jf(401, {});
+      const named = state.users.find((u) => u.name === body.Username);
+      // A disabled account is turned down even with the right password.
+      if (named && (named.disabled || state.lockedOut.has(named.id))) return jf(403, {});
+      if (!named || named.password !== body.Pw) {
+        if (named) {
+          const wrong = (state.wrongPasswords[named.id] = (state.wrongPasswords[named.id] ?? 0) + 1);
+          const limit = state.lockoutAfter[named.id] ?? -1;
+          if (limit > 0 && wrong >= limit) state.lockedOut.add(named.id);
+        }
+        return jf(401, {});
+      }
+      const user = named;
+      state.wrongPasswords[user.id] = 0;
+      state.lastLogin[user.id] = stamp();
       for (const [token, session] of state.tokens) {
         if (session.device === field('DeviceId') && session.user === user.id) state.tokens.delete(token);
       }
@@ -492,34 +540,141 @@ describe('Curatorr with Jellyfin, over the API', () => {
     }
     expect(fake.state.signIns).toBe(signIns);
   });
-
-  it('pauses after five wrong passwords in a row, without asking Jellyfin again', async () => {
-    for (let i = 0; i < 5; i++) {
-      expect((await post(app, '/api/jellyfin/login', { username: 'Dad', password: 'wrong' })).statusCode).toBe(400);
-    }
-    const signIns = fake.state.signIns;
-    const paused = await post(app, '/api/jellyfin/login', { username: 'dad', password: 'dad-pass' });
-    expect(paused.statusCode).toBe(429);
-    expect(paused.json().error).toBe('Too many wrong passwords. Try again in 10 minutes');
-    expect(fake.state.signIns).toBe(signIns);
-  });
 });
 
-describe('wrong passwords sent all at once', () => {
+describe("Settings sign-in and Jellyfin's lockout", () => {
   afterEach(() => fake.reset());
 
-  it('counts them before Jellyfin answers, so a burst gets no further than five', async () => {
-    const { app } = await freshInstall();
+  const STOPPED = 'Too many wrong passwords for Dad. Sign in to Jellyfin itself once, then try again here.';
+  /** Curatorr connected as Dad, with everyone's profiles. */
+  const connectAsDad = async (app: App) => {
     const admin = cookiesOf(await connect(app, { url: base, username: 'Dad', password: 'dad-pass' }));
-    await post(app, '/api/setup/jellyfin/users', {}, admin);
+    expect((await post(app, '/api/setup/jellyfin/users', {}, admin)).statusCode).toBe(200);
+  };
+  const login = (app: App, password: string, username = 'Dad') => post(app, '/api/jellyfin/login', { username, password });
+  /** Dad signs in to Jellyfin itself, in one of its apps. */
+  const signInToJellyfin = async (password = 'dad-pass') =>
+    (
+      await fetch(`${base}/Users/AuthenticateByName`, {
+        method: 'POST',
+        headers: { Authorization: 'MediaBrowser Client="App", Device="Phone", DeviceId="phone", Version="1"', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Username: 'Dad', Pw: password }),
+      })
+    ).status;
+
+  it("can't lock an administrator out of Jellyfin through Curatorr", async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    fake.state.lockoutAfter[DAD] = 5;
 
     const signIns = fake.state.signIns;
-    const answers = await Promise.all(
-      Array.from({ length: 10 }, (_, i) => post(app, '/api/jellyfin/login', { username: 'Dad', password: `wrong-${i}` })),
-    );
-    expect(fake.state.signIns - signIns).toBe(5);
-    expect(answers.filter((a) => a.statusCode === 429)).toHaveLength(5);
-    expect((await post(app, '/api/jellyfin/login', { username: 'Dad', password: 'dad-pass' })).statusCode).toBe(429);
+    const answers = [];
+    for (let i = 0; i < 6; i++) answers.push(await login(app, 'wrong'));
+    expect(answers.map((a) => a.statusCode)).toEqual([400, 400, 429, 429, 429, 429]);
+    expect(answers[2]!.json().error).toBe(STOPPED);
+    expect(fake.state.signIns - signIns).toBe(2);
+    expect(fake.state.lockedOut.has(DAD)).toBe(false);
+
+    // Even the right password waits until Dad has signed in to Jellyfin itself.
+    expect((await login(app, 'dad-pass')).json().error).toBe(STOPPED);
+    expect(await signInToJellyfin()).toBe(200);
+    expect((await login(app, 'dad-pass')).statusCode).toBe(200);
+  });
+
+  it('remembers the wrong passwords after a restart', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-jellyfin-'));
+    const first = await buildApp({ configDir: dir, demo: false, logger: false });
+    await connectAsDad(first.app);
+    for (let i = 0; i < 2; i++) expect((await login(first.app, 'wrong')).statusCode).toBe(400);
+    await first.app.close();
+
+    const second = await buildApp({ configDir: dir, demo: false, logger: false });
+    cleanups.push(async () => {
+      await second.app.close();
+      rmSync(dir, { recursive: true, force: true });
+    });
+    const signIns = fake.state.signIns;
+    expect((await login(second.app, 'dad-pass')).json().error).toBe(STOPPED);
+    expect(fake.state.signIns).toBe(signIns);
+  });
+
+  it('sends no password for an account Jellyfin locks after one or two wrong ones', async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    for (const limit of [1, 2]) {
+      fake.state.lockoutAfter[DAD] = limit;
+      const signIns = fake.state.signIns;
+      expect((await login(app, 'wrong')).json().error).toBe(STOPPED);
+      expect(fake.state.signIns).toBe(signIns);
+    }
+    expect(fake.state.lockedOut.has(DAD)).toBe(false);
+  });
+
+  it('allows one wrong password for an account Jellyfin locks after three, which is what it stores for 0', async () => {
+    for (const limit of [3, 0]) {
+      const { app } = await freshInstall();
+      await connectAsDad(app);
+      fake.state.lockoutAfter[DAD] = limit;
+      expect((await login(app, 'wrong')).statusCode).toBe(400);
+      expect((await login(app, 'wrong')).json().error).toBe(STOPPED);
+    }
+  });
+
+  it('counts the wrong passwords Jellyfin saw in its own apps, when it locks accounts', async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    fake.state.lockoutAfter[DAD] = 5;
+    expect(await signInToJellyfin('typo')).toBe(401);
+    expect((await login(app, 'wrong')).statusCode).toBe(400);
+    expect((await login(app, 'wrong')).json().error).toBe(STOPPED);
+  });
+
+  it("allows two wrong passwords when Jellyfin doesn't say how it locks accounts or when Dad last signed in", async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    fake.state.bare.add(DAD);
+    expect((await login(app, 'wrong')).statusCode).toBe(400);
+    expect((await login(app, 'wrong')).statusCode).toBe(400);
+    expect((await login(app, 'wrong')).json().error).toBe(STOPPED);
+    // Without a last sign-in to go by, Curatorr can't see Dad sign in to Jellyfin.
+    expect(await signInToJellyfin()).toBe(200);
+    expect((await login(app, 'dad-pass')).json().error).toBe(STOPPED);
+  });
+
+  it("doesn't count a sign-in Jellyfin didn't answer", async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    fake.state.authStatus = 503;
+    for (let i = 0; i < 3; i++) expect((await login(app, 'wrong')).statusCode).toBe(502);
+    fake.state.authStatus = 200;
+    expect((await login(app, 'wrong')).statusCode).toBe(400);
+    expect((await login(app, 'wrong')).statusCode).toBe(400);
+    expect((await login(app, 'wrong')).statusCode).toBe(429);
+  });
+
+  it('sends no password for an account Jellyfin has disabled', async () => {
+    const mum: FakeUser = { id: '4'.repeat(32), name: 'Mum', password: 'mum-pass', admin: true, libraries: ['lib-movies'] };
+    fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, mum];
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    fake.state.lockedOut.add(mum.id);
+
+    const signIns = fake.state.signIns;
+    const res = await login(app, 'mum-pass', 'Mum');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Jellyfin has disabled Mum's account. Another administrator can turn it back on in Jellyfin.");
+    expect(fake.state.signIns).toBe(signIns);
+  });
+
+  it('counts wrong passwords sent all at once before Jellyfin answers, so a burst gets no further than two', async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+
+    const signIns = fake.state.signIns;
+    const answers = await Promise.all(Array.from({ length: 10 }, (_, i) => login(app, `wrong-${i}`)));
+    expect(fake.state.signIns - signIns).toBe(2);
+    expect(answers.filter((a) => a.statusCode === 429)).toHaveLength(8);
+    expect((await login(app, 'dad-pass')).statusCode).toBe(429);
   });
 });
 

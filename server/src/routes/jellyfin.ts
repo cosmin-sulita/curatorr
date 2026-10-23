@@ -3,13 +3,25 @@ import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { Guesses } from '../guesses.js';
 import { HttpError, normalizeBaseUrl, UpstreamError } from '../http.js';
-import { JellyfinClient, supportedJellyfin } from '../integrations/jellyfin.js';
+import { JellyfinClient, jellyfinIdKey, supportedJellyfin, type JellyfinUser } from '../integrations/jellyfin.js';
 import { importJellyfinUsers, saveJellyfinProfile } from '../services/jellyfin.js';
 import { requireAdmin, setAdminCookie } from '../session.js';
 import { toProfile } from '../store.js';
 
 const username = z.string().trim().max(256);
 const password = z.string().max(256);
+
+/** Wrong passwords Settings sign-in passes on to Jellyfin before the person has signed in to Jellyfin itself. */
+const SIGN_IN_TRIES = 2;
+
+/**
+ * How many wrong passwords in a row Settings sign-in may pass on for an account: two, but never so many that
+ * Jellyfin would disable it, with room left for wrong ones typed in Jellyfin's own apps meanwhile.
+ */
+function passwordTries(account: JellyfinUser | null): number {
+  const after = account?.lockoutAfter;
+  return after == null ? SIGN_IN_TRIES : Math.min(Math.max(after - 2, 0), SIGN_IN_TRIES);
+}
 
 export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
   // Open until someone connects Plex or Jellyfin, then admin-only (see isAdmin).
@@ -118,7 +130,44 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));
   });
 
-  /** A Jellyfin administrator signs in to manage Curatorr on this device. */
+  /**
+   * Counts a Settings sign-in as a wrong password until Jellyfin says otherwise, or turns it down when the
+   * account has had its tries. Nothing in it waits, so sign-ins sent together are counted one by one.
+   */
+  function takeTry(userId: string, name: string, account: JellyfinUser | null) {
+    const misses = store.get('jellyfinMisses');
+    let missed = misses[userId];
+    // Signing in to Jellyfin itself shows the person knows the password, so the count starts again. Jellyfin's
+    // date is compared with the one it gave when the count began, so a clock that's off can't start it again.
+    const since = missed?.lastLoginAt;
+    if (missed && account?.lastLoginAt != null && (since == null || account.lastLoginAt > since)) missed = undefined;
+    // Where Jellyfin disables accounts, wrong passwords typed in its own apps bring that closer too.
+    const count = Math.max(missed?.count ?? 0, account?.lockoutAfter != null ? account.wrongPasswords : 0);
+    if (count >= passwordTries(account)) {
+      throw new HttpError(429, `Too many wrong passwords for ${name}. Sign in to Jellyfin itself once, then try again here.`);
+    }
+    const lastLoginAt = missed ? missed.lastLoginAt : (account?.lastLoginAt ?? null);
+    store.set('jellyfinMisses', { ...misses, [userId]: { count: count + 1, at: Date.now(), lastLoginAt } });
+  }
+
+  /** The sign-in wasn't an answer about the password (Jellyfin couldn't be reached, say), so it doesn't count. */
+  function giveBackTry(userId: string) {
+    const { [userId]: missed, ...others } = store.get('jellyfinMisses');
+    if (!missed) return;
+    store.set('jellyfinMisses', missed.count > 1 ? { ...others, [userId]: { ...missed, count: missed.count - 1 } } : others);
+  }
+
+  /** The right password: the account starts afresh. */
+  function forgetTries(userId: string) {
+    const { [userId]: _, ...others } = store.get('jellyfinMisses');
+    store.set('jellyfinMisses', others);
+  }
+
+  /**
+   * A Jellyfin administrator signs in to manage Curatorr on this device. Jellyfin can disable an account after a
+   * few wrong passwords, so Curatorr passes on two in a row at most (fewer where Jellyfin disables it sooner), and
+   * then waits until the person has signed in to Jellyfin itself.
+   */
   app.post('/api/jellyfin/login', async (req, reply) => {
     const jellyfin = store.get('jellyfin');
     if (!jellyfin) throw new HttpError(409, "Curatorr isn't connected to Jellyfin");
@@ -129,10 +178,34 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     const name = body.username.toLowerCase();
     const known = store.profileRows(true).find((p) => p.jellyfin_user_id != null && p.name.toLowerCase() === name);
     if (!known?.is_admin) throw new HttpError(403, `${body.username} isn't a Jellyfin administrator`);
+    const userId = known.jellyfin_user_id!;
+
+    // How Jellyfin locks the account and when it last signed in, as Jellyfin has them now. A read that fails
+    // tells nothing, like a Jellyfin that leaves them out.
+    const account = await JellyfinClient.connected(jellyfin)
+      .users()
+      .then((users) => users.find((u) => jellyfinIdKey(u.id) === jellyfinIdKey(userId)) ?? null)
+      .catch(() => null);
+    if (account?.disabled) {
+      throw new HttpError(403, `Jellyfin has disabled ${known.name}'s account. Another administrator can turn it back on in Jellyfin.`);
+    }
+    takeTry(userId, known.name, account);
+
     // The sign-in only shows who it is. It gets a device of its own, because Jellyfin keeps one token
     // per device and user, and Curatorr's own must stay; and it ends straight away.
     const device = `${jellyfin.deviceId}-${randomUUID()}`;
-    const { token, user } = await signIn(new JellyfinClient(jellyfin.url, device), body.username, body.password);
+    let signedIn: { token: string; user: JellyfinUser };
+    try {
+      signedIn = await new JellyfinClient(jellyfin.url, device).authenticate(body.username, body.password);
+    } catch (err) {
+      if (err instanceof UpstreamError && err.status === 401) {
+        throw new HttpError(400, "Jellyfin didn't accept that username and password");
+      }
+      giveBackTry(userId);
+      throw err;
+    }
+    forgetTries(userId);
+    const { token, user } = signedIn;
     await new JellyfinClient(jellyfin.url, device, token).logout().catch(() => {});
     if (!user.admin) throw new HttpError(403, `${user.name} isn't a Jellyfin administrator`);
     // Their name and picture as Jellyfin has them now.

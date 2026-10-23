@@ -260,9 +260,26 @@ describe('toJellyfinUser', () => {
       Id: 'abcd',
       Name: 'Kid',
       PrimaryImageTag: 'tag1',
-      Policy: { IsAdministrator: false, IsDisabled: false, MaxParentalRating: 10 },
+      LastLoginDate: '2026-10-23T04:45:30.7774529Z',
+      Policy: {
+        IsAdministrator: false,
+        IsDisabled: false,
+        MaxParentalRating: 10,
+        LoginAttemptsBeforeLockout: 5,
+        InvalidLoginAttemptCount: 2,
+      },
     });
-    expect(user).toEqual({ id: 'abcd', name: 'Kid', admin: false, disabled: false, maxParentalRating: 10, imageTag: 'tag1' });
+    expect(user).toEqual({
+      id: 'abcd',
+      name: 'Kid',
+      admin: false,
+      disabled: false,
+      maxParentalRating: 10,
+      imageTag: 'tag1',
+      lastLoginAt: Date.UTC(2026, 9, 23, 4, 45, 30, 777),
+      lockoutAfter: 5,
+      wrongPasswords: 2,
+    });
   });
 
   it('reads a user without a policy or a picture as an unrestricted member', () => {
@@ -273,7 +290,15 @@ describe('toJellyfinUser', () => {
       disabled: false,
       maxParentalRating: null,
       imageTag: null,
+      lastLoginAt: null,
+      lockoutAfter: null,
+      wrongPasswords: 0,
     });
+  });
+
+  it('reads the lockout as Jellyfin 12.2 applies it: -1 never, 0 after three wrong passwords, N after N', () => {
+    const after = (setting: unknown) => toJellyfinUser({ Id: 'x', Policy: { LoginAttemptsBeforeLockout: setting } }).lockoutAfter;
+    expect([-1, 0, 1, 3, 5, null, '5'].map(after)).toEqual([null, 3, 1, 3, 5, null, null]);
   });
 });
 

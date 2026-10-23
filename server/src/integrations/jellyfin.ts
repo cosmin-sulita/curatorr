@@ -29,6 +29,21 @@ export interface JellyfinUser {
   maxParentalRating: number | null;
   /** Set when the user has a picture of their own. */
   imageTag: string | null;
+  /** When the user last signed in to Jellyfin, in any app; null when Jellyfin doesn't say. */
+  lastLoginAt: number | null;
+  /** After how many wrong passwords in a row Jellyfin disables the account; null when it never does. */
+  lockoutAfter: number | null;
+  /** Wrong passwords since the last right one, in any app, as Jellyfin counts them. */
+  wrongPasswords: number;
+}
+
+/**
+ * Jellyfin's "maximum login attempts before lockout", as Jellyfin 12.2 applies it: -1 (what it gives every
+ * user) never locks, 0 is saved as 3, and N disables the account at the N-th wrong password in a row.
+ */
+function lockoutAfter(setting: unknown): number | null {
+  if (typeof setting !== 'number' || setting < 0) return null;
+  return setting === 0 ? 3 : setting;
 }
 
 export function toJellyfinUser(u: any): JellyfinUser {
@@ -40,6 +55,9 @@ export function toJellyfinUser(u: any): JellyfinUser {
     disabled: Boolean(policy.IsDisabled),
     maxParentalRating: typeof policy.MaxParentalRating === 'number' ? policy.MaxParentalRating : null,
     imageTag: u.PrimaryImageTag || null,
+    lastLoginAt: parseDate(u.LastLoginDate),
+    lockoutAfter: lockoutAfter(policy.LoginAttemptsBeforeLockout),
+    wrongPasswords: typeof policy.InvalidLoginAttemptCount === 'number' ? policy.InvalidLoginAttemptCount : 0,
   };
 }
 
