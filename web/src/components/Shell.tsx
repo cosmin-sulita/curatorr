@@ -35,7 +35,9 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
   return (
     // Nothing may widen the page sideways: phones zoom the whole screen out to fit it.
     <div className="min-h-dvh overflow-x-clip">
-      <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-4 pt-safe pb-3 sm:px-6">
+      <header
+        className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-safe-4 pt-safe pb-3 sm:px-safe-6"
+      >
         {/* Home is a step back to the start: the first question comes in from the left. */}
         <Link to="/" back aria-label="Curatorr home" className="press-dim flex h-11 items-center rounded-lg transition">
           <Wordmark />
@@ -93,7 +95,9 @@ export function Frame({ children, bare = false }: { children: ReactNode; bare?: 
  */
 export function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <main className={clsx('relative z-10 mx-auto px-4 pb-safe sm:px-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>{children}</main>
+    <main className={clsx('relative z-10 mx-auto px-safe-4 pb-safe sm:px-safe-6', wide ? 'max-w-6xl' : 'max-w-3xl')}>
+      {children}
+    </main>
   );
 }
 
@@ -138,7 +142,7 @@ export function BackButton({ onClick, label = 'Back' }: { onClick?: () => void; 
 /** Phones only: actions pinned under the thumb, above the home indicator. Render it outside Shell. */
 export function BottomBar({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 px-4 pt-3 pb-safe backdrop-blur-xl md:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/85 px-safe-4 pt-3 pb-safe backdrop-blur-xl md:hidden">
       {children}
     </div>
   );
