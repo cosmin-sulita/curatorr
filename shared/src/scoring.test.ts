@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   eligibleMovies,
+  matchesShelf,
   pickingDay,
   qualityScore,
   rankMovies,
@@ -10,7 +11,9 @@ import {
   type ProfileContext,
 } from './scoring.js';
 import { sagaState } from './sagas.js';
-import { RESTRICTION_CERTS } from './taxonomy.js';
+import { keywordPhrases, tagMovie } from './tagger.js';
+import { TAGGED_MOVIES } from './tagger.fixtures.js';
+import { RESTRICTION_CERTS, SEASONS, type SeasonDef } from './taxonomy.js';
 import type { FeedbackEvent, Movie, Ratings } from './types.js';
 
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
@@ -678,6 +681,86 @@ describe('seasons', () => {
     const sagas = sagaState(library, new Set());
     const ranked = rankMovies(eligibleMovies(library, ctx({ sagas })), { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test', sagas });
     expect(ranked.map((r) => r.movie.id)).toEqual([horror.id]);
+  });
+
+  it('finds a holiday only as whole words of a keyword', () => {
+    const cases: [string, string, boolean][] = [
+      ['halloween party', 'halloween', true],
+      ['Halloween Party', 'halloween', true],
+      ['the night before halloween', 'halloween', true],
+      ['trick or treating', 'halloween', true],
+      ['halloweentown', 'halloween', false],
+      ['trick-or-treating', 'halloween', false],
+      ['  Christmas  ', 'christmas', true],
+      ['a christmas story', 'christmas', true],
+      ['santa claus', 'christmas', true],
+      ['santa', 'christmas', false],
+      ['christmastime', 'christmas', false],
+    ];
+    for (const [keyword, shelf, set] of cases) {
+      const m = movie({ genres: ['Comedy'], keywords: [keyword] });
+      const now = shelf === 'halloween' ? OCTOBER : DECEMBER;
+      const [ranked] = rankMovies([m], { shelf }, [], { now, seed: 'test' });
+      expect([keyword, matchesShelf(m, shelf, now), ranked?.parts?.season ?? 0]).toEqual([keyword, set, set ? 5 : 0]);
+      if (shelf === 'halloween') expect(ranked?.reasons.some((r) => r.label === 'Set on Halloween') ?? false).toBe(set);
+    }
+  });
+
+  /** The season test as it was before it kept each movie's keyword phrases, to compare the faster one with. */
+  const referenceOnHoliday = (m: Movie, season: SeasonDef) =>
+    m.keywords.some((k) => [...keywordPhrases(k)].some((p) => season.keywords.includes(p)));
+  const referenceInSeason = (m: Movie, season: SeasonDef) =>
+    referenceOnHoliday(m, season) ||
+    Boolean(season.genres?.some((g) => m.genres.includes(g))) ||
+    Boolean(season.themes?.some((t) => (m.themes[t] ?? 0) > 0));
+
+  it('tells the same movies apart as before, on the shortcut, its first-question tile and its bonus', () => {
+    const keywords = ['halloween party', 'trick or treating', 'christmas eve', 'santa claus', 'halloweentown', 'santa'];
+    const library = [
+      ...TAGGED_MOVIES.map(({ title, genres, keywords, overview, runtime }) =>
+        movie({ title, genres, keywords, overview, runtime, ...tagMovie({ genres, keywords, overview, runtime }) }),
+      ),
+      ...keywords.map((k) => movie({ genres: ['Comedy'], keywords: [k] })),
+      movie({ genres: ['Horror'], keywords: ['christmas'] }),
+      movie({ genres: ['Drama'], themes: { zombies: 2 }, keywords: ['halloween'] }),
+    ];
+    // Mid-October has Halloween's tile, mid-November none, mid-December Christmas's.
+    const months = [
+      [Date.parse('2026-10-15T20:00:00Z'), 'halloween'],
+      [Date.parse('2026-11-15T20:00:00Z'), null],
+      [DECEMBER, 'christmas'],
+    ] as const;
+    for (const [now, tile] of months) {
+      for (const season of SEASONS) {
+        const want = library.filter((m) => referenceInSeason(m, season));
+        expect(library.filter((m) => matchesShelf(m, season.id, now)).map((m) => m.id)).toEqual(want.map((m) => m.id));
+        const ranked = rankMovies(library, { shelf: season.id }, [], { now, seed: 'test', limit: 1000 });
+        expect(ranked.length).toBe(want.length);
+        for (const r of ranked) expect(r.parts!.season).toBe(referenceOnHoliday(r.movie, season) ? 5 : 0);
+      }
+      const shown = shelves(library, now).filter(([id]) => id !== 'new');
+      const season = tile ? SEASONS.find((s) => s.id === tile)! : null;
+      expect(shown).toEqual(season ? [[season.id, library.filter((m) => referenceInSeason(m, season)).length]] : []);
+    }
+  });
+
+  it("reads a movie's keywords once, however many requests ask about the season", () => {
+    let reads = 0;
+    const keywords = new Proxy(['halloween party', 'masks'], {
+      get(target, prop, receiver) {
+        reads++;
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const m = movie({ genres: ['Comedy'], keywords });
+    expect(matchesShelf(m, 'halloween', OCTOBER)).toBe(true);
+    const first = reads;
+    for (let i = 0; i < 3; i++) {
+      matchesShelf(m, 'halloween', OCTOBER);
+      rankMovies([m], { shelf: 'halloween' }, [], { now: OCTOBER, seed: 'test' });
+    }
+    expect(first).toBeGreaterThan(0);
+    expect(reads).toBe(first);
   });
 });
 

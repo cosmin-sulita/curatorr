@@ -424,16 +424,29 @@ export function seasonFor(now: number): SeasonDef | null {
   return SEASONS.find((s) => s.month === month) ?? null;
 }
 
+/**
+ * Whether each movie is set on a season's holiday, by season. The shortcut and its tile ask about every movie on each
+ * request, and splitting the keywords is the slow part. A movie's keywords never change: a sync brings new objects.
+ */
+const onHolidayBySeason = new Map<string, WeakMap<Movie, boolean>>();
+
 /** Whether one of the movie's keywords holds a holiday term, as a whole word: "halloween party" does. */
 function onHoliday(m: Movie, season: SeasonDef) {
-  return m.keywords.some((k) => [...keywordPhrases(k)].some((p) => season.keywords.includes(p)));
+  let known = onHolidayBySeason.get(season.id);
+  if (!known) onHolidayBySeason.set(season.id, (known = new WeakMap()));
+  let on = known.get(m);
+  if (on === undefined) {
+    on = m.keywords.some((k) => [...keywordPhrases(k)].some((p) => season.keywords.includes(p)));
+    known.set(m, on);
+  }
+  return on;
 }
 
 function inSeason(m: Movie, season: SeasonDef) {
   return (
-    onHoliday(m, season) ||
     Boolean(season.genres?.some((g) => m.genres.includes(g))) ||
-    Boolean(season.themes?.some((t) => (m.themes[t] ?? 0) > 0))
+    Boolean(season.themes?.some((t) => (m.themes[t] ?? 0) > 0)) ||
+    onHoliday(m, season)
   );
 }
 
