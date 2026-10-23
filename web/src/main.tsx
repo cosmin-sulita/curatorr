@@ -7,6 +7,7 @@ import { ToastProvider } from './components/Toast';
 import { ApiError, isNetworkError, isTimeout, loadFirstScreen } from './lib/api';
 import { startUpdateChecks } from './lib/appUpdate';
 import { listenForInstallPrompt } from './lib/install';
+import { refreshOnReturn } from './lib/resume';
 import './styles.css';
 
 startUpdateChecks();
@@ -43,6 +44,7 @@ const queryClient: QueryClient = new QueryClient({
 
 // The first screen loads alongside the status, so the app opens on it in one go.
 loadFirstScreen(queryClient);
+refreshOnReturn(queryClient);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

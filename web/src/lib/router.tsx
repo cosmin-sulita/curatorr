@@ -42,15 +42,18 @@ export const justArrived = (ms = 300) => performance.now() - arrivedAt < ms;
 /** Pure, so it's safe to read while rendering. */
 export const navigationDirection = () => direction;
 
-/** `back`: the move goes back to an earlier screen, like the logo going home, so it slides in as Back does. */
-export function navigate(to: string, opts: { replace?: boolean; back?: boolean } = {}) {
+/**
+ * `back`: the move goes back to an earlier screen, like the logo going home, so it slides in as Back does.
+ * `animate: false`: the screen just changes, as when the app starts over on coming back the next day.
+ */
+export function navigate(to: string, opts: { replace?: boolean; back?: boolean; animate?: boolean } = {}) {
   if (to === snapshot()) return;
   if (opts.replace) window.history.replaceState({ idx: place }, '', to);
   else {
     window.history.pushState({ idx: ++place }, '', to);
     arrivedAt = performance.now();
   }
-  direction = opts.back ? 'back' : 'forward';
+  direction = opts.animate === false ? 'none' : opts.back ? 'back' : 'forward';
   window.dispatchEvent(new Event(NAV_EVENT));
   window.scrollTo({ top: 0 });
 }
