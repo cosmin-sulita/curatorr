@@ -126,6 +126,15 @@ describe('API (demo data)', () => {
     expect(again.indexOf(saved)).toBeLessThan(again.length - 1);
   });
 
+  it("lists the profile's movies with what its lists show of each: the title, year and poster", async () => {
+    const listed = (await get<{ kind: string; movie: { id: number } }[]>('/api/hidden')).body;
+    expect(listed.map((h) => h.kind)).toContain('later');
+    for (const { movie } of listed) {
+      const m = ctx.store.movie(movie.id)!;
+      expect(movie).toEqual({ id: m.id, title: m.title, year: m.year, posterUrl: m.posterUrl });
+    }
+  });
+
   it('takes a movie off the watchlist, and its pick no longer says it is on there', async () => {
     const me = (await get<AppStatus>('/api/status')).body.profile!.id;
     const drama = async () => (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks;

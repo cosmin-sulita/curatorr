@@ -11,8 +11,8 @@ import type {
   Criteria,
   FeedbackKind,
   LikeSeed,
+  ListedMovie,
   MediaServer,
-  MovieDTO,
   Profile,
   RecommendationsResponse,
   WizardOptionsResponse,
@@ -247,8 +247,8 @@ export function removeFromWatchlist(movieId: number, profileIds?: number[]) {
  * watchlist has no mark, so no `id`; its `createdAt` is when Curatorr first saw it there, if it knows.
  */
 export type HiddenMovie =
-  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: MovieDTO }
-  | { id: null; kind: 'later'; createdAt: number | null; movie: MovieDTO };
+  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: ListedMovie }
+  | { id: null; kind: 'later'; createdAt: number | null; movie: ListedMovie };
 
 export function useHidden() {
   return useQuery({ queryKey: ['hidden'], queryFn: () => api<HiddenMovie[]>('/api/hidden') });

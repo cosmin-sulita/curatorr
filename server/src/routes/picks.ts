@@ -1,4 +1,4 @@
-import { STEP_ORDER, allowedFor, dayStart, shelfById, type Criteria } from '@curatorr/shared';
+import { STEP_ORDER, allowedFor, dayStart, shelfById, type Criteria, type ListedMovie } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
@@ -10,7 +10,6 @@ import {
   optionsFor,
   recommendFor,
   similarFor,
-  toDTO,
 } from '../services/recommend.js';
 import { requireGroup, requireProfile } from '../session.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
@@ -193,7 +192,9 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     return newestFirst.flatMap((h) => {
       const movie = store.movie(h.movieId);
       if (!movie || !allowedFor(movie, limits)) return [];
-      return [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: toDTO(store, movie) }];
+      // Only what the lists show: a long watchlist is hundreds of movies.
+      const listed: ListedMovie = { id: movie.id, title: movie.title, year: movie.year, posterUrl: movie.posterUrl };
+      return [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: listed }];
     });
   });
 };

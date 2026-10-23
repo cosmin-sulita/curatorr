@@ -178,6 +178,14 @@ export interface MovieDTO {
   tmdbId: number | null;
 }
 
+/** A movie on one of the profile's lists in Settings, with all they show of it. */
+export interface ListedMovie {
+  id: number;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+}
+
 export interface AppStatus {
   version: string;
   /** A newer release on GitHub. Only admins are told, since they're the ones who can update. */
