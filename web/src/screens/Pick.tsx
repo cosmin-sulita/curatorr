@@ -13,10 +13,12 @@ import clsx from 'clsx';
 import {
   Ban,
   BookmarkCheck,
+  BookmarkMinus,
   BookmarkPlus,
   ChevronLeft,
   Clapperboard,
   Eye,
+  Heart,
   Inbox,
   Play,
   RotateCcw,
@@ -28,6 +30,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'r
 import { PosterShuffle } from '../components/PosterShuffle';
 import { RatingBadges } from '../components/Ratings';
 import { ForWhom, type ForWhomKind } from '../components/ForWhom';
+import { PosterMenu, type MenuAction } from '../components/PosterMenu';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import {
@@ -51,9 +54,10 @@ import {
   type ServerSyncResult,
 } from '../lib/api';
 import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
-import { justArrived, navigate } from '../lib/router';
+import { useLongPress } from '../lib/longPress';
+import { justArrived, navigate, withQuery } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
-import { criteriaFrom } from '../lib/wizard';
+import { criteriaFrom, useAdvance } from '../lib/wizard';
 
 type Decline = 'skipped' | 'later' | 'seen' | 'never';
 
@@ -168,7 +172,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   // Watching together: Seen it, Watchlist and Never first ask who they're for, and so does taking a movie off.
   const people = status?.profile ? [status.profile, ...status.together] : [];
   const together = people.length > 1;
-  const [asking, setAsking] = useState<ForWhomKind | null>(null);
+  const [asking, setAsking] = useState<{ kind: ForWhomKind; pick: Pick } | null>(null);
+  // A poster from "Other good picks" held down, and where it is on screen.
+  const [menu, setMenu] = useState<{ pick: Pick; anchor: DOMRect } | null>(null);
+  const chosen = useRef<MenuAction | null>(null);
+  const hold = useLongPress();
+  const { go } = useAdvance();
 
   // Picks loaded before the screen opened show on its first frame.
   const [queue, setQueue] = useState<Pick[] | null>(() => data?.picks ?? null);
@@ -223,19 +232,22 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   }, [queue, shuffle, shuffling]);
 
   // The actions ignore the second tap of a double tap that opened this screen (the bar sits where answers were).
-  const decline = (kind: Decline, profileIds?: number[]) => {
-    if (!current || justArrived()) return;
+  // `target`: a pick from "Other good picks", marked from its poster's menu; otherwise the pick on screen.
+  const decline = (kind: Decline, profileIds?: number[], target?: Pick) => {
+    const pick = target ?? current;
+    if (!pick || justArrived()) return;
     if (together && kind !== 'skipped' && !profileIds) {
-      setAsking(kind);
+      setAsking({ kind, pick });
       return;
     }
-    const pick = current;
     const who = profileIds?.flatMap((id) => people.find((p) => p.id === id)?.name ?? []);
     vibrate();
-    setQueue((q) => q?.slice(1) ?? null);
+    // Undo puts it back where it was.
+    const at = Math.max(0, queue?.findIndex((p) => p.movie.id === pick.movie.id) ?? 0);
+    setQueue((q) => q?.filter((p) => p.movie.id !== pick.movie.id) ?? null);
     const putBack = () => {
-      restored.current = true;
-      setQueue((q) => [pick, ...(q ?? [])]);
+      if (at === 0) restored.current = true;
+      setQueue((q) => (q ? [...q.slice(0, at), pick, ...q.slice(at)] : [pick]));
     };
     // A skip only demotes the movie; the other marks change what the questions can offer
     // (and Seen it adds to "Something like…"'s recently watched), and so does undoing them.
@@ -272,13 +284,13 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   };
 
   // Takes the pick off the watchlist (watching together, off the watchlists the sheet names). It stays on screen.
-  const unwatchlist = (profileIds?: number[]) => {
-    if (!current || justArrived()) return;
+  const unwatchlist = (profileIds?: number[], target?: Pick) => {
+    const pick = target ?? current;
+    if (!pick || justArrived()) return;
     if (together && !profileIds) {
-      setAsking('unwatchlist');
+      setAsking({ kind: 'unwatchlist', pick });
       return;
     }
-    const pick = current;
     const targets = profileIds ?? people.map((p) => p.id);
     const names = (ids: number[]) => people.filter((p) => ids.includes(p.id)).map((p) => p.name);
     const show = (p: Pick) => setQueue((q) => q && q.map((x) => (x.movie.id === p.movie.id ? p : x)));
@@ -416,13 +428,30 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
 
   // Once the pick is on everyone's watchlist, the Watchlist button says so, and takes it off. Watching together,
   // taking it off offers those who have it, and adding those who don't.
-  const listed = people.length > 0 && people.every((p) => current.onWatchlistOf.includes(p.id));
+  const listedFor = (p: Pick) => people.length > 0 && people.every((x) => p.onWatchlistOf.includes(x.id));
+  const listed = listedFor(current);
   const sheetPeople =
-    asking === 'later'
-      ? people.filter((p) => !current.onWatchlistOf.includes(p.id))
-      : asking === 'unwatchlist'
-        ? people.filter((p) => current.onWatchlistOf.includes(p.id))
+    asking?.kind === 'later'
+      ? people.filter((p) => !asking.pick.onWatchlistOf.includes(p.id))
+      : asking?.kind === 'unwatchlist'
+        ? people.filter((p) => asking.pick.onWatchlistOf.includes(p.id))
         : people;
+  const openMenu = (pick: Pick, el: HTMLElement) =>
+    setMenu({ pick, anchor: (el.querySelector('img') ?? el).getBoundingClientRect() });
+  // What holding a poster from "Other good picks" offers: the pick's own marks, and its likeness.
+  const menuFor = (p: Pick): MenuAction[] => [
+    listedFor(p)
+      ? { key: 'later', label: 'Take off watchlist', Icon: BookmarkMinus, run: () => unwatchlist(undefined, p) }
+      : { key: 'later', label: 'Watchlist', Icon: BookmarkPlus, run: () => decline('later', undefined, p) },
+    { key: 'seen', label: 'Seen it', Icon: Eye, run: () => decline('seen', undefined, p) },
+    {
+      key: 'like',
+      label: 'Something like this',
+      Icon: Heart,
+      run: () => go(`like:${p.movie.id}`, withQuery('/pick', { like: String(p.movie.id) })),
+    },
+    { key: 'never', label: 'Never', Icon: Ban, run: () => decline('never', undefined, p), danger: true },
+  ];
   // The Watchlist button keeps its key when it flips, so it keeps keyboard focus.
   const actions: { key: string; label: string; Icon: LucideIcon; run: () => void; on?: boolean }[] = [
     { key: 'skipped', label: 'Not tonight', Icon: SkipForward, run: () => decline('skipped') },
@@ -616,7 +645,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               {/* relative: the screen-reader text is absolutely positioned, and the rail only clips it inside its card. */}
               {rest.map((p) => (
                 <li key={p.movie.id} className="relative w-28 shrink-0 snap-start sm:w-36">
-                  <button onClick={() => bringForward(p)} className="group press w-full text-left transition">
+                  <button
+                    // Held down, it opens a menu of its own (PosterMenu).
+                    {...hold((el) => openMenu(p, el))}
+                    onClick={() => bringForward(p)}
+                    className="group press w-full text-left transition"
+                  >
                     <span className="relative block">
                       <Img
                         src={p.movie.posterUrl}
@@ -690,15 +724,37 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       <AnimatePresence>
         {asking && (
           <ForWhom
-            key={asking}
-            kind={asking}
+            key={asking.kind}
+            kind={asking.kind}
             people={sheetPeople}
             onCancel={() => setAsking(null)}
             onDone={(profileIds) => {
               setAsking(null);
-              if (asking === 'unwatchlist') unwatchlist(profileIds);
-              else decline(asking, profileIds);
+              if (asking.kind === 'unwatchlist') unwatchlist(profileIds, asking.pick);
+              else decline(asking.kind, profileIds, asking.pick);
             }}
+          />
+        )}
+      </AnimatePresence>
+      {/* The chosen action runs once the menu has gone. */}
+      <AnimatePresence
+        onExitComplete={() => {
+          const action = chosen.current;
+          chosen.current = null;
+          if (action) requestAnimationFrame(action.run);
+        }}
+      >
+        {menu && (
+          <PosterMenu
+            anchor={menu.anchor}
+            src={menu.pick.movie.posterUrl}
+            title={menu.pick.movie.title}
+            actions={menuFor(menu.pick)}
+            onChoose={(action) => {
+              chosen.current = action;
+              setMenu(null);
+            }}
+            onClose={() => setMenu(null)}
           />
         )}
       </AnimatePresence>

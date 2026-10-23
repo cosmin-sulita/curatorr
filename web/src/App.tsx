@@ -125,7 +125,8 @@ function screenFor(path: string, search: URLSearchParams, s: AppStatus): { scree
   if (!s.setupComplete) return { screen: <SetupScreen />, bare: true };
   if (path === '/settings') return { screen: <SettingsScreen /> };
   if (!s.profile || path === '/profiles') return { screen: <ProfilesScreen />, bare: true };
-  if (path === '/pick') return { screen: <PickScreen search={search} /> };
+  // Each set of picks gets a screen of its own, so "Something like this" from a pick's poster starts afresh.
+  if (path === '/pick') return { screen: <PickScreen key={search.toString()} search={search} /> };
   if (path === '/like') return { screen: <LikeScreen search={search} /> };
   // The profile's lists, opened from Settings.
   const list = /^\/settings\/([a-z]+)$/.exec(path)?.[1];
