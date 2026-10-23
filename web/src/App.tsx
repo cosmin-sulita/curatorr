@@ -19,8 +19,9 @@ export function App() {
   const { path, search } = useLocation();
   const status = useStatus();
   const opening = useOpening(path, status.data);
+  const offline = useOffline(status);
 
-  if (status.isLoading || opening) return <Launch />;
+  if ((status.isLoading && !offline) || opening) return <Launch />;
 
   // Only when nothing has loaded yet. A later check that fails (say, coming back to the app while
   // Wi-Fi reconnects) leaves the screen as it is, and its own requests say what went wrong.
@@ -31,7 +32,10 @@ export function App() {
           <CenteredState title="Can't reach Curatorr">
             {/* A server error adds something; a network error would only repeat the title. */}
             {status.error && !isNetworkError(status.error) && <Notice>{errorMessage(status.error)}</Notice>}
-            <p className="text-muted">Check that the Curatorr container is running and your device is on the right network.</p>
+            <p className="text-muted">
+              Check that the Curatorr container is running and your device is on the right network. Curatorr keeps
+              trying, and opens as soon as it answers.
+            </p>
             <Button onClick={() => status.refetch()} loading={status.isFetching}>
               Try again
             </Button>
@@ -48,6 +52,31 @@ export function App() {
       <WhatsNew setupComplete={status.data.setupComplete} />
     </>
   );
+}
+
+/** While Curatorr can't be reached, the app tries again this often, as well as on coming back to the foreground. */
+const RETRY_OFFLINE_MS = 10_000;
+
+/**
+ * True once the status has failed with nothing loaded: Curatorr can't be reached, away from home say. The screen that
+ * says so stays up while the app keeps trying, instead of each try bringing back the launch screen, and the app opens
+ * once Curatorr answers. Coming back to the foreground or onto a network tries at once (the status query does that).
+ */
+function useOffline(status: ReturnType<typeof useStatus>) {
+  const [offline, setOffline] = useState(false);
+  const { data, isError, refetch } = status;
+  useEffect(() => {
+    if (data) setOffline(false);
+    else if (isError) setOffline(true);
+  }, [data, isError]);
+  useEffect(() => {
+    if (!offline) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void refetch({ cancelRefetch: false });
+    }, RETRY_OFFLINE_MS);
+    return () => clearInterval(timer);
+  }, [offline, refetch]);
+  return offline;
 }
 
 /** What shows while the app opens. The spinner only comes after a moment: a quick launch shows the wordmark alone. */

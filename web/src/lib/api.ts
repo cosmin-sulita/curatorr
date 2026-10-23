@@ -31,21 +31,49 @@ export class ApiError extends Error {
   }
 }
 
-/** True when the server could not be reached at all (offline, container down). */
-export const isNetworkError = (err: unknown) => err instanceof TypeError;
+/** Curatorr didn't answer in time, like an address that leads nowhere from the network the phone is on. */
+export const isTimeout = (err: unknown) => err instanceof DOMException && err.name === 'TimeoutError';
 
+/** True when the server could not be reached at all (offline, container down), or didn't answer in time. */
+export const isNetworkError = (err: unknown) => err instanceof TypeError || isTimeout(err);
+
+/**
+ * How long a read waits for an answer. Away from home, Curatorr's address can lead nowhere, and a request would wait
+ * for minutes. Changes wait as long as they take, since they may already have been made.
+ */
+const READ_TIMEOUT_MS = 15_000;
+
+/** `timeout`: how long to wait for an answer, in ms; null waits as long as it takes. Reads default to READ_TIMEOUT_MS. */
 export async function api<T>(
   path: string,
-  init: { method?: string; json?: unknown; keepalive?: boolean } = {},
+  init: { method?: string; json?: unknown; keepalive?: boolean; timeout?: number | null } = {},
 ): Promise<T> {
-  const res = await fetch(path, {
-    method: init.method ?? (init.json !== undefined ? 'POST' : 'GET'),
-    credentials: 'same-origin',
-    headers: init.json !== undefined ? { 'content-type': 'application/json' } : undefined,
-    body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
-    keepalive: init.keepalive,
-  });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const method = init.method ?? (init.json !== undefined ? 'POST' : 'GET');
+  const timeout = init.timeout === undefined ? (method === 'GET' ? READ_TIMEOUT_MS : null) : init.timeout;
+  const signal = timeout ? AbortSignal.timeout(timeout) : undefined;
+  // Some browsers report the timeout as a plain abort: say what happened the same way everywhere.
+  const timedOut = () => new DOMException("Curatorr didn't answer in time", 'TimeoutError');
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers: init.json !== undefined ? { 'content-type': 'application/json' } : undefined,
+      body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
+      keepalive: init.keepalive,
+      signal,
+    });
+  } catch (err) {
+    throw signal?.aborted ? timedOut() : err;
+  }
+  let data: Record<string, unknown>;
+  try {
+    data = (await res.json()) as Record<string, unknown>;
+  } catch {
+    // An answer cut off by the timeout isn't an empty one.
+    if (signal?.aborted) throw timedOut();
+    data = {};
+  }
   if (!res.ok) throw new ApiError(res.status, String(data.error ?? res.statusText), data);
   return data as T;
 }
@@ -56,6 +84,12 @@ export const errorMessage = (err: unknown) =>
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
+
+/**
+ * The launch screen waits this long for the status before saying Curatorr can't be reached. It's quick to answer at
+ * home, so a longer wait means the phone is somewhere the address doesn't lead.
+ */
+const STATUS_TIMEOUT_MS = 6_000;
 
 /** Whether this device had a profile when the app last asked: what the next launch loads first (loadFirstScreen). */
 const HAD_PROFILE = 'curatorr:hadProfile';
@@ -72,7 +106,7 @@ export function useStatus() {
   return useQuery({
     queryKey: ['status'],
     queryFn: async () => {
-      const status = await api<AppStatus>('/api/status');
+      const status = await api<AppStatus>('/api/status', { timeout: STATUS_TIMEOUT_MS });
       rememberProfile(status);
       return status;
     },

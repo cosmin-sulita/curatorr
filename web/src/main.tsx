@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ToastProvider } from './components/Toast';
-import { ApiError, isNetworkError, loadFirstScreen } from './lib/api';
+import { ApiError, isNetworkError, isTimeout, loadFirstScreen } from './lib/api';
 import { startUpdateChecks } from './lib/appUpdate';
 import { listenForInstallPrompt } from './lib/install';
 import './styles.css';
@@ -23,9 +23,10 @@ try {
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: {
     // Curatorr lives on the home network, so "browser offline" says nothing about whether it's reachable: always try.
+    // A request that went unanswered isn't asked again at once: it would only make the wait longer.
     queries: {
       networkMode: 'always',
-      retry: (count, err) => isNetworkError(err) && count < 2,
+      retry: (count, err) => isNetworkError(err) && !isTimeout(err) && count < 2,
       refetchOnWindowFocus: false,
     },
     mutations: { networkMode: 'always' },

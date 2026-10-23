@@ -94,7 +94,8 @@ function ServerPicker({
 }) {
   const servers = useQuery({
     queryKey: ['plex-servers'],
-    queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers'),
+    // Trying each of the servers' addresses takes a while.
+    queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers', { timeout: 60_000 }),
     staleTime: 0,
   });
   const [choice, setChoice] = useState<{ machineId: string; url: string; name: string } | null>(null);
