@@ -262,7 +262,31 @@ export function Notice({ tone = 'error', children }: { tone?: 'error' | 'info'; 
   );
 }
 
+/**
+ * Safari (on iPhones too) draws `<input type="checkbox" switch>` as the system's own switch, which ticks under the
+ * finger on an iPhone. Other browsers would show a checkbox, so they get the switch drawn here.
+ */
+const nativeSwitch = 'switch' in HTMLInputElement.prototype;
+
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  if (nativeSwitch) {
+    return (
+      // The label is the tap area, 64×44 around the switch whatever size the browser draws it; its negative margins
+      // keep the row laid out as with the drawn switch.
+      <label className="-mx-2 -my-2 grid min-h-11 min-w-16 shrink-0 place-items-center">
+        <input
+          type="checkbox"
+          // React doesn't know the attribute yet.
+          ref={(el) => el?.setAttribute('switch', '')}
+          role="switch"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          aria-label={label}
+          className="relative accent-accent"
+        />
+      </label>
+    );
+  }
   return (
     <button
       type="button"
