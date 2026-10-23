@@ -36,7 +36,15 @@
 
   body {
     min-height: 100dvh;
+    /* Android's pull past the top reloads the app. */
     overscroll-behavior-y: none;
+  }
+
+  /* iPhones bounce at the ends of the page, as their apps do: only iOS's WebKit knows -webkit-touch-callout. */
+  @supports (-webkit-touch-callout: none) {
+    body {
+      overscroll-behavior-y: auto;
+    }
   }
 
   /*
