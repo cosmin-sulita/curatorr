@@ -659,6 +659,29 @@ describe("Settings sign-in and Jellyfin's lockout", () => {
     expect((await login(app, 'wrong')).statusCode).toBe(429);
   });
 
+  it("doesn't tell visitors where Jellyfin is when it can't be reached", async () => {
+    const { app, ctx } = await freshInstall();
+    await connectAsDad(app);
+    ctx.store.set('jellyfin', { ...ctx.store.get('jellyfin')!, url: 'http://127.0.0.1:59999' });
+    const res = await login(app, 'dad-pass');
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toEqual({ error: "Couldn't reach Jellyfin. Try again in a moment." });
+    expect(res.body).not.toContain('127.0.0.1');
+  });
+
+  it("says Jellyfin turned the sign-in down when it won't let the account in", async () => {
+    const { app } = await freshInstall();
+    await connectAsDad(app);
+    // Curatorr can't read the account first, so it only learns from the sign-in itself.
+    fake.state.usersStatus = 503;
+    fake.state.lockedOut.add(DAD);
+    const res = await login(app, 'dad-pass');
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe(
+      "Jellyfin turned down Dad's sign-in. If it disabled the account, another administrator can turn it back on in Jellyfin.",
+    );
+  });
+
   it('sends no password for an account Jellyfin has disabled', async () => {
     const mum: FakeUser = { id: '4'.repeat(32), name: 'Mum', password: 'mum-pass', admin: true, libraries: ['lib-movies'] };
     fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, mum];

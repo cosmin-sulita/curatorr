@@ -202,7 +202,17 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
         throw new HttpError(400, "Jellyfin didn't accept that username and password");
       }
       giveBackTry(userId);
-      throw err;
+      if (!(err instanceof UpstreamError)) throw err;
+      // Anyone can try this, so the answer doesn't say where Jellyfin is; the log does.
+      req.log.warn({ err: err.message }, 'Jellyfin sign-in failed');
+      if (err.status === 403) {
+        throw new HttpError(
+          403,
+          `Jellyfin turned down ${known.name}'s sign-in. ` +
+            'If it disabled the account, another administrator can turn it back on in Jellyfin.',
+        );
+      }
+      throw new HttpError(502, "Couldn't reach Jellyfin. Try again in a moment.");
     }
     forgetTries(userId);
     const { token, user } = signedIn;
