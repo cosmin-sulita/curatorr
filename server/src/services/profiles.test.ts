@@ -150,6 +150,7 @@ describe('Plex Home profiles', () => {
     }
     return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
   };
+  const signedInAsOwner = (app: App) => `curatorr_admin=${encodeURIComponent(app.signCookie(`${OWNER}.${Date.now()}`))}`;
 
   it('imports the owner and the Home users, linking the ones without a PIN', async () => {
     const { store } = await plexInstance();
@@ -435,6 +436,25 @@ describe('Plex Home profiles', () => {
       expect((await select(app, member, { cookie: tablet })).statusCode).toBe(200);
       tablet = jar(await select(app, kid, { cookie: tablet }), tablet);
       expect((await select(app, member, { cookie: tablet })).json()).toMatchObject({ needPin: true });
+    });
+
+    it('signs out every other device, which asks for PINs again, and keeps this one signed in', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const member = idOf(store, 'Member');
+      const settings = (cookie: string) => app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } });
+      // Signed in to settings, and with the member's PIN entered, on two devices.
+      const phone = jar(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
+      const tablet = jar(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
+      expect((await settings(tablet)).statusCode).toBe(200);
+
+      const out = await app.inject({ method: 'POST', url: '/api/settings/sign-out-everywhere', headers: { cookie: phone }, payload: {} });
+      expect(out.statusCode).toBe(200);
+      expect((await settings(tablet)).json()).toMatchObject({ needAdmin: true });
+      expect((await select(app, member, { cookie: tablet })).json()).toMatchObject({ needPin: true });
+      const phoneNow = jar(out, phone);
+      expect((await settings(phoneNow)).statusCode).toBe(200);
+      expect((await select(app, member, { cookie: phoneNow })).statusCode).toBe(200);
     });
 
     it("doesn't count PINs that plex.tv couldn't check", async () => {

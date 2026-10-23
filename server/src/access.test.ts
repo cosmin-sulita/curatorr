@@ -16,6 +16,7 @@ const ADMIN_ROUTES: [Method, string][] = [
   ['DELETE', '/api/settings/seerr'],
   ['POST', '/api/sync'],
   ['POST', '/api/settings/webhook'],
+  ['POST', '/api/settings/sign-out-everywhere'],
   ['PATCH', '/api/profiles/1'],
   ['POST', '/api/setup/radarr/test'],
   ['POST', '/api/setup/radarr'],

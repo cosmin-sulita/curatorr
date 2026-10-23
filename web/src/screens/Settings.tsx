@@ -1,7 +1,7 @@
 import type { AppStatus, MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
+import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, MonitorSmartphone, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { FanCard } from '../components/FanCard';
@@ -384,6 +384,38 @@ function DisconnectSeerr({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
+/**
+ * Signing out every other device can't be undone (each one signs in, and enters its PINs, again), so it asks first,
+ * like disconnecting Seerr.
+ */
+function SignOutEverywhere({ onConfirm }: { onConfirm: () => void }) {
+  const [asking, setAsking] = useState(false);
+  return asking ? (
+    <div key="ask" className="flex flex-wrap items-center justify-center gap-3 px-4 pb-2 text-center">
+      <p className="w-full text-sm">
+        Every other phone and browser has to sign in to settings again, and enter the PINs it had. This one stays as it
+        is.
+      </p>
+      <Button
+        variant="danger"
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      >
+        Sign out other devices
+      </Button>
+      <Button variant="ghost" onClick={() => setAsking(false)} autoFocus>
+        Cancel
+      </Button>
+    </div>
+  ) : (
+    <Button key="start" variant="ghost" className="w-full" onClick={() => setAsking(true)}>
+      <MonitorSmartphone className="size-4" /> Sign out all other devices
+    </Button>
+  );
+}
+
 /** Which connection is being changed. One at a time. */
 type Editing = 'radarr' | 'seerr' | MediaServer;
 
@@ -749,13 +781,20 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
       </Section>
 
       {!demo && (data.plex.ownerName || data.jellyfin) && (
-        <Button
-          variant="ghost"
-          className="w-full"
-          onClick={() => run(() => api('/api/admin/logout', { json: {} }).then(() => qc.invalidateQueries()))}
-        >
-          <LogOut className="size-4" /> Sign out of settings on this device
-        </Button>
+        <>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => run(() => api('/api/admin/logout', { json: {} }).then(() => qc.invalidateQueries()))}
+          >
+            <LogOut className="size-4" /> Sign out of settings on this device
+          </Button>
+          <SignOutEverywhere
+            onConfirm={() =>
+              run(() => api('/api/settings/sign-out-everywhere', { json: {} }), 'Signed out all other devices')
+            }
+          />
+        </>
       )}
     </>
   );

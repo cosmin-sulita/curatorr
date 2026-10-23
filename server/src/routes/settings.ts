@@ -3,7 +3,15 @@ import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
 import { SeerrClient } from '../integrations/seerr.js';
 import { syncRequests } from '../services/requests.js';
-import { clearAdminCookie, requireAdmin } from '../session.js';
+import {
+  adminId,
+  clearAdminCookie,
+  newSessionEpoch,
+  requireAdmin,
+  setAdminCookie,
+  setUnlocks,
+  unlocksHere,
+} from '../session.js';
 import { toProfile } from '../store.js';
 
 export const settingsRoutes: RouteModule = (app, { store, library }) => {
@@ -90,6 +98,21 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
 
   app.post('/api/admin/logout', async (_req, reply) => {
     clearAdminCookie(reply);
+    return { ok: true };
+  });
+
+  /**
+   * Signs every other device out of settings, and makes them ask for the PINs entered on them again: for a PIN or a
+   * sign-in that got out. This device stays as it was.
+   */
+  app.post('/api/settings/sign-out-everywhere', async (req, reply) => {
+    requireAdmin(req, store);
+    // Read before the change, to carry them over to this device's new cookies.
+    const account = adminId(req, store);
+    const unlocks = unlocksHere(req, store);
+    store.set('sessionEpoch', newSessionEpoch());
+    if (account) setAdminCookie(reply, store, account);
+    setUnlocks(req, reply, store, unlocks);
     return { ok: true };
   });
 };
