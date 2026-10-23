@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, Img, Notice, PICTURE, sized, Spinner } from '../components/ui';
+import { Button, Img, Notice, PICTURE, plainField, sized, Spinner } from '../components/ui';
 import {
   errorMessage,
   removeFromWatchlist,
@@ -210,6 +210,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
               aria-label="Search this list"
               enterKeyHint="search"
               autoComplete="off"
+              {...plainField}
               className="h-12 w-full rounded-xl bg-surface pr-3.5 pl-11 text-base text-fg ring-1 ring-line placeholder:text-faint focus:ring-2 focus:ring-accent focus:outline-none"
             />
           </form>

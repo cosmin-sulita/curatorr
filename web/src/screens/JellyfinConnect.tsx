@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { Button, Field, inputClass, Notice } from '../components/ui';
+import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, urlField } from '../components/ui';
 import { api, errorMessage, type ServerLibrary, type SettingsResponse } from '../lib/api';
 import { LibraryPicker, UserImport } from './MediaServer';
 
@@ -82,8 +82,9 @@ function ConnectForm({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="http://192.168.1.10:8096"
-          inputMode="url"
-          autoComplete="off"
+          {...urlField}
+          enterKeyHint="next"
+          onKeyDown={nextFieldOnEnter}
           required
         />
       </Field>
@@ -92,9 +93,10 @@ function ConnectForm({
           className={inputClass}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          {...plainField}
           autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
+          enterKeyHint="next"
+          onKeyDown={nextFieldOnEnter}
           required={!keepsSignIn}
         />
       </Field>
@@ -106,6 +108,7 @@ function ConnectForm({
           onChange={(e) => setPassword(e.target.value)}
           placeholder={keepsSignIn ? 'Signed in. Leave empty to stay signed in' : undefined}
           autoComplete="current-password"
+          enterKeyHint="go"
           required={!keepsSignIn}
         />
       </Field>
@@ -118,8 +121,8 @@ function ConnectForm({
           value={publicUrl}
           onChange={(e) => setPublicUrl(e.target.value)}
           placeholder="https://"
-          inputMode="url"
-          autoComplete="off"
+          {...urlField}
+          enterKeyHint="go"
         />
       </Field>
       {error && <Notice>{error}</Notice>}
@@ -159,9 +162,10 @@ export function JellyfinSignIn() {
           className={inputClass}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          {...plainField}
           autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
+          enterKeyHint="next"
+          onKeyDown={nextFieldOnEnter}
           required
         />
       </Field>
@@ -172,6 +176,7 @@ export function JellyfinSignIn() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
+          enterKeyHint="go"
           required
         />
       </Field>

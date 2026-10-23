@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
+import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, Spinner, urlField } from '../components/ui';
 import { api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
@@ -283,8 +283,9 @@ export function ServiceForm({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder={config.urlPlaceholder}
-            inputMode="url"
-            autoComplete="off"
+            {...urlField}
+            enterKeyHint="next"
+            onKeyDown={nextFieldOnEnter}
             required
           />
         </Field>
@@ -294,8 +295,9 @@ export function ServiceForm({
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={keepsKey ? 'Saved. Leave empty to keep it' : config.keyPlaceholder}
+            {...plainField}
             autoComplete="off"
-            spellCheck={false}
+            enterKeyHint="go"
             required={!keepsKey}
           />
         </Field>

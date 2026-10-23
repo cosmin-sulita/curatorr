@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { Button, Img, Notice, Pending, PICTURE, sized, Spinner } from '../components/ui';
+import { Button, Img, Notice, Pending, PICTURE, plainField, sized, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
@@ -64,6 +64,8 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
             aria-label="Search your library"
             enterKeyHint="search"
             autoComplete="off"
+            // Titles are names: no correcting them into other words.
+            {...plainField}
             className="h-12 w-full rounded-xl bg-surface pr-3.5 pl-11 text-base text-fg ring-1 ring-line placeholder:text-faint focus:ring-2 focus:ring-accent focus:outline-none"
           />
         </form>

@@ -2,7 +2,14 @@ import type { BlobatarOptions } from 'blobatar';
 import { blobatarUri } from 'blobatar/uri';
 import clsx from 'clsx';
 import { LoaderCircle } from 'lucide-react';
-import { useEffect, useState, type ButtonHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  type ButtonHTMLAttributes,
+  type ImgHTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 /** `selected`: a toggle that's on, like the Watchlist button on a pick that's already on the watchlist. */
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'selected';
@@ -206,6 +213,34 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
       {hint && <span className="mt-1.5 block text-xs text-faint">{hint}</span>}
     </label>
   );
+}
+
+/** A field for an address: the keyboard with "/" and ".", typed as is, with no capital or correction. */
+export const urlField = {
+  inputMode: 'url',
+  autoCapitalize: 'none',
+  autoCorrect: 'off',
+  spellCheck: false,
+  autoComplete: 'off',
+} as const;
+
+/** A field for a key, a name or a search: typed as is, with no capital or correction. */
+export const plainField = { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const;
+
+/**
+ * Return in a form's field goes on to the next field, as the keyboard's Next key (`enterKeyHint="next"`) says it will.
+ * A field without it submits the form, so the last one's key says Go.
+ */
+export function nextFieldOnEnter(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+  const fields = [...(e.currentTarget.form?.elements ?? [])].filter(
+    (el): el is HTMLInputElement =>
+      el instanceof HTMLInputElement && !el.disabled && !['hidden', 'radio', 'checkbox'].includes(el.type),
+  );
+  const next = fields[fields.indexOf(e.currentTarget) + 1];
+  if (!next) return;
+  e.preventDefault();
+  next.focus();
 }
 
 /** 16px text: iOS zooms the page in on a field with smaller text. */

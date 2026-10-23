@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useState } from 'react';
-import { Button, Field, inputClass, Notice, Spinner } from '../components/ui';
+import { Button, Field, inputClass, Notice, Spinner, urlField } from '../components/ui';
 import { api, errorMessage, type PlexServerOption, type ServerLibrary } from '../lib/api';
 import { usePlexSignIn } from '../lib/plexAuth';
 import { LibraryPicker, UserImport } from './MediaServer';
@@ -193,7 +193,16 @@ function ServerPicker({
         </fieldset>
       ))}
       <Field label="Or enter an address" hint="For example http://192.168.1.10:32400 when Plex runs on the same NAS.">
-        <input className={inputClass} value={manual} onChange={(e) => setManual(e.target.value)} placeholder="http://" />
+        <input
+          className={inputClass}
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          placeholder="http://"
+          {...urlField}
+          // Not a form: Done only puts the keyboard away, to show the button under the field.
+          enterKeyHint="done"
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        />
       </Field>
       {error && <Notice>{error}</Notice>}
       <Button variant="primary" size="lg" onClick={save} loading={saving} disabled={!selected}>
