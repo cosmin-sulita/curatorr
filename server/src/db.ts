@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -156,7 +156,17 @@ const migrations: string[] = [
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {
   mkdirSync(configDir, { recursive: true });
-  const db = new DatabaseSync(path.join(configDir, fileName));
+  const file = path.join(configDir, fileName);
+  const db = new DatabaseSync(file);
+  // It holds the media server's tokens and the API keys, so only Curatorr's user may read it, also outside
+  // Docker (where the entrypoint sees to it). SQLite gives the -wal and -shm files it makes the database's mode.
+  for (const f of [file, `${file}-wal`, `${file}-shm`]) {
+    try {
+      if (existsSync(f)) chmodSync(f, 0o600);
+    } catch {
+      // A folder that can't change modes, like some network shares, keeps what it has.
+    }
+  }
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
