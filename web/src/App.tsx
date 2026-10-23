@@ -1,7 +1,7 @@
 import type { AppStatus } from '@curatorr/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
-import { CenteredState, Frame, Shell, Wordmark } from './components/Shell';
+import { CenteredState, Frame, Shell } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
 import { errorMessage, isNetworkError, likeSeedsQuery, profilesQuery, useStatus, wizardQuery } from './lib/api';
@@ -79,7 +79,11 @@ function useOffline(status: ReturnType<typeof useStatus>) {
   return offline;
 }
 
-/** What shows while the app opens. The spinner only comes after a moment: a quick launch shows the wordmark alone. */
+/**
+ * What shows while the app opens: the logo, where an iPhone's startup image (web/scripts/splash.mjs) and index.html
+ * already draw it, so opening never moves it. The spinner only comes after a moment, under it: a quick launch shows
+ * the logo alone.
+ */
 function Launch() {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -88,10 +92,9 @@ function Launch() {
   }, []);
   return (
     <div className="grid min-h-dvh place-items-center">
-      <div className="flex flex-col items-center gap-6">
-        <Wordmark className="scale-125" />
-        {/* Its room is kept, so the wordmark doesn't move when it comes. */}
-        {slow ? <Spinner /> : <span className="size-6" aria-hidden />}
+      <div className="relative">
+        <img src="/logo.svg" alt="Curatorr" className="size-24" />
+        {slow && <Spinner className="absolute top-full left-1/2 mt-8 size-6 -translate-x-1/2 text-muted" />}
       </div>
     </div>
   );

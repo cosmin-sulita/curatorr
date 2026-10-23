@@ -96,6 +96,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         // Archivo's Latin subset is the one the app shows. The others load from the server when a title needs them.
         globPatterns: ['**/*.{js,css,html,svg,png,ico}', '**/archivo-latin-wdth-*.woff2'],
+        // iOS fetches the startup images itself, when the app is added to the home screen.
+        globIgnores: ['**/node_modules/**/*', 'splash/**'],
         runtimeCaching: [
           {
             // Loaded with CORS (CROSS_ORIGIN in components/ui.tsx), so each is kept at its real size. A movie

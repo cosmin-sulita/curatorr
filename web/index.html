@@ -14,9 +14,29 @@
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <!-- What an iPhone shows while the app starts: written by `npm run icons` (scripts/splash.mjs). -->
+    <!-- splash:start -->
+    <link rel="apple-touch-startup-image" media="(device-width: 440px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-440x956@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-430x932@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 428px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-428x926@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 420px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-420x912@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-414x896@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/splash/iphone-414x896@2x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 402px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-402x874@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-393x852@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-390x844@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/iphone-375x812@3x.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="/splash/iphone-375x667@2x.png" />
+    <!-- splash:end -->
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="margin: 0; background: #0c0f1e">
+    <!-- The launch screen's logo (Launch in src/App.tsx) from the first paint, in the place of the startup image's;
+         React replaces it as it starts. -->
+    <div id="root">
+      <div style="display: grid; place-items: center; min-height: 100dvh">
+        <img src="/logo.svg" alt="Curatorr" width="96" height="96" />
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
