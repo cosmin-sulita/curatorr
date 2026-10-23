@@ -4,10 +4,11 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { LightMyRequestResponse } from 'fastify';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
+import { togetherUntil } from '../session.js';
 import type { Store } from '../store.js';
 import { syncServerState } from './mediaServer.js';
 import { importHomeUsers, syncPlexState } from './profiles.js';
@@ -138,6 +139,17 @@ describe('Plex Home profiles', () => {
   /** The cookies a response set, as a Cookie header. */
   const cookiesOf = (res: LightMyRequestResponse) =>
     [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
+  /** A device's cookies after a response: what it set, over what the device had. */
+  const jar = (res: LightMyRequestResponse, before = '') => {
+    const split = (pair: string) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)] as const;
+    const cookies = new Map(before ? before.split('; ').map(split) : []);
+    for (const c of [res.headers['set-cookie'] ?? []].flat()) {
+      const [name, value] = split(String(c).split(';')[0]!);
+      if (value) cookies.set(name, value);
+      else cookies.delete(name);
+    }
+    return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+  };
 
   it('imports the owner and the Home users, linking the ones without a PIN', async () => {
     const { store } = await plexInstance();
@@ -353,6 +365,76 @@ describe('Plex Home profiles', () => {
       expect(switches - asked).toBe(5);
       expect(answers.filter((a) => a.statusCode === 429)).toHaveLength(5);
       expect((await select(app, member, { pin: '1234' })).statusCode).toBe(429);
+    });
+
+    it('asks for the PIN again once the device has moved to another profile', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const [member, kid] = [idOf(store, 'Member'), idOf(store, 'Kid')];
+
+      let tablet = jar(await select(app, member, { pin: '1234' }));
+      expect((await select(app, member, { cookie: tablet })).statusCode).toBe(200);
+      // A shared tablet, handed to the kid.
+      tablet = jar(await select(app, kid, { cookie: tablet }), tablet);
+      const again = await select(app, member, { cookie: tablet });
+      expect(again.statusCode).toBe(403);
+      expect(again.json()).toMatchObject({ needPin: true, profileId: member });
+    });
+
+    it("keeps a member unlocked for watching together only until the group's evening is over", async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const [owner, member] = [idOf(store, 'Owner'), idOf(store, 'Member')];
+      const ends = togetherUntil(Date.now());
+      const phone = jar(
+        await app.inject({
+          method: 'POST',
+          url: '/api/profiles/together',
+          payload: { ids: [owner, member], pin: { id: member, pin: '1234' } },
+        }),
+      );
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(ends - 60_000);
+        expect((await select(app, member, { cookie: phone })).statusCode).toBe(200);
+        vi.setSystemTime(ends + 60_000);
+        expect((await select(app, member, { cookie: phone })).json()).toMatchObject({ needPin: true });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('keeps the PINs entered so far while the next member of a group asks for theirs', async () => {
+      const { app, store } = await plexInstance();
+      kidInPlex = { protected: true };
+      pins[KID] = '4321';
+      await importHomeUsers(store, silent);
+      const [owner, member, kid] = [idOf(store, 'Owner'), idOf(store, 'Member'), idOf(store, 'Kid')];
+      const together = (pin: { id: number; pin: string }, cookie = '') =>
+        app.inject({ method: 'POST', url: '/api/profiles/together', headers: { cookie }, payload: { ids: [owner, member, kid], pin } });
+
+      const first = await together({ id: member, pin: '1234' });
+      expect(first.json()).toMatchObject({ needPin: true, profileId: kid });
+      const second = await together({ id: kid, pin: '4321' }, jar(first));
+      expect(second.statusCode).toBe(200);
+      const status = await app.inject({ method: 'GET', url: '/api/status', headers: { cookie: jar(second, jar(first)) } });
+      expect(status.json().together.map((p: { name: string }) => p.name)).toEqual(['Member', 'Kid']);
+    });
+
+    it('opens a profile unlocked before this version until the device picks another one', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const [member, kid] = [idOf(store, 'Member'), idOf(store, 'Kid')];
+      // Linked on another device.
+      expect((await select(app, member, { pin: '1234' })).statusCode).toBe(200);
+
+      let tablet = `curatorr_unlocked=${encodeURIComponent(app.signCookie(String(member)))}`;
+      const first = await select(app, member, { cookie: tablet });
+      expect(first.statusCode).toBe(200);
+      tablet = jar(first, tablet);
+      expect((await select(app, member, { cookie: tablet })).statusCode).toBe(200);
+      tablet = jar(await select(app, kid, { cookie: tablet }), tablet);
+      expect((await select(app, member, { cookie: tablet })).json()).toMatchObject({ needPin: true });
     });
 
     it("doesn't count PINs that plex.tv couldn't check", async () => {

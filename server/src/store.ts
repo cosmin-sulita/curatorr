@@ -96,6 +96,8 @@ interface SettingsShape {
   latestVersion: string | null;
   /** Wrong passwords given for each Jellyfin administrator in Settings sign-in (routes/jellyfin.ts), by user id. */
   jellyfinMisses: Record<string, JellyfinMisses>;
+  /** Sign-ins to settings and PINs entered only hold for this epoch; "Sign out all other devices" sets a new one. */
+  sessionEpoch: string | null;
 }
 
 /**
@@ -130,6 +132,7 @@ const defaults = (): SettingsShape => ({
   radarrWebhook: { token: newWebhookToken(), at: null, event: null, title: null },
   latestVersion: null,
   jellyfinMisses: {},
+  sessionEpoch: null,
 });
 
 // ---------------------------------------------------------------------------

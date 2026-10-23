@@ -67,7 +67,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
       if (!plex.ownerId || account.id !== plex.ownerId) {
         throw new HttpError(403, `${account.title} is not the owner of this Curatorr instance`);
       }
-      setAdminCookie(reply, account.id);
+      setAdminCookie(reply, store, account.id);
       return { status: 'ok', account: { name: account.title, thumb: account.thumb } };
     }
 
@@ -85,7 +85,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
       store.set('jellyfin', null);
     }
     store.update('plex', { adminToken: token, ownerId: account.id, ownerName: account.title });
-    setAdminCookie(reply, account.id);
+    setAdminCookie(reply, store, account.id);
     return { status: 'ok', account: { name: account.title, thumb: account.thumb } };
   });
 

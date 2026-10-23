@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { dayStart } from '@curatorr/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { HttpError } from './http.js';
@@ -5,13 +6,15 @@ import type { ProfileRow, Store } from './store.js';
 
 const PROFILE_COOKIE = 'curatorr_profile';
 const ADMIN_COOKIE = 'curatorr_admin';
-/** PIN-protected profiles whose PIN was entered on this device. */
+/** PIN-protected profiles whose PIN was entered on this device, and until when it holds. */
 const UNLOCKED_COOKIE = 'curatorr_unlocked';
 /** The others watching with this device's profile tonight, and when the group ends. */
 const TOGETHER_COOKIE = 'curatorr_together';
 /** Plex sign-ins started in this browser, which only it may finish. */
 const PLEX_PINS_COOKIE = 'curatorr_plex_pins';
 const YEAR_S = 365 * 24 * 60 * 60;
+/** How long a PIN entered for the device's own profile holds, while the device stays on that profile. */
+export const PIN_HOLDS_MS = YEAR_S * 1000;
 const ADMIN_TTL_S = 30 * 24 * 60 * 60;
 /** Longer than plex.tv keeps a sign-in PIN. */
 const PLEX_PIN_TTL_S = 30 * 60;
@@ -40,9 +43,28 @@ export function clearProfileCookie(reply: FastifyReply) {
   reply.clearCookie(PROFILE_COOKIE, { path: '/' });
 }
 
+/**
+ * Every sign-in to settings and every PIN entered belongs to the current session epoch. Settings → Sign out all
+ * other devices starts a new one, and cookies from before it stop counting. Until then there is none (''), which is
+ * also what cookies from before epochs existed carry, so nobody was signed out by the update that brought them.
+ */
+const epochOf = (store: Store) => store.get('sessionEpoch') ?? '';
+
+export const newSessionEpoch = () => randomBytes(12).toString('base64url');
+
 /** Signs in the Plex owner (by plex.tv account id) or a Jellyfin administrator (by user id). */
-export function setAdminCookie(reply: FastifyReply, accountId: number | string) {
-  reply.setCookie(ADMIN_COOKIE, `${accountId}.${Date.now()}`, cookieOptions(ADMIN_TTL_S));
+export function setAdminCookie(reply: FastifyReply, store: Store, accountId: number | string) {
+  const epoch = epochOf(store);
+  reply.setCookie(ADMIN_COOKIE, [accountId, Date.now(), ...(epoch ? [epoch] : [])].join('.'), cookieOptions(ADMIN_TTL_S));
+}
+
+/** The account signed in to settings on this device, while its sign-in holds. */
+export function adminId(req: FastifyRequest, store: Store): string | null {
+  const value = readSigned(req, ADMIN_COOKIE);
+  if (!value) return null;
+  const [id, issued, epoch = ''] = value.split('.');
+  if (!id || !(Date.now() - Number(issued) < ADMIN_TTL_S * 1000)) return null;
+  return epoch === epochOf(store) ? id : null;
 }
 
 export function clearAdminCookie(reply: FastifyReply) {
@@ -62,26 +84,50 @@ export function rememberPlexPin(req: FastifyRequest, reply: FastifyReply, id: nu
   reply.setCookie(PLEX_PINS_COOKIE, [...plexPinsHere(req), id].slice(-3).join(','), cookieOptions(PLEX_PIN_TTL_S));
 }
 
-function unlockedHere(req: FastifyRequest): Set<number> {
+/**
+ * The protected profiles whose PIN was entered on this device, and until when it holds (ms): `epoch|id:until,…`.
+ * A cookie from before PINs had an end lists ids only (`1,2`); they hold until the device next picks a profile,
+ * which writes the new kind.
+ */
+export function unlocksHere(req: FastifyRequest, store: Store): Map<number, number> {
   const value = readSigned(req, UNLOCKED_COOKIE);
-  return new Set(value ? value.split(',').map(Number) : []);
+  const unlocks = new Map<number, number>();
+  if (!value) return unlocks;
+  const now = Date.now();
+  const bar = value.indexOf('|');
+  if (bar < 0) {
+    if (epochOf(store)) return unlocks;
+    for (const id of value.split(',').map(Number)) if (Number.isInteger(id)) unlocks.set(id, now + PIN_HOLDS_MS);
+    return unlocks;
+  }
+  if (value.slice(0, bar) !== epochOf(store)) return unlocks;
+  for (const entry of value.slice(bar + 1).split(',')) {
+    const [id, until] = entry.split(':').map(Number);
+    if (Number.isInteger(id) && until! > now) unlocks.set(id!, until!);
+  }
+  return unlocks;
+}
+
+/** Saves which protected profiles' PINs hold on this device, and until when. */
+export function setUnlocks(req: FastifyRequest, reply: FastifyReply, store: Store, unlocks: Map<number, number>) {
+  if (!unlocks.size) {
+    if (req.cookies[UNLOCKED_COOKIE]) reply.clearCookie(UNLOCKED_COOKIE, { path: '/' });
+    return;
+  }
+  const value = `${epochOf(store)}|${[...unlocks].map(([id, until]) => `${id}:${until}`).join(',')}`;
+  const lastsS = Math.ceil((Math.max(...unlocks.values()) - Date.now()) / 1000);
+  reply.setCookie(UNLOCKED_COOKIE, value, cookieOptions(lastsS));
 }
 
 /**
- * Whether this device must enter the profile's Plex PIN before using it. Like Plex's own apps, a
- * protected profile asks once on each device. The owner's profile also opens where the owner has
- * signed in to settings.
+ * Whether this device must enter the profile's Plex PIN before using it. Like Plex's own apps, a protected profile
+ * asks on each device; here it asks again once the device has moved to another profile (or, for someone watching
+ * together, once the group is over). The owner's profile also opens where the owner has signed in to settings.
  */
 export function pinNeededHere(req: FastifyRequest, store: Store, row: ProfileRow): boolean {
   if (!row.pin_protected || row.plex_user_id == null || !store.plexConfigured()) return false;
-  if (unlockedHere(req).has(row.id)) return false;
+  if (unlocksHere(req, store).has(row.id)) return false;
   return !(row.is_admin && isAdmin(req, store));
-}
-
-/** Remembers on this device that the profile's PIN was entered. */
-export function rememberPin(req: FastifyRequest, reply: FastifyReply, profileId: number) {
-  const ids = unlockedHere(req).add(profileId);
-  reply.setCookie(UNLOCKED_COOKIE, [...ids].join(','), cookieOptions(YEAR_S));
 }
 
 export function currentProfile(req: FastifyRequest, store: Store): ProfileRow | null {
@@ -159,10 +205,8 @@ export function isAdmin(req: FastifyRequest, store: Store): boolean {
   if (store.demo) return true;
   const owner = store.owner();
   if (!owner) return true;
-  const value = readSigned(req, ADMIN_COOKIE);
-  if (!value) return false;
-  const [id, issued] = value.split('.');
-  if (!id || Date.now() - Number(issued ?? 0) >= ADMIN_TTL_S * 1000) return false;
+  const id = adminId(req, store);
+  if (!id) return false;
   return id === owner.id || (owner.server === 'jellyfin' && store.isJellyfinAdmin(id));
 }
 

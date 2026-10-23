@@ -117,7 +117,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 If your proxy asks people to sign in, let `/api/radarr/webhook` through. Radarr can't sign in, and the secret in the webhook's address protects that path. **New address** in Settings replaces a secret that got out.
 
 > [!WARNING]
-> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it once on each device; Jellyfin profiles have no PIN. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
+> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it on each device, and again once that device has switched to someone else; Jellyfin profiles have no PIN. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
 
 ## How picks work
 

@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parse, within, type RouteModule } from '../context.js';
 import { Guesses } from '../guesses.js';
@@ -6,14 +6,17 @@ import { HttpError } from '../http.js';
 import { syncServerState } from '../services/mediaServer.js';
 import { linkProfile, verifyPin } from '../services/profiles.js';
 import {
+  PIN_HOLDS_MS,
   clearProfileCookie,
   clearTogetherCookie,
   currentProfile,
   pinNeededHere,
-  rememberPin,
   requireAdmin,
   setProfileCookie,
   setTogetherCookie,
+  setUnlocks,
+  togetherUntil,
+  unlocksHere,
 } from '../session.js';
 import { toProfile, type ProfileRow } from '../store.js';
 
@@ -24,17 +27,19 @@ export const profileRoutes: RouteModule = (app, { store }) => {
   const wrongPins = new Guesses();
 
   /**
-   * Readies a profile on this device: a protected one needs its PIN once on each device, also after it's
-   * linked, and a Plex profile without a sign-in gets one. Five wrong PINs in a row pause PIN entry.
+   * Readies a profile on this device: a protected one needs its PIN unless it holds here (see `pinNeededHere`),
+   * also after it's linked, and a Plex profile without a sign-in gets one. Five wrong PINs in a row pause PIN
+   * entry. Says whether the PIN was entered, for the caller to remember.
    */
-  async function unlock(req: FastifyRequest, reply: FastifyReply, row: ProfileRow, pin?: string): Promise<ProfileRow> {
+  async function unlock(req: FastifyRequest, row: ProfileRow, pin?: string) {
     // Counted as wrong before plex.tv checks it, so PINs sent all at once can't all get through.
     const wait = pin ? wrongPins.take(row.id) : null;
     if (wait) throw new HttpError(429, `Too many wrong PINs. Try again in ${wait}`, { needPin: true, profileId: row.id });
+    let pinEntered = false;
     try {
       if (pinNeededHere(req, store, row)) {
         await verifyPin(store, row, pin);
-        rememberPin(req, reply, row.id);
+        pinEntered = true;
       }
       if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
         row = await linkProfile(store, row, pin);
@@ -45,7 +50,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
       throw err;
     }
     if (pin) wrongPins.hit(row.id);
-    return row;
+    return { row, pinEntered };
   }
 
   app.get('/api/profiles', async (req) =>
@@ -58,9 +63,14 @@ export const profileRoutes: RouteModule = (app, { store }) => {
 
     const found = store.profileRow(id);
     if (!found || found.hidden) throw new HttpError(404, 'Profile not found');
-    const row = await unlock(req, reply, found, pin);
+    const unlocks = unlocksHere(req, store);
+    const { row, pinEntered } = await unlock(req, found, pin);
 
     setProfileCookie(reply, row.id);
+    // Only this profile's PIN still holds here, as long as before (a year when just entered): a shared tablet
+    // handed to a kid doesn't keep a grown-up's profile open.
+    const until = unlocks.get(row.id) ?? (pinEntered ? Date.now() + PIN_HOLDS_MS : undefined);
+    setUnlocks(req, reply, store, new Map(until ? [[row.id, until]] : []));
     // One profile on its own ends watching together.
     clearTogetherCookie(reply);
     await within(syncServerState(store, row, req.log), WATCHED_WAIT_MS);
@@ -84,15 +94,37 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     const rows = ids.map((id) => store.profileRow(id));
     if (rows.some((r) => !r || r.hidden)) throw new HttpError(404, 'Profile not found');
 
-    const members: ProfileRow[] = [];
-    for (const row of rows) members.push(await unlock(req, reply, row!, body.pin?.id === row!.id ? body.pin.pin : undefined));
     // This device's profile leads when it's one of them, so Settings' lists stay its own.
     const current = currentProfile(req, store);
-    const lead = members.find((m) => m.id === current?.id) ?? members[0]!;
+    const leadId = ids.includes(current?.id ?? NaN) ? current!.id : ids[0]!;
+    // The lead's PIN holds as long as before (a year when just entered); the others' until the group is over.
+    const unlocks = unlocksHere(req, store);
+    const groupEnds = togetherUntil(Date.now());
+    const until = (id: number) =>
+      id === leadId ? (unlocks.get(id) ?? Date.now() + PIN_HOLDS_MS) : Math.min(unlocks.get(id) ?? Infinity, groupEnds);
+    const entered = new Set<number>();
+    const members: ProfileRow[] = [];
+    try {
+      for (const row of rows) {
+        const unlocked = await unlock(req, row!, body.pin?.id === row!.id ? body.pin.pin : undefined);
+        if (unlocked.pinEntered) entered.add(unlocked.row.id);
+        members.push(unlocked.row);
+      }
+    } catch (err) {
+      // The PINs entered so far hold: the next try brings the next one.
+      if (entered.size) {
+        setUnlocks(req, reply, store, new Map([...unlocks, ...[...entered].map((id) => [id, until(id)] as const)]));
+      }
+      throw err;
+    }
+    const lead = members.find((m) => m.id === leadId)!;
     const others = members.filter((m) => m !== lead);
 
     setProfileCookie(reply, lead.id);
     setTogetherCookie(reply, others.map((m) => m.id));
+    // Anyone else's PIN locks again, as when picking a profile.
+    const held = members.filter((m) => unlocks.has(m.id) || entered.has(m.id));
+    setUnlocks(req, reply, store, new Map(held.map((m) => [m.id, until(m.id)])));
     await within(Promise.all(members.map((m) => syncServerState(store, m, req.log))), WATCHED_WAIT_MS);
     return [lead, ...others].map(toProfile);
   });

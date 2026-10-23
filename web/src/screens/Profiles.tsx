@@ -253,7 +253,7 @@ function PinPad({
       <div className="flex w-full max-w-xs flex-col items-center">
         <Avatar name={profile.name} src={profile.avatarUrl} className="size-20" />
         <h2 className="mt-4 text-lg font-semibold">Enter {profile.name}'s Plex PIN</h2>
-        <p className="mt-1 text-center text-sm text-muted">Only needed once on this device.</p>
+        <p className="mt-1 text-center text-sm text-muted">Asked again once this device switches to someone else.</p>
         <div className="mt-6 flex gap-3" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <span key={i} className={clsx('size-3.5 rounded-full transition', i < pin.length ? 'bg-fg' : 'bg-raised ring-1 ring-line')} />

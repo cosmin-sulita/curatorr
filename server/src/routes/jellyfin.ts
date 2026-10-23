@@ -110,7 +110,7 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
       // Another server's libraries mean nothing here.
       libraryIds: saved?.serverId === info.id ? saved.libraryIds : [],
     });
-    setAdminCookie(reply, account.user.id);
+    setAdminCookie(reply, store, account.user.id);
     return { ok: true, libraries };
   });
 
@@ -220,7 +220,7 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     if (!user.admin) throw new HttpError(403, `${user.name} isn't a Jellyfin administrator`);
     // Their name and picture as Jellyfin has them now.
     saveJellyfinProfile(store, user);
-    setAdminCookie(reply, user.id);
+    setAdminCookie(reply, store, user.id);
     return { status: 'ok', account: { name: user.name } };
   });
 };
