@@ -25,6 +25,8 @@ describe('Plex Home profiles', () => {
   const original = { ...PLEX_HOSTS };
   /** What plex.tv answers for the Home user list. */
   let homeUsersStatus = 200;
+  /** What plex.tv answers when asked to switch users, when it isn't answering normally. */
+  let switchStatus = 200;
   /** Plex Home PINs, by user id; the Member's profile is protected. */
   let pins: Record<number, string> = {};
   /** User switches asked of plex.tv, each one checking a PIN when the user has one. */
@@ -64,6 +66,7 @@ describe('Plex Home profiles', () => {
       const switched = /^\/api\/home\/users\/(\d+)\/switch$/.exec(url.pathname);
       if (switched) {
         switches++;
+        if (switchStatus !== 200) return json(switchStatus, {});
         const pin = pins[Number(switched[1])];
         if (pin && url.searchParams.get('pin') !== pin) return json(401, {});
         return json(200, { authToken: `user-${switched[1]}` });
@@ -90,6 +93,7 @@ describe('Plex Home profiles', () => {
 
   afterEach(async () => {
     homeUsersStatus = 200;
+    switchStatus = 200;
     pins = { [MEMBER]: '1234' };
     revoked.clear();
     kidInPlex = {};
@@ -337,6 +341,29 @@ describe('Plex Home profiles', () => {
       pins[KID] = '4321';
       expect((await select(app, idOf(store, 'Kid'), { pin: '4321' })).statusCode).toBe(200);
       expect(switches).toBe(asked + 1);
+    });
+
+    it('counts wrong PINs sent all at once, so a burst gets no further than five', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const member = idOf(store, 'Member');
+
+      const asked = switches;
+      const answers = await Promise.all(Array.from({ length: 10 }, (_, i) => select(app, member, { pin: `000${i}` })));
+      expect(switches - asked).toBe(5);
+      expect(answers.filter((a) => a.statusCode === 429)).toHaveLength(5);
+      expect((await select(app, member, { pin: '1234' })).statusCode).toBe(429);
+    });
+
+    it("doesn't count PINs that plex.tv couldn't check", async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const member = idOf(store, 'Member');
+
+      switchStatus = 503;
+      for (let i = 0; i < 6; i++) expect((await select(app, member, { pin: '0000' })).statusCode).toBe(502);
+      switchStatus = 200;
+      expect((await select(app, member, { pin: '1234' })).statusCode).toBe(200);
     });
   });
 });

@@ -505,6 +505,24 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 });
 
+describe('wrong passwords sent all at once', () => {
+  afterEach(() => fake.reset());
+
+  it('counts them before Jellyfin answers, so a burst gets no further than five', async () => {
+    const { app } = await freshInstall();
+    const admin = cookiesOf(await connect(app, { url: base, username: 'Dad', password: 'dad-pass' }));
+    await post(app, '/api/setup/jellyfin/users', {}, admin);
+
+    const signIns = fake.state.signIns;
+    const answers = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => post(app, '/api/jellyfin/login', { username: 'Dad', password: `wrong-${i}` })),
+    );
+    expect(fake.state.signIns - signIns).toBe(5);
+    expect(answers.filter((a) => a.statusCode === 429)).toHaveLength(5);
+    expect((await post(app, '/api/jellyfin/login', { username: 'Dad', password: 'dad-pass' })).statusCode).toBe(429);
+  });
+});
+
 describe('one media server at a time', () => {
   afterEach(() => fake.reset());
 

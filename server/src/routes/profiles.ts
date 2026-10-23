@@ -28,7 +28,8 @@ export const profileRoutes: RouteModule = (app, { store }) => {
    * linked, and a Plex profile without a sign-in gets one. Five wrong PINs in a row pause PIN entry.
    */
   async function unlock(req: FastifyRequest, reply: FastifyReply, row: ProfileRow, pin?: string): Promise<ProfileRow> {
-    const wait = pin ? wrongPins.wait(row.id) : null;
+    // Counted as wrong before plex.tv checks it, so PINs sent all at once can't all get through.
+    const wait = pin ? wrongPins.take(row.id) : null;
     if (wait) throw new HttpError(429, `Too many wrong PINs. Try again in ${wait}`, { needPin: true, profileId: row.id });
     try {
       if (pinNeededHere(req, store, row)) {
@@ -39,7 +40,8 @@ export const profileRoutes: RouteModule = (app, { store }) => {
         row = await linkProfile(store, row, pin);
       }
     } catch (err) {
-      if (pin && err instanceof HttpError && err.details?.needPin) wrongPins.miss(row.id);
+      // A wrong PIN stays counted; one plex.tv couldn't check doesn't.
+      if (pin && !(err instanceof HttpError && err.details?.needPin)) wrongPins.refund(row.id);
       throw err;
     }
     if (pin) wrongPins.hit(row.id);

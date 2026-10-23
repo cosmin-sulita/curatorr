@@ -19,15 +19,19 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
 
   async function signIn(client: JellyfinClient, name: string, secret: string) {
     const key = name.toLowerCase();
-    const wait = wrongPasswords.wait(key);
+    // Counted as wrong before Jellyfin checks it, so passwords sent all at once can't all get through.
+    const wait = wrongPasswords.take(key);
     if (wait) throw new HttpError(429, `Too many wrong passwords. Try again in ${wait}`);
     try {
       const account = await client.authenticate(name, secret);
       wrongPasswords.hit(key);
       return account;
     } catch (err) {
-      if (!(err instanceof UpstreamError && err.status === 401)) throw err;
-      wrongPasswords.miss(key);
+      if (!(err instanceof UpstreamError && err.status === 401)) {
+        // No answer about the password (Jellyfin couldn't be reached, say), so it doesn't count.
+        wrongPasswords.refund(key);
+        throw err;
+      }
       throw new HttpError(400, "Jellyfin didn't accept that username and password");
     }
   }
