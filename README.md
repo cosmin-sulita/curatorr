@@ -17,7 +17,7 @@ It's a self-hosted, installable PWA built for the *arr stack, with a look borrow
 ## Features
 
 - **Radarr is the source of truth.** Only downloaded movies are suggested. Genres, TMDB keywords, ratings, posters and trailers all come from Radarr, so no extra API keys are needed.
-- **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions and Plex PINs carry over, and with Jellyfin, so does which libraries each person can open. Changes made there apply at the next library sync.
+- **Plex Home or Jellyfin profiles.** Each person picks their profile and never gets suggestions for movies they already watched in Plex or Jellyfin. Parental restrictions and Plex PINs carry over, and with Jellyfin, so does which libraries each person can open. Jellyfin has no PINs, so a Jellyfin administrator can give a profile one in Curatorr's Settings. Changes made there apply at the next library sync.
 - **Watching together.** Tap **Watching together** on Who's watching? and tick two or more people for one pick that none of you has seen. It keeps to everyone's parental limits and blends your tastes, so nobody gets their least favourite. The group lasts the evening.
 - **Smart questions.** The wizard only offers answers that match at least three movies in your library and leave some out. It skips questions that wouldn't narrow anything down, and stops asking once a dozen movies or fewer are left, since the picks show them all. Or tap **Surprise me** to skip the questions and get one of the ten best picks, drawn again each evening.
 - **Just arrived.** A tile on the first question goes straight to the best of what arrived in your library this past month, each pick saying when it came.
@@ -117,7 +117,7 @@ Then open the HTTPS address on your phone and choose **Add to Home Screen** (iOS
 If your proxy asks people to sign in, let `/api/radarr/webhook` through. Radarr can't sign in, and the secret in the webhook's address protects that path. **New address** in Settings replaces a secret that got out.
 
 > [!WARNING]
-> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a Plex PIN ask for it on each device, and again once that device has switched to someone else; Jellyfin profiles have no PIN. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
+> **Exposing it to the internet?** Anyone who can reach Curatorr can pick a profile and browse your library. Profiles with a PIN ask for it on each device, and again once that device has switched to someone else: the Plex PIN, or with Jellyfin one an administrator set in Settings → Profiles. Jellyfin profiles without one are open to anyone who reaches Curatorr. Settings are protected once you sign in with Plex or connect Jellyfin during setup: from then on only the Plex server owner, or a Jellyfin administrator, can change them. Without either there's no owner to sign in, so anyone who reaches Curatorr can change its settings. If the address is public, finish setup first, then add your proxy's authentication or keep it on your LAN / VPN.
 
 ## How picks work
 

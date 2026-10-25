@@ -119,15 +119,22 @@ export function setUnlocks(req: FastifyRequest, reply: FastifyReply, store: Stor
   reply.setCookie(UNLOCKED_COOKIE, value, cookieOptions(lastsS));
 }
 
+/** Whether the profile has a PIN: its Plex Home PIN, or with Jellyfin one an administrator set in Curatorr. */
+export function hasPin(store: Store, row: ProfileRow): boolean {
+  if (row.plex_user_id != null) return Boolean(row.pin_protected) && store.plexConfigured();
+  return row.jellyfin_user_id != null && row.pin_hash != null && store.get('jellyfin') != null;
+}
+
 /**
- * Whether this device must enter the profile's Plex PIN before using it. Like Plex's own apps, a protected profile
+ * Whether this device must enter the profile's PIN before using it. Like Plex's own apps, a protected profile
  * asks on each device; here it asks again once the device has moved to another profile (or, for someone watching
- * together, once the group is over). The owner's profile also opens where the owner has signed in to settings.
+ * together, once the group is over). The owner's profile, or with Jellyfin an administrator's, also opens where
+ * that same account has signed in to settings.
  */
 export function pinNeededHere(req: FastifyRequest, store: Store, row: ProfileRow): boolean {
-  if (!row.pin_protected || row.plex_user_id == null || !store.plexConfigured()) return false;
+  if (!hasPin(store, row)) return false;
   if (unlocksHere(req, store).has(row.id)) return false;
-  return !(row.is_admin && isAdmin(req, store));
+  return !(row.is_admin && adminId(req, store) === String(row.plex_user_id ?? row.jellyfin_user_id));
 }
 
 export function currentProfile(req: FastifyRequest, store: Store): ProfileRow | null {

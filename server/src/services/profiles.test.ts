@@ -457,6 +457,19 @@ describe('Plex Home profiles', () => {
       expect((await select(app, member, { cookie: phoneNow })).statusCode).toBe(200);
     });
 
+    it('leaves PINs of Plex profiles to Plex', async () => {
+      const { app, store } = await plexInstance();
+      await importHomeUsers(store, silent);
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/profiles/${idOf(store, 'Kid')}/pin`,
+        headers: { cookie: signedInAsOwner(app) },
+        payload: { pin: '2468' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe('Plex profiles use the PIN set in Plex');
+    });
+
     it("doesn't count PINs that plex.tv couldn't check", async () => {
       const { app, store } = await plexInstance();
       await importHomeUsers(store, silent);

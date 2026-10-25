@@ -5,6 +5,7 @@ import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, MonitorSm
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { FanCard } from '../components/FanCard';
+import { PinPad } from '../components/PinPad';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, buttonClass, Notice, Spinner, Toggle } from '../components/ui';
@@ -35,6 +36,8 @@ export function SettingsScreen() {
   const isAdmin = Boolean(status?.isAdmin);
   const settings = useSettings(isAdmin);
   const [showNews, setShowNews] = useState(false);
+  // The profile whose PIN is being set, on a pad drawn outside Shell.
+  const [pinFor, setPinFor] = useState<SettingsProfile | null>(null);
   // People leave to copy an API key or sign in to their media server; a reload on their return would lose that.
   useDeferUpdates();
   const entrance = useEntrance();
@@ -61,7 +64,9 @@ export function SettingsScreen() {
             {!isAdmin && <AdminSignIn server={status?.server ?? null} />}
             {isAdmin && settings.isLoading && <Spinner />}
             {isAdmin && settings.error && <Notice>{errorMessage(settings.error)}</Notice>}
-            {isAdmin && settings.data && <AdminSettings data={settings.data} demo={Boolean(status?.demo)} />}
+            {isAdmin && settings.data && (
+              <AdminSettings data={settings.data} demo={Boolean(status?.demo)} onPin={setPinFor} />
+            )}
             <p className="pt-2 pb-6 text-center text-xs text-faint">
               Curatorr {status?.version}
               {status?.demo && ', demo mode'}
@@ -80,7 +85,64 @@ export function SettingsScreen() {
       <AnimatePresence>
         {showNews && <WhatsNewDialog releases={recentReleases} onClose={() => setShowNews(false)} />}
       </AnimatePresence>
+      <AnimatePresence>{pinFor && <ProfilePin profile={pinFor} onClose={() => setPinFor(null)} />}</AnimatePresence>
     </>
+  );
+}
+
+type SettingsProfile = SettingsResponse['profiles'][number];
+
+/**
+ * Gives a Jellyfin profile a PIN Curatorr keeps, or a new one: four digits, then the same once more, so a slip of
+ * the finger doesn't lock anyone out. A profile that has one can lose it here too.
+ */
+function ProfilePin({ profile, onClose }: { profile: SettingsProfile; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [first, setFirst] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (pin: string | null) => {
+    setBusy(true);
+    try {
+      await api(`/api/profiles/${profile.id}/pin`, { method: 'PUT', json: { pin } });
+      await qc.invalidateQueries();
+      toast({ message: pin ? `${profile.name}'s profile asks for this PIN now` : `${profile.name}'s profile has no PIN now` });
+      onClose();
+    } catch (err) {
+      setFirst(null);
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PinPad
+      profile={profile}
+      title={first ? 'Enter it once more' : `${profile.pinProtected ? 'A new PIN' : 'A PIN'} for ${profile.name}`}
+      subtitle={first ? 'To be sure of it.' : 'Asked on each device that picks this profile.'}
+      error={error}
+      busy={busy}
+      footer={
+        profile.pinProtected &&
+        !first && (
+          <Button variant="ghost" onClick={() => save(null)}>
+            Remove the PIN
+          </Button>
+        )
+      }
+      onCancel={onClose}
+      onSubmit={(pin) => {
+        setError(null);
+        if (!first) return setFirst(pin);
+        if (pin !== first) {
+          setFirst(null);
+          return setError("The two didn't match. Choose it again.");
+        }
+        void save(pin);
+      }}
+    />
   );
 }
 
@@ -419,7 +481,16 @@ function SignOutEverywhere({ onConfirm }: { onConfirm: () => void }) {
 /** Which connection is being changed. One at a time. */
 type Editing = 'radarr' | 'seerr' | MediaServer;
 
-function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }) {
+function AdminSettings({
+  data,
+  demo,
+  onPin,
+}: {
+  data: SettingsResponse;
+  demo: boolean;
+  /** Sets, changes or removes a Jellyfin profile's PIN. */
+  onPin: (profile: SettingsProfile) => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -753,6 +824,12 @@ function AdminSettings({ data, demo }: { data: SettingsResponse; demo: boolean }
                   {p.serverUser && !p.linked && ', waiting for PIN'}
                 </span>
               </span>
+              {/* Jellyfin has no PINs, so Curatorr keeps one for whoever needs it. */}
+              {data.server === 'jellyfin' && p.serverUser && (
+                <Button variant="ghost" className="shrink-0 px-3" onClick={() => onPin(p)}>
+                  {p.pinProtected ? 'Change PIN' : 'Set PIN'}
+                </Button>
+              )}
               {/* The Plex owner always shows. A Jellyfin administrator may be an account nobody watches with. */}
               {(!p.isAdmin || data.server === 'jellyfin') && (
                 <Toggle

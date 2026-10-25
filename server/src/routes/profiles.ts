@@ -4,6 +4,7 @@ import { parse, within, type RouteModule } from '../context.js';
 import { Guesses } from '../guesses.js';
 import { HttpError } from '../http.js';
 import { syncServerState } from '../services/mediaServer.js';
+import { hashPin, pinMatches } from '../pins.js';
 import { linkProfile, verifyPin } from '../services/profiles.js';
 import {
   PIN_HOLDS_MS,
@@ -23,6 +24,12 @@ import { toProfile, type ProfileRow } from '../store.js';
 /** How long selecting a profile waits for its watch history before moving on. */
 const WATCHED_WAIT_MS = 8_000;
 
+/** Checks the PIN Curatorr keeps for a Jellyfin profile, as plex.tv does for a Plex Home one. */
+function checkKeptPin(row: ProfileRow, pin?: string) {
+  if (!pin) throw new HttpError(403, 'PIN required', { needPin: true, profileId: row.id });
+  if (!pinMatches(pin, row.pin_hash!)) throw new HttpError(403, 'Wrong PIN, try again', { needPin: true, profileId: row.id });
+}
+
 export const profileRoutes: RouteModule = (app, { store }) => {
   const wrongPins = new Guesses();
 
@@ -38,7 +45,9 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     let pinEntered = false;
     try {
       if (pinNeededHere(req, store, row)) {
-        await verifyPin(store, row, pin);
+        // plex.tv checks a Plex Home PIN; Curatorr checks the one it keeps for a Jellyfin profile.
+        if (row.plex_user_id != null) await verifyPin(store, row, pin);
+        else checkKeptPin(row, pin);
         pinEntered = true;
       }
       if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
@@ -149,5 +158,22 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     }
     store.setProfileHidden(id, hidden);
     return { ok: true };
+  });
+
+  /**
+   * An administrator gives a Jellyfin profile a PIN of four digits, changes it, or takes it off (null). Jellyfin has
+   * no PINs of its own, so Curatorr keeps it, scrambled. Devices that entered the old PIN keep the profile open until
+   * they move to another one, or everyone is signed out.
+   */
+  app.put('/api/profiles/:id/pin', async (req) => {
+    requireAdmin(req, store);
+    const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
+    const { pin } = parse(z.object({ pin: z.string().regex(/^\d{4}$/, 'A PIN is four digits').nullable() }), req.body);
+    const row = store.profileRow(id);
+    if (!row) throw new HttpError(404, 'Profile not found');
+    if (row.plex_user_id != null) throw new HttpError(400, 'Plex profiles use the PIN set in Plex');
+    if (row.jellyfin_user_id == null) throw new HttpError(400, 'Only Jellyfin profiles get a PIN in Curatorr');
+    store.setProfilePin(id, pin ? hashPin(pin) : null);
+    return toProfile(store.profileRow(id)!);
   });
 };

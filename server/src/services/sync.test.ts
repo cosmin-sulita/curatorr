@@ -366,11 +366,12 @@ describe('re-tagging the stored library', () => {
 
 describe('a database from an older version', () => {
   /**
-   * Takes a new database back to version 6: v7 only renamed settings, v8 added Jellyfin, v9 watching together and
-   * v10 dated the watchlist.
+   * Takes a new database back to version 6: v7 only renamed settings, v8 added Jellyfin, v9 watching together,
+   * v10 dated the watchlist and v11 gave Jellyfin profiles PINs.
    */
   const backToVersion6 = (db: DB) =>
     db.exec(`
+      ALTER TABLE profiles DROP COLUMN pin_hash;
       ALTER TABLE watchlist DROP COLUMN added_at;
       DROP TABLE together;
       DROP TABLE available;

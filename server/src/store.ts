@@ -184,6 +184,8 @@ export interface ProfileRow {
   is_admin: number;
   restriction_profile: string | null;
   pin_protected: number;
+  /** A PIN Curatorr keeps for a Jellyfin profile, scrambled (pins.ts); Plex profiles use Plex's. */
+  pin_hash: string | null;
   user_token: string | null;
   server_token: string | null;
   watched_synced_at: number | null;
@@ -421,6 +423,11 @@ export class Store {
     this.db
       .prepare('UPDATE profiles SET user_token = ?, server_token = ?, watched_synced_at = NULL WHERE id = ?')
       .run(userToken, serverToken, id);
+  }
+
+  /** Sets a PIN Curatorr keeps for the profile, already scrambled, or takes it off (null). */
+  setProfilePin(id: number, pinHash: string | null) {
+    this.db.prepare('UPDATE profiles SET pin_hash = ? WHERE id = ?').run(pinHash, id);
   }
 
   setProfileHidden(id: number, hidden: boolean) {
@@ -770,7 +777,7 @@ export function toProfile(r: ProfileRow): Profile {
     avatarUrl: r.avatar_url,
     isAdmin: Boolean(r.is_admin),
     restrictionProfile: (r.restriction_profile as RestrictionProfile) ?? null,
-    pinProtected: Boolean(r.pin_protected),
+    pinProtected: Boolean(r.pin_protected) || r.pin_hash != null,
     // Jellyfin users need no token of their own: Curatorr reads their history with the administrator's.
     linked: Boolean(r.server_token) || r.jellyfin_user_id != null,
   };

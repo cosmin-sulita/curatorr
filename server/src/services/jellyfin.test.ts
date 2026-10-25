@@ -708,6 +708,100 @@ describe("Settings sign-in and Jellyfin's lockout", () => {
   });
 });
 
+describe('a PIN Curatorr keeps for a Jellyfin profile', () => {
+  afterEach(() => fake.reset());
+
+  const MUM: FakeUser = { id: '4'.repeat(32), name: 'Mum', password: 'mum-pass', admin: true, libraries: ['lib-movies'] };
+
+  /** Curatorr connected as Dad, with everyone's profiles; `admin` is Dad's sign-in on that device. */
+  async function connected() {
+    const { app, ctx } = await freshInstall();
+    const admin = cookiesOf(await connect(app, { url: base, username: 'Dad', password: 'dad-pass' }));
+    expect((await post(app, '/api/setup/jellyfin/users', {}, admin)).statusCode).toBe(200);
+    const id = (name: string) => ctx.store.profileRows(true).find((p) => p.name === name)!.id;
+    return { app, store: ctx.store, admin, id };
+  }
+  const setPin = (app: App, id: number, pin: string | null, cookie: string) =>
+    app.inject({ method: 'PUT', url: `/api/profiles/${id}/pin`, headers: { cookie }, payload: { pin } });
+  const select = (app: App, id: number, pin?: string, cookie = '') =>
+    post(app, `/api/profiles/${id}/select`, pin ? { pin } : {}, cookie);
+  const locked = async (app: App, cookie = '') =>
+    Object.fromEntries(
+      ((await app.inject({ method: 'GET', url: '/api/profiles', headers: { cookie } })).json() as (Profile & { locked: boolean })[]).map(
+        (p) => [p.name, p.locked],
+      ),
+    );
+
+  it('asks for the PIN an administrator gave a profile, on each device', async () => {
+    const { app, admin, id } = await connected();
+    const res = await setPin(app, id('Kid'), '2468', admin);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ name: 'Kid', pinProtected: true });
+    expect(await locked(app)).toEqual({ Dad: false, Kid: true });
+
+    expect((await select(app, id('Kid'))).json()).toMatchObject({ error: 'PIN required', needPin: true, profileId: id('Kid') });
+    expect((await select(app, id('Kid'), '1357')).json()).toMatchObject({ error: 'Wrong PIN, try again', needPin: true });
+    const phone = await select(app, id('Kid'), '2468');
+    expect(phone.statusCode).toBe(200);
+    expect(await locked(app, cookiesOf(phone))).toEqual({ Dad: false, Kid: false });
+    expect((await select(app, id('Kid'), undefined, cookiesOf(phone))).statusCode).toBe(200);
+  });
+
+  it('asks for it when the profile joins a group, and counts wrong PINs like Plex ones', async () => {
+    const { app, admin, id } = await connected();
+    await setPin(app, id('Kid'), '2468', admin);
+    const together = (pin?: { id: number; pin: string }) =>
+      post(app, '/api/profiles/together', { ids: [id('Dad'), id('Kid')], ...(pin ? { pin } : {}) });
+    expect((await together()).json()).toMatchObject({ needPin: true, profileId: id('Kid') });
+    expect((await together({ id: id('Kid'), pin: '2468' })).statusCode).toBe(200);
+
+    for (let i = 0; i < 5; i++) expect((await select(app, id('Kid'), '0000')).statusCode).toBe(403);
+    expect((await select(app, id('Kid'), '2468')).statusCode).toBe(429);
+  });
+
+  it('keeps only a scrambled PIN, which nobody can read back', async () => {
+    const { app, store, admin, id } = await connected();
+    await setPin(app, id('Kid'), '2468', admin);
+    const rows = JSON.stringify(store.db.prepare('SELECT * FROM profiles').all());
+    expect(rows).not.toContain('2468');
+    expect(store.profileRow(id('Kid'))!.pin_hash).toMatch(/^scrypt\$/);
+    const settings = await app.inject({ method: 'GET', url: '/api/settings', headers: { cookie: admin } });
+    expect(settings.body).not.toContain(store.profileRow(id('Kid'))!.pin_hash!);
+  });
+
+  it('opens the profile again once the PIN is taken off', async () => {
+    const { app, admin, id } = await connected();
+    await setPin(app, id('Kid'), '2468', admin);
+    expect((await setPin(app, id('Kid'), null, admin)).json()).toMatchObject({ pinProtected: false });
+    expect(await locked(app)).toEqual({ Dad: false, Kid: false });
+    expect((await select(app, id('Kid'))).statusCode).toBe(200);
+  });
+
+  it('only lets an administrator set a PIN, of four digits', async () => {
+    const { app, admin, id } = await connected();
+    const kid = cookiesOf(await select(app, id('Kid')));
+    for (const cookie of ['', kid]) {
+      const res = await setPin(app, id('Kid'), '2468', cookie);
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({ needAdmin: true });
+    }
+    for (const pin of ['246', '24680', '24a8', '']) expect((await setPin(app, id('Kid'), pin, admin)).statusCode).toBe(400);
+    expect(await locked(app)).toEqual({ Dad: false, Kid: false });
+  });
+
+  it("opens an administrator's own profile where they signed in to settings, and nobody else's", async () => {
+    fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, MUM];
+    const { app, admin, id } = await connected();
+    await setPin(app, id('Dad'), '1111', admin);
+    await setPin(app, id('Mum'), '2222', admin);
+    expect(await locked(app)).toEqual({ Dad: true, Kid: false, Mum: true });
+    // On Dad's device, signed in to settings as Dad.
+    expect(await locked(app, admin)).toEqual({ Dad: false, Kid: false, Mum: true });
+    expect((await select(app, id('Dad'), undefined, admin)).statusCode).toBe(200);
+    expect((await select(app, id('Mum'), undefined, admin)).json()).toMatchObject({ needPin: true });
+  });
+});
+
 describe('one media server at a time', () => {
   afterEach(() => fake.reset());
 

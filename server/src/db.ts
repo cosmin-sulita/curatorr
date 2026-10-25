@@ -152,6 +152,10 @@ const migrations: string[] = [
   `
   ALTER TABLE watchlist ADD COLUMN added_at INTEGER;  -- first seen there, or put there by Curatorr; NULL before v10
   `,
+  // v11: a PIN Curatorr keeps for a Jellyfin profile (Jellyfin has none), set by an administrator in Settings.
+  `
+  ALTER TABLE profiles ADD COLUMN pin_hash TEXT;  -- scrypt, never the PIN itself (pins.ts); NULL for none
+  `,
 ];
 
 export function openDb(configDir: string, fileName = 'curatorr.db'): DB {
