@@ -20,6 +20,25 @@ import { statusRoutes } from './routes/status.js';
 import { LibrarySync } from './services/library.js';
 import { Store } from './store.js';
 
+/**
+ * The app's pages run only its own scripts, and load only from Curatorr, except pictures (TMDB's, Plex's avatars).
+ * There's no frame-ancestors: dashboards like Organizr show the app in a frame.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  // The launch screen's markup and motion's animations set styles inline.
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join('; ');
+
 export async function buildApp(opts: { configDir?: string; demo?: boolean; logger?: boolean } = {}) {
   const demo = opts.demo ?? config.demo;
   const db = openDb(opts.configDir ?? config.configDir, demo ? 'curatorr-demo.db' : 'curatorr.db');
@@ -98,13 +117,17 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
         } else if (name === 'index.html' || name === 'sw.js' || name.endsWith('.webmanifest')) {
           reply.header('cache-control', 'no-cache');
         }
+        if (name === 'index.html') reply.header('content-security-policy', CONTENT_SECURITY_POLICY);
       },
     });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/') || req.method !== 'GET') {
         return reply.code(404).send({ error: 'Not found' });
       }
-      return reply.header('cache-control', 'no-cache').sendFile('index.html');
+      return reply
+        .header('cache-control', 'no-cache')
+        .header('content-security-policy', CONTENT_SECURITY_POLICY)
+        .sendFile('index.html');
     });
   } else {
     app.log.warn(`web build not found at ${config.webDist}; serving the API only`);

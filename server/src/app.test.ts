@@ -431,6 +431,32 @@ describe('the web app', () => {
     }
   });
 
+  it("lets only the app's own scripts run on its pages, and dashboards still frame them", async () => {
+    for (const url of ['/', '/index.html', '/pick?genre=Drama']) {
+      for (const encoding of ['br', undefined]) {
+        const header = (await get(url, encoding)).headers['content-security-policy'];
+        expect(header, url).toBeTypeOf('string');
+        const policy = new Map(
+          String(header)
+            .split(';')
+            .map((d) => d.trim().split(/\s+/))
+            .map(([name, ...values]) => [name, values.join(' ')]),
+        );
+        expect(policy.get('script-src')).toBe("'self'");
+        expect(policy.get('object-src')).toBe("'none'");
+        expect(policy.get('base-uri')).toBe("'none'");
+        expect(policy.get('connect-src')).toBe("'self'");
+        // TMDB's pictures, and Plex's avatars.
+        expect(policy.get('img-src')).toContain('https:');
+        // Organizr and the like show Curatorr in a frame.
+        expect(policy.has('frame-ancestors')).toBe(false);
+      }
+    }
+    // Scripts and the service worker aren't pages.
+    expect((await get('/sw.js')).headers['content-security-policy']).toBeUndefined();
+    expect((await get('/assets/index-abc.js')).headers['content-security-policy']).toBeUndefined();
+  });
+
   it('sends a file as it is when it has no compressed copy', async () => {
     const res = await get('/sw.js', 'gzip, deflate, br');
     expect(res.statusCode).toBe(200);
