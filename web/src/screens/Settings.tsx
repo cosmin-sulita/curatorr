@@ -14,7 +14,7 @@ import { api, errorMessage, useHidden, useSettings, useStatus, type SettingsResp
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
-import { useEntrance } from '../lib/wizard';
+import { ENTERED, useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { MARK_LISTS } from './Marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
@@ -52,7 +52,7 @@ export function SettingsScreen() {
         {/* As on the other screens: the title in the same place, sliding in from the side it's reached from. */}
         <motion.section
           initial={entrance}
-          animate={{ opacity: 1, x: 0 }}
+          animate={ENTERED}
           transition={{ type: 'spring', stiffness: 380, damping: 34 }}
           className="pt-6"
         >

@@ -100,14 +100,23 @@ export function useLookAhead(urls: string[], key: string | null) {
 
 /**
  * Where a screen slides in from: the right going forward, the left going back. Not at all when the browser already
- * animated the move, and with reduced motion it only fades (starting off to the side would jump into place).
+ * animated the move, and with reduced motion it only fades (starting off to the side would jump into place). Screens
+ * animate to `ENTERED`.
  */
 export function useEntrance() {
   const reduceMotion = useReducedMotionConfig();
   const direction = navigationDirection();
   if (direction === 'none') return false;
-  return { opacity: 0, x: reduceMotion ? 0 : direction === 'back' ? -28 : 28 };
+  if (reduceMotion) return { opacity: 0 };
+  // A transform, not motion's x: the browser then runs the slide on its own, while the new screen keeps the page busy.
+  return { opacity: 0, transform: `translateX(${direction === 'back' ? -28 : 28}px)` };
 }
+
+/**
+ * Where an entrance ends. Motion leaves `translateX(0px)` behind once a slide to `none` is over, and any transform
+ * would hold the screen's fixed descendants, so it's `none` again at rest.
+ */
+export const ENTERED = { opacity: 1, transform: 'none', transitionEnd: { transform: 'none' } };
 
 /** The answer that was tapped, while its screen loads; `slow` once that takes a moment. */
 export interface Going {

@@ -16,7 +16,7 @@ import {
   type HiddenMovie,
 } from '../lib/api';
 import { plural, serverName } from '../lib/format';
-import { useEntrance } from '../lib/wizard';
+import { ENTERED, useEntrance } from '../lib/wizard';
 import { unwatchlistMessage } from './Pick';
 
 export type MarkListId = 'watchlist' | 'seen' | 'never';
@@ -186,7 +186,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
 
       <motion.section
         initial={entrance}
-        animate={{ opacity: 1, x: 0 }}
+        animate={ENTERED}
         transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         className="pt-6 pb-10"
       >

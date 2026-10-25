@@ -13,6 +13,7 @@ import { TagIcon } from '../lib/icons';
 import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
 import {
+  ENTERED,
   SURPRISE_URL,
   answersBefore,
   criteriaFrom,
@@ -146,7 +147,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
           <motion.section
             key={step + JSON.stringify(criteria)}
             initial={entrance}
-            animate={{ opacity: 1, x: 0 }}
+            animate={ENTERED}
             transition={{ type: 'spring', stiffness: 380, damping: 34 }}
             className="pt-6"
           >

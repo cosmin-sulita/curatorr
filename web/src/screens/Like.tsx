@@ -7,7 +7,7 @@ import { Button, Img, Notice, Pending, PICTURE, plainField, sized, Spinner } fro
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
-import { tapped, useAdvance, useEntrance } from '../lib/wizard';
+import { ENTERED, tapped, useAdvance, useEntrance } from '../lib/wizard';
 
 /** "Something like…": pick a movie you loved, then get unwatched ones that resemble it. */
 export function LikeScreen({ search }: { search: URLSearchParams }) {
@@ -45,7 +45,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
 
       <motion.section
         initial={entrance}
-        animate={{ opacity: 1, x: 0 }}
+        animate={ENTERED}
         transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         className="pt-6 pb-10"
       >
