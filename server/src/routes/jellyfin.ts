@@ -141,9 +141,19 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     // date is compared with the one it gave when the count began, so a clock that's off can't start it again.
     const since = missed?.lastLoginAt;
     if (missed && account?.lastLoginAt != null && (since == null || account.lastLoginAt > since)) missed = undefined;
+    const tries = passwordTries(account);
+    if (tries === 0) {
+      // Not a matter of wrong passwords: one could already disable the account, whatever happens in Jellyfin.
+      const after = account!.lockoutAfter!;
+      throw new HttpError(
+        403,
+        `Jellyfin disables ${name}'s account after ${after} wrong password${after === 1 ? '' : 's'}, so Curatorr ` +
+          "doesn't pass on passwords for it. Sign in as another administrator, or allow more tries in Jellyfin.",
+      );
+    }
     // Where Jellyfin disables accounts, wrong passwords typed in its own apps bring that closer too.
     const count = Math.max(missed?.count ?? 0, account?.lockoutAfter != null ? account.wrongPasswords : 0);
-    if (count >= passwordTries(account)) {
+    if (count >= tries) {
       throw new HttpError(429, `Too many wrong passwords for ${name}. Sign in to Jellyfin itself once, then try again here.`);
     }
     const lastLoginAt = missed ? missed.lastLoginAt : (account?.lastLoginAt ?? null);

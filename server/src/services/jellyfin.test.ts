@@ -605,13 +605,19 @@ describe("Settings sign-in and Jellyfin's lockout", () => {
     expect(fake.state.signIns).toBe(signIns);
   });
 
-  it('sends no password for an account Jellyfin locks after one or two wrong ones', async () => {
+  it('sends no password for an account Jellyfin locks after one or two wrong ones, and says why', async () => {
     const { app } = await freshInstall();
     await connectAsDad(app);
-    for (const limit of [1, 2]) {
+    for (const [limit, words] of [[1, '1 wrong password'], [2, '2 wrong passwords']] as const) {
       fake.state.lockoutAfter[DAD] = limit;
       const signIns = fake.state.signIns;
-      expect((await login(app, 'wrong')).json().error).toBe(STOPPED);
+      // Not even the right one: nothing Dad does in Jellyfin changes that.
+      const res = await login(app, 'dad-pass');
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error).toBe(
+        `Jellyfin disables Dad's account after ${words}, so Curatorr doesn't pass on passwords for it. ` +
+          'Sign in as another administrator, or allow more tries in Jellyfin.',
+      );
       expect(fake.state.signIns).toBe(signIns);
     }
     expect(fake.state.lockedOut.has(DAD)).toBe(false);
