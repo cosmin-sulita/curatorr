@@ -1,7 +1,7 @@
 import type { MediaServer, Profile } from '@curatorr/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Check, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
 import { api, errorMessage, type ServerLibrary } from '../lib/api';
 
@@ -84,15 +84,21 @@ export function LibraryPicker({
 
 /** Turns the media server's users into profiles, and shows who became one. */
 export function UserImport({ server, onDone }: { server: MediaServer; onDone: () => void }) {
-  const users = useQuery({
-    queryKey: ['server-import', server],
-    queryFn: () => api<(Profile & { hidden: boolean })[]>(`/api/setup/${server}/users`, { json: {} }),
-    staleTime: Infinity,
-    retry: false,
+  // A change on the server, so it runs each time this step opens (once, although React may mount it twice), never
+  // from a cache: users changed on the server since show as they are now.
+  const users = useMutation({
+    mutationFn: () => api<(Profile & { hidden: boolean })[]>(`/api/setup/${server}/users`, { json: {} }),
   });
+  const { mutate } = users;
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    mutate();
+  }, [mutate]);
   const who = server === 'plex' ? 'Plex Home' : 'Jellyfin';
 
-  if (users.isLoading) {
+  if (users.isIdle || users.isPending) {
     return (
       <div className="flex items-center gap-3 text-muted">
         <Spinner className="size-5" /> Importing {who} users…
@@ -103,7 +109,7 @@ export function UserImport({ server, onDone }: { server: MediaServer; onDone: ()
     return (
       <div className="space-y-3">
         <Notice>{errorMessage(users.error)}</Notice>
-        <Button onClick={() => users.refetch()} loading={users.isFetching}>
+        <Button onClick={() => mutate()}>
           Try again
         </Button>
       </div>
