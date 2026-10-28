@@ -19,9 +19,13 @@ const STEPS: { id: Step; label: string }[] = [
   { id: 'finish', label: 'Finish' },
 ];
 
-/** After a reload, setup carries on at the first step still to do. The server is done once its users are profiles. */
+/**
+ * After a reload, setup carries on at the first step still to do. The server is done once its users are profiles, or
+ * once it was skipped, which leaves a profile of Curatorr's own; Seerr needs a server, so finishing is all that's left.
+ */
 function resumeAt(s: SettingsResponse | undefined): Step {
   if (!s?.radarr) return 'radarr';
+  if (!s.server && s.profiles.length) return 'finish';
   if (!s.profiles.some((p) => p.serverUser)) return 'server';
   return s.seerr ? 'finish' : 'seerr';
 }
