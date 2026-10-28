@@ -115,9 +115,59 @@ function rememberProfile(status: AppStatus) {
   }
 }
 
+/**
+ * Every query's key starts here, so the screens, what loads them ahead and what refreshes them after a change all name
+ * the same thing. The picking keys are prefixes: each question, list of picks and search adds its own parts.
+ */
+export const keys = {
+  status: ['status'],
+  profiles: ['profiles'],
+  settings: ['settings'],
+  plexServers: ['plex-servers'],
+  wizard: ['wizard'],
+  recommendations: ['recommendations'],
+  like: ['like'],
+  hidden: ['hidden'],
+} as const;
+
+/** What the profile picks from, besides the picks themselves: the questions, "Something like…"'s seeds and its lists. */
+const QUESTION_KEYS = [keys.wizard, keys.like, keys.hidden];
+
+/**
+ * After a mark (Seen it, Never, Watchlist) or its Undo, or on a new evening: the questions' counts, "Something like…"'s
+ * recently watched and the profile's lists change, and so do picks loaded ahead. Questions stay cached to show at once
+ * on the way back, then refresh; a pick on screen keeps its list until it closes.
+ */
+export function refreshQuestions(qc: QueryClient) {
+  for (const key of QUESTION_KEYS) void qc.invalidateQueries({ queryKey: key });
+  qc.removeQueries({ queryKey: keys.recommendations, type: 'inactive' });
+}
+
+/**
+ * After a library sync or a change to how picks work (Settings → Picks): what's offered changes, so questions not on
+ * screen are dropped rather than shown with old answers first, and the one on screen refreshes.
+ */
+export function afterLibraryChange(qc: QueryClient) {
+  qc.removeQueries({ queryKey: keys.wizard, type: 'inactive' });
+  refreshQuestions(qc);
+}
+
+/** After the device's picking has been away a while: everything it picks from, and the picks on screen too. */
+export function refreshPicking(qc: QueryClient) {
+  for (const key of [...QUESTION_KEYS, keys.recommendations]) void qc.invalidateQueries({ queryKey: key });
+}
+
+/**
+ * After a change to who may do what: an administrator signed in or out, setup finished, or a profile got or lost a PIN.
+ * The status, Settings and the profiles (which are locked here) follow.
+ */
+export function afterAccessChange(qc: QueryClient) {
+  return Promise.all([keys.status, keys.settings, keys.profiles].map((key) => qc.invalidateQueries({ queryKey: key })));
+}
+
 export function useStatus() {
   return useQuery({
-    queryKey: ['status'],
+    queryKey: keys.status,
     queryFn: async () => {
       const status = await api<AppStatus>('/api/status', { timeout: STATUS_TIMEOUT_MS });
       rememberProfile(status);
@@ -134,7 +184,7 @@ export function useStatus() {
 
 /** `locked`: the profile's Plex PIN hasn't been entered on this device yet. */
 export const profilesQuery = queryOptions({
-  queryKey: ['profiles'],
+  queryKey: keys.profiles,
   queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles'),
 });
 
@@ -158,7 +208,7 @@ const FIRST_PICTURES = 18;
 
 export const wizardQuery = (step: WizardStep, criteria: Criteria) =>
   queryOptions({
-    queryKey: ['wizard', step, criteria],
+    queryKey: [...keys.wizard, step, criteria],
     queryFn: () => api<WizardOptionsResponse>(withQuery(`/api/wizard/${step}`, criteriaParams(criteria))),
     staleTime: FRESH_QUESTIONS,
     gcTime: KEEP_QUESTIONS,
@@ -186,7 +236,7 @@ export function useWizardOptions(step: WizardStep, criteria: Criteria) {
 /** With `like` (a movie id), picks resemble that movie instead of matching the answers. */
 export const recommendationsQuery = (criteria: Criteria, like?: string | null) =>
   queryOptions({
-    queryKey: ['recommendations', criteria, like ?? null],
+    queryKey: [...keys.recommendations, criteria, like ?? null],
     queryFn: () =>
       api<RecommendationsResponse>(withQuery('/api/recommendations', { ...criteriaParams(criteria), like })),
     staleTime: Infinity,
@@ -200,7 +250,7 @@ export function useRecommendations(criteria: Criteria, like?: string | null) {
 /** Movies to start "Something like…" from: recently watched, or titles matching `q`. */
 export const likeSeedsQuery = (q: string) =>
   queryOptions({
-    queryKey: ['like', q],
+    queryKey: [...keys.like, q],
     queryFn: () => api<LikeSeed[]>(withQuery('/api/like', { q })),
     staleTime: 60_000,
     // The genre question waits for these (for the "Something like…" card's posters).
@@ -273,18 +323,15 @@ export type HiddenMovie =
   | { id: null; kind: 'later'; createdAt: number | null; movie: ListedMovie };
 
 export function useHidden() {
-  return useQuery({ queryKey: ['hidden'], queryFn: () => api<HiddenMovie[]>('/api/hidden') });
+  return useQuery({ queryKey: keys.hidden, queryFn: () => api<HiddenMovie[]>('/api/hidden') });
 }
 
 /** Everything below depends on who is watching. */
 function newViewers(qc: QueryClient) {
-  qc.removeQueries({ queryKey: ['wizard'] });
-  qc.removeQueries({ queryKey: ['recommendations'] });
-  qc.removeQueries({ queryKey: ['like'] });
-  qc.removeQueries({ queryKey: ['hidden'] });
+  for (const key of [...QUESTION_KEYS, keys.recommendations]) qc.removeQueries({ queryKey: key });
   // The first question loads before the screen changes. The new status comes after it, since on "Who's watching?"
   // at / it's what changes the screen.
-  return loadFirstQuestion(qc).then(() => qc.invalidateQueries({ queryKey: ['status'] }));
+  return loadFirstQuestion(qc).then(() => qc.invalidateQueries({ queryKey: keys.status }));
 }
 
 /**
@@ -377,7 +424,7 @@ export interface SettingsResponse {
 
 export function useSettings(enabled: boolean) {
   return useQuery({
-    queryKey: ['settings'],
+    queryKey: keys.settings,
     queryFn: () => api<SettingsResponse>('/api/settings'),
     enabled,
     refetchInterval: (q) => (q.state.data?.sync.syncing ? 2_000 : false),

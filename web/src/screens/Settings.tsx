@@ -10,7 +10,17 @@ import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, buttonClass, Notice, Spinner, Toggle } from '../components/ui';
 import { WhatsNewDialog } from '../components/WhatsNew';
-import { api, errorMessage, useHidden, useSettings, useStatus, type SettingsResponse } from '../lib/api';
+import {
+  afterAccessChange,
+  afterLibraryChange,
+  api,
+  errorMessage,
+  keys,
+  useHidden,
+  useSettings,
+  useStatus,
+  type SettingsResponse,
+} from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
@@ -107,7 +117,7 @@ function ProfilePin({ profile, onClose }: { profile: SettingsProfile; onClose: (
     setBusy(true);
     try {
       await api(`/api/profiles/${profile.id}/pin`, { method: 'PUT', json: { pin } });
-      await qc.invalidateQueries();
+      await afterAccessChange(qc);
       toast({ message: pin ? `${profile.name}'s profile asks for this PIN now` : `${profile.name}'s profile has no PIN now` });
       onClose();
     } catch (err) {
@@ -512,8 +522,8 @@ function AdminSettings({
   }, [editing]);
 
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['settings'] });
-    qc.invalidateQueries({ queryKey: ['status'] });
+    qc.invalidateQueries({ queryKey: keys.settings });
+    qc.invalidateQueries({ queryKey: keys.status });
   };
 
   const run = async (fn: () => Promise<unknown>, success?: string) => {
@@ -527,22 +537,17 @@ function AdminSettings({
     }
   };
 
-  const clearPicks = () => {
-    qc.removeQueries({ queryKey: ['wizard'] });
-    qc.removeQueries({ queryKey: ['recommendations'] });
-  };
-
   // Switches move as soon as they're tapped; the refresh after saving settles the real state.
   const optimistic = async (change: (d: SettingsResponse) => SettingsResponse) => {
-    await qc.cancelQueries({ queryKey: ['settings'] });
-    qc.setQueryData<SettingsResponse>(['settings'], (d) => d && change(d));
+    await qc.cancelQueries({ queryKey: keys.settings });
+    qc.setQueryData<SettingsResponse>(keys.settings, (d) => d && change(d));
   };
 
   const updateApp = (patch: Partial<SettingsResponse['app']>) =>
     run(async () => {
       await optimistic((d) => ({ ...d, app: { ...d.app, ...patch } }));
       await api('/api/settings/app', { method: 'PUT', json: patch });
-      clearPicks();
+      afterLibraryChange(qc);
     });
 
   const { sync, seerr } = data;
@@ -555,7 +560,7 @@ function AdminSettings({
     const server = data.server === 'jellyfin' ? 'jellyfin' : 'plex';
     setRefreshing(true);
     await run(() => api(`/api/setup/${server}/users`, { json: {} }), `Profiles updated from ${home}`);
-    qc.invalidateQueries({ queryKey: ['profiles'] });
+    qc.invalidateQueries({ queryKey: keys.profiles });
     setRefreshing(false);
   };
 
@@ -781,7 +786,7 @@ function AdminSettings({
                     actions={cancel}
                     onSaved={() => {
                       setEditing(null);
-                      clearPicks();
+                      afterLibraryChange(qc);
                       refresh();
                       toast({ message: 'Seerr connected' });
                     }}
@@ -792,7 +797,7 @@ function AdminSettings({
                         setEditing(null);
                         run(async () => {
                           await api('/api/settings/seerr', { method: 'DELETE' });
-                          clearPicks();
+                          afterLibraryChange(qc);
                         }, 'Seerr disconnected');
                       }}
                     />
@@ -842,7 +847,7 @@ function AdminSettings({
                         profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
                       }));
                       await api(`/api/profiles/${p.id}`, { method: 'PATCH', json: { hidden: !show } });
-                      qc.invalidateQueries({ queryKey: ['profiles'] });
+                      qc.invalidateQueries({ queryKey: keys.profiles });
                     })
                   }
                 />
@@ -862,7 +867,7 @@ function AdminSettings({
           <Button
             variant="ghost"
             className="w-full"
-            onClick={() => run(() => api('/api/admin/logout', { json: {} }).then(() => qc.invalidateQueries()))}
+            onClick={() => run(() => api('/api/admin/logout', { json: {} }).then(() => afterAccessChange(qc)))}
           >
             <LogOut className="size-4" /> Sign out of settings on this device
           </Button>

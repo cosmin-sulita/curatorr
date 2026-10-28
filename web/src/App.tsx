@@ -1,10 +1,18 @@
 import type { AppStatus } from '@curatorr/shared';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CenteredState, Frame, Shell } from './components/Shell';
 import { Button, Notice, Spinner } from './components/ui';
 import { WhatsNew } from './components/WhatsNew';
-import { errorMessage, isNetworkError, likeSeedsQuery, profilesQuery, useStatus, wizardQuery } from './lib/api';
+import {
+  afterLibraryChange,
+  errorMessage,
+  isNetworkError,
+  likeSeedsQuery,
+  profilesQuery,
+  useStatus,
+  wizardQuery,
+} from './lib/api';
 import { useLocation } from './lib/router';
 import { isStep } from './lib/wizard';
 import { LikeScreen } from './screens/Like';
@@ -20,6 +28,7 @@ export function App() {
   const status = useStatus();
   const opening = useOpening(path, status.data);
   const offline = useOffline(status);
+  useLibraryRefresh(status.data?.library.lastSync);
 
   if ((status.isLoading && !offline) || opening) return <Launch />;
 
@@ -52,6 +61,20 @@ export function App() {
       <WhatsNew setupComplete={status.data.setupComplete} />
     </>
   );
+}
+
+/**
+ * A library sync the app saw finish (Sync now, or one it noticed running) changes what the questions offer: they
+ * refresh, instead of showing counts from before it for up to five minutes.
+ */
+function useLibraryRefresh(lastSync: number | null | undefined) {
+  const qc = useQueryClient();
+  const seen = useRef(lastSync);
+  useEffect(() => {
+    if (lastSync === undefined) return;
+    if (seen.current !== undefined && lastSync !== seen.current) afterLibraryChange(qc);
+    seen.current = lastSync;
+  }, [lastSync, qc]);
 }
 
 /** While Curatorr can't be reached, the app tries again this often, as well as on coming back to the foreground. */

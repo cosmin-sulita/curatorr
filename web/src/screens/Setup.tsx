@@ -5,7 +5,7 @@ import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, Spinner, urlField } from '../components/ui';
-import { api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
+import { afterAccessChange, api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
@@ -363,7 +363,7 @@ function Finish() {
     setError(null);
     try {
       await api('/api/setup/complete', { json: {} });
-      await qc.invalidateQueries();
+      await afterAccessChange(qc);
       navigate('/profiles', { replace: true });
     } catch (err) {
       setError(errorMessage(err));

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { Button, Field, inputClass, Notice, Spinner, urlField } from '../components/ui';
-import { api, errorMessage, type PlexServerOption, type ServerLibrary } from '../lib/api';
+import { afterAccessChange, api, errorMessage, keys, type PlexServerOption, type ServerLibrary } from '../lib/api';
 import { usePlexSignIn } from '../lib/plexAuth';
 import { LibraryPicker, UserImport } from './MediaServer';
 
@@ -98,7 +98,7 @@ function ServerPicker({
   onSignInAgain: () => void;
 }) {
   const servers = useQuery({
-    queryKey: ['plex-servers'],
+    queryKey: keys.plexServers,
     // Trying each of the servers' addresses takes a while.
     queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers', { timeout: 60_000 }),
     staleTime: 0,
@@ -215,7 +215,7 @@ function ServerPicker({
 /** The server owner signs in with Plex to manage Curatorr on this device; everything reloads as the owner. */
 export function OwnerSignIn() {
   const qc = useQueryClient();
-  const signIn = usePlexSignIn('login', () => qc.invalidateQueries());
+  const signIn = usePlexSignIn('login', () => afterAccessChange(qc));
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">

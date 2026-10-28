@@ -4,7 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ToastProvider } from './components/Toast';
-import { isNetworkError, isTimeout, loadFirstScreen, whenSignedOut } from './lib/api';
+import { isNetworkError, isTimeout, keys, loadFirstScreen, whenSignedOut } from './lib/api';
 import { startUpdateChecks } from './lib/appUpdate';
 import { listenForInstallPrompt } from './lib/install';
 import { refreshOnReturn } from './lib/resume';
@@ -35,7 +35,7 @@ const queryClient: QueryClient = new QueryClient({
 });
 
 // The profile cookie expired or the profile was removed, found by a read or a mark alike: go back to "Who's watching?".
-whenSignedOut(() => queryClient.invalidateQueries({ queryKey: ['status'] }));
+whenSignedOut(() => queryClient.invalidateQueries({ queryKey: keys.status }));
 
 // The first screen loads alongside the status, so the app opens on it in one go.
 loadFirstScreen(queryClient);

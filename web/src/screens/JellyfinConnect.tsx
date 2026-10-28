@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, urlField } from '../components/ui';
-import { api, errorMessage, type ServerLibrary, type SettingsResponse } from '../lib/api';
+import { afterAccessChange, api, errorMessage, type ServerLibrary, type SettingsResponse } from '../lib/api';
 import { LibraryPicker, UserImport } from './MediaServer';
 
 type Stage = 'connect' | 'libraries' | 'users';
@@ -147,7 +147,7 @@ export function JellyfinSignIn() {
     setError(null);
     try {
       await api('/api/jellyfin/login', { json: { username, password } });
-      await qc.invalidateQueries();
+      await afterAccessChange(qc);
     } catch (err) {
       setError(errorMessage(err));
     } finally {

@@ -6,7 +6,6 @@ import {
   type MediaServer,
   type Pick,
   type Profile,
-  type WizardOptionsResponse,
 } from '@curatorr/shared';
 import { hashKey, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
@@ -46,12 +45,15 @@ import {
 } from '../components/ui';
 import {
   errorMessage,
+  keys,
   recommendationsQuery,
+  refreshQuestions,
   removeFromWatchlist,
   sendFeedback,
   undoAll,
   useRecommendations,
   useStatus,
+  wizardQuery,
   type ServerSyncResult,
 } from '../lib/api';
 import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
@@ -195,7 +197,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
         next.pathname === '/pick'
           ? hashKey(recommendationsQuery(criteriaFrom(next.searchParams), next.searchParams.get('like')).queryKey)
           : null;
-      qc.removeQueries({ queryKey: ['recommendations'], predicate: (q) => q.queryHash !== keep });
+      qc.removeQueries({ queryKey: keys.recommendations, predicate: (q) => q.queryHash !== keep });
     },
     [qc],
   );
@@ -236,7 +238,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   useEffect(() => clearSurprise(), []);
   const shufflePosters = rest.flatMap((p) => (p.movie.posterUrl ? [p.movie.posterUrl] : []));
   // The genre question's "N movies to choose from", still cached from a moment ago (picks are capped at 12).
-  const libraryTotal = qc.getQueryData<WizardOptionsResponse>(['wizard', 'genre', {}])?.total;
+  const libraryTotal = qc.getQueryData(wizardQuery('genre', {}).queryKey)?.total;
   const shuffling = shuffle === 'pending' && shufflePosters.length >= 3;
   // Too few posters to make a show of it (or nothing to pick): just land.
   useEffect(() => {
@@ -263,14 +265,12 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     };
     // A skip only demotes the movie; the other marks change what the questions can offer
     // (and Seen it adds to "Something like…"'s recently watched), and so does undoing them.
-    const refreshQuestions = () => {
-      if (kind === 'skipped') return;
-      qc.invalidateQueries({ queryKey: ['wizard'] });
-      qc.invalidateQueries({ queryKey: ['like'] });
+    const refresh = () => {
+      if (kind !== 'skipped') refreshQuestions(qc);
     };
     sendFeedback(pick.movie.id, kind, { profileIds })
       .then(({ ids, server }) => {
-        refreshQuestions();
+        refresh();
         toast({
           message: markMessage(kind, pick.movie.title, server, status?.server ?? null, who),
           duration: kind === 'skipped' ? 3000 : undefined,
@@ -280,7 +280,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               putBack();
               undoAll(ids)
                 .then((res) => {
-                  refreshQuestions();
+                  refresh();
                   if (res.partial) toast({ message: `Undone, but not for everyone: ${errorMessage(res.partial)}` });
                   else if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
                 })
@@ -313,6 +313,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       .then(({ server, onWatchlistOf }) => {
         const after = withWatchlist(pick, onWatchlistOf, people);
         show(after);
+        refreshQuestions(qc);
         const off = targets.filter((id) => !onWatchlistOf.includes(id));
         const kept = targets.filter((id) => onWatchlistOf.includes(id));
         toast({
@@ -329,6 +330,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
                   show(pick);
                   sendFeedback(pick.movie.id, 'later', together ? { profileIds: off } : {})
                     .then((res) => {
+                      refreshQuestions(qc);
                       if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
                     })
                     .catch((err) => {

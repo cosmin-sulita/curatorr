@@ -1,5 +1,6 @@
 import { pickingDay } from '@curatorr/shared';
 import type { QueryClient } from '@tanstack/react-query';
+import { refreshPicking, refreshQuestions } from './api';
 import { navigate } from './router';
 
 /** Away from the app this long, what it shows is fetched again on coming back. */
@@ -28,22 +29,15 @@ export function refreshOnReturn(qc: QueryClient) {
     hiddenAt = null;
     const now = Date.now();
     if (pickingDay(since) !== pickingDay(now)) startOver(qc);
-    else if (now - since >= LONG_BREAK_MS) refetchPicking(qc);
+    else if (now - since >= LONG_BREAK_MS) refreshPicking(qc);
   });
-}
-
-const QUESTIONS = ['wizard', 'like', 'hidden'];
-
-function refetchPicking(qc: QueryClient) {
-  for (const key of [...QUESTIONS, 'recommendations']) void qc.invalidateQueries({ queryKey: [key] });
 }
 
 function startOver(qc: QueryClient) {
   if (PICKING.test(window.location.pathname) && window.location.pathname !== '/ask/genre') {
     navigate('/', { replace: true, animate: false });
   }
-  // Last night's picks, loaded ahead or shown: a pick still on screen takes its own along as it closes (see
-  // PickScreen), and dropping it before would only fetch it again.
-  qc.removeQueries({ queryKey: ['recommendations'], type: 'inactive' });
-  for (const key of QUESTIONS) void qc.invalidateQueries({ queryKey: [key] });
+  // Last night's picks loaded ahead go. A pick still on screen takes its own along as it closes (see PickScreen), and
+  // dropping it before would only fetch it again.
+  refreshQuestions(qc);
 }

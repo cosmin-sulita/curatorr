@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast';
 import { Button, Img, Notice, PICTURE, plainField, sized, Spinner } from '../components/ui';
 import {
   errorMessage,
+  refreshQuestions,
   removeFromWatchlist,
   sendFeedback,
   undoFeedback,
@@ -110,12 +111,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
   const q = fold(query.trim());
   const found = q ? all.filter((m) => fold(`${m.movie.title} ${m.movie.year ?? ''}`).includes(q)) : all;
 
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['hidden'] });
-    qc.invalidateQueries({ queryKey: ['wizard'] });
-    qc.invalidateQueries({ queryKey: ['like'] });
-    qc.removeQueries({ queryKey: ['recommendations'] });
-  };
+  const refresh = () => refreshQuestions(qc);
 
   const bringBack = (movieId: number) =>
     setGone((g) => {
