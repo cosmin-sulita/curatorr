@@ -79,6 +79,21 @@ export function SetupScreen() {
                 </>
               )}
             </Panel>
+          ) : settings.error && !settings.data ? (
+            // Without the saved settings, setup can't tell which step is next: an empty Radarr form would look as if
+            // nothing had been saved.
+            <Panel title="Couldn't load setup">
+              <Notice>{errorMessage(settings.error)}</Notice>
+              <Button
+                variant="primary"
+                size="lg"
+                className="mt-6"
+                loading={settings.isFetching}
+                onClick={() => settings.refetch()}
+              >
+                Try again
+              </Button>
+            </Panel>
           ) : current === 'radarr' ? (
             <ServiceForm
               service="Radarr"
@@ -127,6 +142,7 @@ function ServerStep({
   // After a reload, carry on with the server signed in to already.
   const [server, setServer] = useState<MediaServer | null>(settings?.server ?? null);
   const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState<string | null>(null);
 
   if (server) {
     const back = { onClick: () => setServer(null), label: 'Back to Plex or Jellyfin' };
@@ -154,6 +170,11 @@ function ServerStep({
           Sign in as a Jellyfin administrator. Its users become profiles.
         </ServerOption>
       </div>
+      {skipError && (
+        <div className="mt-4">
+          <Notice>{skipError}</Notice>
+        </div>
+      )}
       <Button
         variant="ghost"
         size="lg"
@@ -161,8 +182,11 @@ function ServerStep({
         loading={skipping}
         onClick={async () => {
           setSkipping(true);
+          setSkipError(null);
           try {
             await onSkip();
+          } catch (err) {
+            setSkipError(errorMessage(err));
           } finally {
             setSkipping(false);
           }
