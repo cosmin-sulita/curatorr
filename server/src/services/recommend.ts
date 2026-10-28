@@ -154,8 +154,15 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
   const available = intersection(members.map((m) => m.available));
   const limits = { allowedCerts: certs, available };
   const seenByAll = intersection(views.map((v) => v.seen))!;
+  // A part someone marked Never is never offered, so it mustn't hold back the parts after it either.
+  const never = new Set(members.flatMap((m) => m.feedback.flatMap((e) => (e.kind === 'never' ? [e.movieId] : []))));
   // Only parts everyone can play and may see count: a part held back by limits mustn't hold back the sequels.
-  const playable = d.movies.filter((m) => (!requireServer || onServer(m, requireServer)) && allowedFor(m, limits));
+  const playable = d.movies.filter(
+    (m) =>
+      (!never.has(m.id) || seenByAll.has(m.id)) &&
+      (!requireServer || onServer(m, requireServer)) &&
+      allowedFor(m, limits),
+  );
   const requested = union(views.map((v) => v.requested));
   const watchlist = union(members.map((m) => m.watchlist));
   const ctx: ProfileContext = {

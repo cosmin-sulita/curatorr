@@ -79,6 +79,49 @@ describe('picks for a restricted profile', () => {
   });
 });
 
+describe('a saga with a part marked Never', () => {
+  /** A saga of `n` parts, and enough other movies to fill the picks. */
+  function saga(n: number) {
+    const store = tempStore();
+    const parts = Array.from({ length: n }, (_, i) =>
+      movie({ title: `Part ${i + 1}`, saga: { id: 7, title: 'Saga', part: i + 1, parts: n } }),
+    );
+    store.replaceMovies([...parts, movie({ title: 'Other' })], Date.now());
+    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const watch = (...seen: StoredMovie[]) =>
+      store.replaceWatched(alex.id, seen.map((m) => ({ movieId: m.id, viewedAt: Date.now() - 86_400_000 })), Date.now());
+    return { store, parts, alex, watch };
+  }
+  const reasonsOf = (res: { picks: { movie: { title: string }; reasons: { label: string }[] }[] }, title: string) =>
+    res.picks.find((p) => p.movie.title === title)?.reasons.map((r) => r.label);
+
+  it('goes on to the part after it', async () => {
+    const { store, parts, alex, watch } = saga(5);
+    watch(parts[0]!, parts[1]!);
+    store.addFeedback(alex.id, parts[2]!.id, 'never');
+    const res = await recommendFor(store, [alex], {});
+    expect(reasonsOf(res, 'Part 4')).toContain('Next in Saga');
+    expect(res.picks.map((p) => p.movie.title)).not.toContain('Part 3');
+  });
+
+  it('starts the saga at the next part when the first is marked Never', async () => {
+    const { store, parts, alex } = saga(3);
+    store.addFeedback(alex.id, parts[0]!.id, 'never');
+    const titles = (await recommendFor(store, [alex], {})).picks.map((p) => p.movie.title);
+    expect(titles).toContain('Part 2');
+    expect(titles).not.toContain('Part 1');
+    expect(titles).not.toContain('Part 3');
+  });
+
+  it('still holds the next part back for an unwatched part without a mark', async () => {
+    const { store, parts, alex, watch } = saga(3);
+    watch(parts[0]!);
+    const titles = (await recommendFor(store, [alex], {})).picks.map((p) => p.movie.title);
+    expect(titles).toContain('Part 2');
+    expect(titles).not.toContain('Part 3');
+  });
+});
+
 describe('a Jellyfin profile limited to some libraries', () => {
   /** A kid with no parental rating, limited to the libraries Jellyfin lets them open. */
   function jellyfinKid(store: Store) {

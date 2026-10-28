@@ -67,7 +67,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - TMDB's tone words (`TONE_KEYWORDS`: absurd, suspenseful…) don't count as keywords, here or in taste: contributors add them unevenly, and the moods cover them.
     - A signature shorter than a typical movie's (`typicalNorm`, the library's median) counts as that long in `similarity`, so movies with few keywords don't crowd every list.
     - Likeness is scored against the closest match (`SIMILARITY_POINTS * sim / best`), so the rating and `personalAdjustment` only reorder movies about as alike, except a pick passed over on several evenings, whose shown penalty keeps growing.
-  - `sagas.ts`: collection ordering.
+  - `sagas.ts`: collection ordering. `picking` only counts the parts everyone picking can be offered, so a part held back by limits, missing from the media server or marked Never doesn't hold back the parts after it.
   - `changelog.ts`: parses CHANGELOG.md for the What's new popup.
 - **`server/`**: Fastify 5.
   - `app.ts` builds the app; tests use `buildApp({ configDir, demo: true, logger: false })` and `app.inject`.
