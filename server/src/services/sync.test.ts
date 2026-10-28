@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { openDb, type DB } from '../db.js';
+import { PLEX_HOSTS } from '../integrations/plex.js';
 import { fromRadarr, type RadarrMovie } from '../integrations/radarr.js';
 import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
@@ -101,6 +102,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
   let base: string;
   let dir: string;
   let store: Store;
+  const plexHosts = { ...PLEX_HOSTS };
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -157,6 +159,9 @@ describe('library sync against fake Radarr and Plex servers', () => {
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    // A sync also reads Plex Home's users and each Watchlist: here, never from the real plex.tv, whose speed would decide
+    // whether the tests finish in time. This server has neither, as plex.tv refuses the tests' made-up tokens.
+    Object.assign(PLEX_HOSTS, { tv: base, discover: base });
 
     dir = mkdtempSync(path.join(tmpdir(), 'curatorr-sync-'));
     store = new Store(openDb(dir));
@@ -166,6 +171,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
   });
 
   afterAll(() => {
+    Object.assign(PLEX_HOSTS, plexHosts);
     server.close();
     store.db.close();
     rmSync(dir, { recursive: true, force: true });
