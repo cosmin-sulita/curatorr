@@ -1,13 +1,56 @@
+import type { LikeSeed } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { Button, Img, Notice, Pending, PICTURE, plainField, sized, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
-import { ENTERED, tapped, useAdvance, useEntrance } from '../lib/wizard';
+import { ENTERED, tapped, useAdvance, useEntrance, useLookAhead } from '../lib/wizard';
+
+/** How long a poster stays on screen before its pick loads ahead. On arrival, taps wait out 300 ms anyway. */
+const SETTLE_MS = 150;
+
+/**
+ * The movies whose posters are on screen, in the grid's order. A list holds up to 60, so only these load what they
+ * lead to ahead, and more as the page scrolls.
+ */
+function usePostersOnScreen(list: RefObject<HTMLUListElement | null>, seeds: LikeSeed[] | undefined) {
+  const [onScreen, setOnScreen] = useState<number[]>([]);
+  const ids = seeds?.map((s) => s.id) ?? [];
+  const key = ids.join(',');
+  useEffect(() => {
+    const el = list.current;
+    if (!el || !ids.length) {
+      setOnScreen([]);
+      return;
+    }
+    const visible = new Set<number>();
+    let settle = 0;
+    const observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const id = Number((e.target as HTMLElement).dataset.id);
+        if (e.isIntersecting) visible.add(id);
+        else visible.delete(id);
+      }
+      // Only the posters a scroll stops at: those it flies past don't load.
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        const next = ids.filter((id) => visible.has(id));
+        setOnScreen((prev) => (prev.join(',') === next.join(',') ? prev : next));
+      }, SETTLE_MS);
+    });
+    for (const li of el.children) observer.observe(li);
+    return () => {
+      window.clearTimeout(settle);
+      observer.disconnect();
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // New results show before the observer has looked at them: none of the old ones load meanwhile.
+  return onScreen.filter((id) => ids.includes(id));
+}
 
 /** "Something like…": pick a movie you loved, then get unwatched ones that resemble it. */
 export function LikeScreen({ search }: { search: URLSearchParams }) {
@@ -31,11 +74,15 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
     commit(text);
     input.current?.blur(); // Puts the keyboard away so the results show.
   };
-  // The pick opens once it has loaded, which starts as a finger lands on a poster; until then the poster stays pressed.
+  // The pick opens once it has loaded. The picks of the posters on screen load ahead, so a tap moves on at once; any
+  // other starts loading as a finger lands on it, and its poster stays pressed until then.
   const { go, going, warm } = useAdvance();
   const pickUrl = (id: number) => withQuery('/pick', { like: String(id) });
   const choose = (id: number) => go(String(id), pickUrl(id));
   const entrance = useEntrance();
+  const list = useRef<HTMLUListElement>(null);
+  const onScreen = usePostersOnScreen(list, data);
+  useLookAhead(onScreen.map(pickUrl), data && !isPlaceholderData && onScreen.length ? onScreen.join(',') : null);
 
   return (
     <Shell>
@@ -95,6 +142,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
 
         {data && data.length > 0 && (
           <ul
+            ref={list}
             className={clsx(
               'mt-3 grid grid-cols-3 gap-x-3 gap-y-5 transition-opacity sm:grid-cols-4 md:grid-cols-5',
               isFetching && isPlaceholderData && 'opacity-60',
@@ -103,7 +151,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
             {data.map((m) => {
               const state = tapped(going, String(m.id));
               return (
-                <li key={m.id}>
+                <li key={m.id} data-id={m.id}>
                   <button
                     onPointerDown={() => warm(pickUrl(m.id))}
                     onClick={() => choose(m.id)}
