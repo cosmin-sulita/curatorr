@@ -20,7 +20,7 @@
     "start": "npm run start -w server",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p shared --noEmit && tsc -p server --noEmit && tsc -p web --noEmit",
+    "typecheck": "tsc -p shared --noEmit && tsc -p server --noEmit && tsc -p web --noEmit && tsc -p tsconfig.test.json --noEmit",
     "tags": "npm run tags -w server --",
     "eval": "npm run eval -w server --",
     "icons": "npm run icons -w web"

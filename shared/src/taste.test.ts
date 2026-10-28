@@ -6,7 +6,7 @@ import type { Movie, Ratings } from './types.js';
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
-function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {
+function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
   const id = partial.id ?? nextId++;
   return {
     id,

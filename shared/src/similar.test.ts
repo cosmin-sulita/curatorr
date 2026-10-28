@@ -20,7 +20,7 @@ import type { FeedbackEvent, Movie, Ratings, Reason } from './types.js';
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
-function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {
+function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
   const id = partial.id ?? nextId++;
   return {
     id,
@@ -313,7 +313,7 @@ describe('"Something like…" over a whole library', () => {
       arrivedAt: i % 5 === 0 ? new Date(NOW - i * DAY).toISOString() : null,
     }),
   );
-  const feedback: FeedbackEvent[] = library.flatMap((m, i) =>
+  const feedback: FeedbackEvent[] = library.flatMap((m, i): FeedbackEvent[] =>
     i % 7 === 0
       ? [{ movieId: m.id, kind: 'skipped' as const, createdAt: NOW - 2 * DAY }]
       : i % 4 === 0

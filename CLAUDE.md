@@ -14,7 +14,7 @@ npm run dev:demo     # API on :7979 with a seeded demo library + Vite UI on :517
 npm run dev          # same against real Radarr and Plex or Jellyfin; first start runs setup
 npm test             # vitest: shared/src/**/*.test.ts and server/src/**/*.test.ts only
 npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
-npm run typecheck    # tsc on shared, server and web in turn
+npm run typecheck    # tsc on shared, server and web in turn, then on the tests (tsconfig.test.json)
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
 npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
 npm run eval         # ranking report on config/curatorr.db; -- --save <file> then -- --compare <file> measures a change

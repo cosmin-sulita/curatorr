@@ -20,7 +20,7 @@ import type { FeedbackEvent, Movie, Ratings } from './types.js';
 const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
 
 let nextId = 1;
-function movie(partial: Partial<Movie> & { ratings?: Partial<Ratings> } = {}): Movie {
+function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
   const id = partial.id ?? nextId++;
   return {
     id,
@@ -485,7 +485,7 @@ describe('wizardOptions', () => {
 
 describe('sagas in picks', () => {
   const image = (m: Movie) => m.posterUrl;
-  const part = (id: number, n: number, parts: number, extra: Partial<Movie> & { ratings?: Partial<Ratings> } = {}) =>
+  const part = (id: number, n: number, parts: number, extra: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}) =>
     movie({ genres: ['Comedy'], saga: { id, title: 'Back to the Future', part: n, parts }, ...extra });
   const opts = (sagas: ReturnType<typeof sagaState>) => ({ now: NOW, seed: 'test', sagas });
 

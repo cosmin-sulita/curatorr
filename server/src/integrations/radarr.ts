@@ -4,6 +4,7 @@ import type { StoredMovie } from '../store.js';
 
 interface RadarrRating {
   value?: number;
+  votes?: number;
 }
 
 interface RadarrImage {
