@@ -8,7 +8,7 @@ import {
   type Profile,
   type WizardOptionsResponse,
 } from '@curatorr/shared';
-import { useQueryClient } from '@tanstack/react-query';
+import { hashKey, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   Ban,
@@ -46,6 +46,7 @@ import {
 } from '../components/ui';
 import {
   errorMessage,
+  recommendationsQuery,
   removeFromWatchlist,
   sendFeedback,
   undoAll,
@@ -185,8 +186,19 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
   const [swiped, setSwiped] = useState(hasSwiped);
   useEffect(() => setQueue(data?.picks ?? null), [data]);
   // The list stays put while you're here; coming back re-ranks with your marks and skips
-  // (picks you've only seen don't move until the next evening).
-  useEffect(() => () => qc.removeQueries({ queryKey: ['recommendations'] }), [qc]);
+  // (picks you've only seen don't move until the next evening). The picks of the screen opening next stay: "Something
+  // like this" from a poster loads them before this screen closes, and this runs before that screen subscribes.
+  useEffect(
+    () => () => {
+      const next = new URL(window.location.href);
+      const keep =
+        next.pathname === '/pick'
+          ? hashKey(recommendationsQuery(criteriaFrom(next.searchParams), next.searchParams.get('like')).queryKey)
+          : null;
+      qc.removeQueries({ queryKey: ['recommendations'], predicate: (q) => q.queryHash !== keep });
+    },
+    [qc],
+  );
 
   const current = queue?.[0];
   const rest = queue?.slice(1) ?? [];
