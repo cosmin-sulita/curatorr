@@ -15,40 +15,10 @@ import { sagaState } from './sagas.js';
 import { keywordPhrases, tagMovie } from './tagger.js';
 import { TAGGED_MOVIES } from './tagger.fixtures.js';
 import { RESTRICTION_CERTS, SEASONS, type SeasonDef } from './taxonomy.js';
-import type { FeedbackEvent, Movie, Ratings } from './types.js';
+import type { FeedbackEvent, Movie } from './types.js';
+import { DAY, movieMaker, noRatings, type MovieFields } from './testing.js';
 
-const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
-
-let nextId = 1;
-function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
-  const id = partial.id ?? nextId++;
-  return {
-    id,
-    tmdbId: id,
-    imdbId: null,
-    title: `Movie ${id}`,
-    year: 2000,
-    overview: '',
-    runtime: 110,
-    certification: 'PG-13',
-    genres: ['Action'],
-    keywords: [],
-    themes: {},
-    moods: {},
-    posterUrl: `poster-${id}`,
-    fanartUrl: `fanart-${id}`,
-    trailerId: null,
-    plexRatingKey: String(id),
-    plexSlug: null,
-    plexGuid: null,
-    jellyfinId: null,
-    saga: null,
-    addedAt: null,
-    arrivedAt: null,
-    ...partial,
-    ratings: { ...noRatings, ...partial.ratings },
-  };
-}
+const movie = movieMaker();
 
 const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
   watched: new Set(),
@@ -61,7 +31,6 @@ const ctx = (over: Partial<ProfileContext> = {}): ProfileContext => ({
 });
 
 const NOW = Date.parse('2026-10-08T20:00:00Z');
-const DAY = 86_400_000;
 const rank = (movies: Movie[], c = {}, feedback: FeedbackEvent[] = []) =>
   rankMovies(movies, c, feedback, { now: NOW, seed: 'test' });
 
@@ -485,7 +454,7 @@ describe('wizardOptions', () => {
 
 describe('sagas in picks', () => {
   const image = (m: Movie) => m.posterUrl;
-  const part = (id: number, n: number, parts: number, extra: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}) =>
+  const part = (id: number, n: number, parts: number, extra: MovieFields = {}) =>
     movie({ genres: ['Comedy'], saga: { id, title: 'Back to the Future', part: n, parts }, ...extra });
   const opts = (sagas: ReturnType<typeof sagaState>) => ({ now: NOW, seed: 'test', sagas });
 
@@ -551,7 +520,7 @@ describe('Just arrived', () => {
   const image = (m: Movie, kind: 'fanart' | 'poster') => (kind === 'fanart' ? m.fanartUrl : m.posterUrl);
   const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
   /** A movie whose file arrived `days` ago. */
-  const arrived = (days: number, extra: Partial<Movie> & { ratings?: Partial<Ratings> } = {}) =>
+  const arrived = (days: number, extra: MovieFields = {}) =>
     movie({ arrivedAt: ago(days), ...extra });
   const ids = (ranked: { movie: Movie }[]) => ranked.map((r) => r.movie.id).sort((a, b) => a - b);
 

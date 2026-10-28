@@ -1,19 +1,16 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
+import { tempApp } from '../testing.js';
 
 const MINUTE = 60_000;
 
 describe("Radarr's webhook", () => {
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
 
   beforeEach(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-webhook-'));
-    ({ app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false }));
+    ({ app, ctx, close } = await tempApp('webhook', { demo: false }));
     await app.ready();
     // Only the delay before a sync is faked; the app itself runs on real timers.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -21,8 +18,7 @@ describe("Radarr's webhook", () => {
 
   afterEach(async () => {
     vi.useRealTimers();
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
+    await close();
   });
 
   const send = (eventType: string, token = ctx.store.get('radarrWebhook').token) =>

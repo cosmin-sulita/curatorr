@@ -1,6 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -9,10 +8,9 @@ import { fromRadarr } from '../integrations/radarr.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
 import { Store } from '../store.js';
 import { settleTogether } from './together.js';
+import { listen, silentLog } from '../testing.js';
 
 const HOUR = 60 * 60 * 1000;
-const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
-
 describe('marking a movie watched for everyone who watched it together', () => {
   let server: Server;
   let base: string;
@@ -53,8 +51,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
       if (url.pathname === '/library/sections/watchlist/all') return json(200, { MediaContainer: { totalSize: 0 } });
       json(404, {});
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    base = await listen(server);
     PLEX_HOSTS.discover = base;
   });
 
@@ -95,7 +92,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
   it("marks it watched for the others once someone's account shows it", async () => {
     const { store, sam, startedAt, seenBy } = pickedTogether();
     viewedAt = { 'alex-token': plexSeconds(startedAt + 2 * HOUR) };
-    await settleTogether(store, silent);
+    await settleTogether(store, silentLog);
     expect(seenBy(sam)).toEqual([1]);
     expect(scrobbled).toEqual(['sam-token']);
     expect(store.pendingTogether()).toEqual([]);
@@ -104,14 +101,14 @@ describe('marking a movie watched for everyone who watched it together', () => {
   it("doesn't count a watch from before the pick", async () => {
     const { store, sam, startedAt, seenBy } = pickedTogether();
     viewedAt = { 'alex-token': plexSeconds(startedAt - 24 * HOUR) };
-    await settleTogether(store, silent);
+    await settleTogether(store, silentLog);
     expect(seenBy(sam)).toEqual([]);
     expect(store.pendingTogether()).toHaveLength(1);
   });
 
   it('gives up twelve hours after the pick', async () => {
     const { store, alex, sam, startedAt, seenBy } = pickedTogether();
-    await settleTogether(store, silent, startedAt + 13 * HOUR);
+    await settleTogether(store, silentLog, startedAt + 13 * HOUR);
     expect(store.pendingTogether()).toEqual([]);
     expect([seenBy(alex), seenBy(sam)]).toEqual([[], []]);
   });
@@ -119,7 +116,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
   it('leaves alone whoever had it watched already', async () => {
     const { store, alex, sam, startedAt, seenBy } = pickedTogether();
     viewedAt = { 'alex-token': plexSeconds(startedAt + HOUR), 'sam-token': plexSeconds(startedAt - 48 * HOUR) };
-    await settleTogether(store, silent);
+    await settleTogether(store, silentLog);
     expect([seenBy(alex), seenBy(sam)]).toEqual([[], []]);
     expect(scrobbled).toEqual([]);
   });
@@ -128,7 +125,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
     const { store, alex, sam, startedAt, seenBy } = pickedTogether();
     store.update('app', { syncToServer: false });
     viewedAt = { 'sam-token': plexSeconds(startedAt + HOUR) };
-    await settleTogether(store, silent);
+    await settleTogether(store, silentLog);
     expect([seenBy(alex), seenBy(sam)]).toEqual([[1], []]);
     expect(scrobbled).toEqual([]);
   });

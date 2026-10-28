@@ -1,28 +1,24 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import type { Profile } from '@curatorr/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { compressible } from './compress.js';
+import { cookieOf, tempApp } from './testing.js';
 
 describe('compressed answers', () => {
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let cookie = '';
 
   beforeAll(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-test-'));
-    ({ app } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, close } = await tempApp('test'));
     const profiles = (await app.inject({ method: 'GET', url: '/api/profiles' })).json() as Profile[];
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles[0]!.id}/select` });
-    cookie = String(res.headers['set-cookie']).split(';')[0]!;
+    cookie = cookieOf(res);
   });
 
   afterAll(async () => {
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
+    await close();
   });
 
   const get = (url: string, encoding?: string) =>

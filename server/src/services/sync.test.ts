@@ -1,6 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -12,6 +11,7 @@ import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
 import { syncPlexState } from './profiles.js';
 import { ensurePlexIds, toDTO } from './recommend.js';
+import { listen, silentLog } from '../testing.js';
 
 const RADARR_KEY = 'radarr-key';
 const OWNER_TOKEN = 'owner-token';
@@ -157,8 +157,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
       }
       json(404, {});
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    base = await listen(server);
     // A sync also reads Plex Home's users and each Watchlist: here, never from the real plex.tv, whose speed would decide
     // whether the tests finish in time. This server has neither, as plex.tv refuses the tests' made-up tokens.
     Object.assign(PLEX_HOSTS, { tv: base, discover: base });
@@ -177,10 +176,9 @@ describe('library sync against fake Radarr and Plex servers', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
 
   it('keeps downloaded movies, tags them and links them to Plex', async () => {
-    await new LibrarySync(store, silent).run();
+    await new LibrarySync(store, silentLog).run();
     const movies = store.movies();
     expect(movies.map((m) => m.title)).toEqual(['Alien', 'Heat', 'The Matrix']);
     expect(movies.map((m) => m.plexRatingKey)).toEqual(['103', '102', '101']);
@@ -207,7 +205,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
   });
 
   it('keeps looked-up slugs when the library syncs again', async () => {
-    await new LibrarySync(store, silent).run();
+    await new LibrarySync(store, silentLog).run();
     expect(store.movie(2)!.plexSlug).toBe('heat');
     expect(store.movie(1)!.plexSlug).toBe('the-matrix');
   });
@@ -219,12 +217,12 @@ describe('library sync against fake Radarr and Plex servers', () => {
     const keywords = heat.keywords;
     heat.keywords = [...keywords!, 'los angeles'];
     try {
-      await new LibrarySync(store, silent).run();
+      await new LibrarySync(store, silentLog).run();
       expect(store.movie(1)!.themes).toEqual({ kept: 4 });
       expect(store.movie(2)!.themes).toHaveProperty('heist');
     } finally {
       heat.keywords = keywords;
-      new LibrarySync(store, silent).retag();
+      new LibrarySync(store, silentLog).retag();
     }
   });
 
@@ -233,7 +231,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
     heat!.movieFile = { dateAdded: '2026-06-01T08:00:00Z' }; // a better copy
     matrix!.movieFile = { dateAdded: '2026-05-05T00:00:00Z' }; // a date Radarr didn't send before
     try {
-      await new LibrarySync(store, silent).run();
+      await new LibrarySync(store, silentLog).run();
       expect(store.movie(2)!.arrivedAt).toBe('2026-04-20T08:00:00.000Z');
       expect(store.movie(1)!.arrivedAt).toBe('2026-05-05T00:00:00.000Z');
     } finally {
@@ -248,8 +246,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
     store.setProfileTokens(owner.id, OWNER_TOKEN, OWNER_TOKEN);
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
 
-    await syncPlexState(store, store.profileRow(owner.id)!, silent);
-    await syncPlexState(store, store.profileRow(member.id)!, silent);
+    await syncPlexState(store, store.profileRow(owner.id)!, silentLog);
+    await syncPlexState(store, store.profileRow(member.id)!, silentLog);
 
     expect([...store.watchedIds(owner.id)]).toEqual([2]);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
@@ -260,10 +258,10 @@ describe('library sync against fake Radarr and Plex servers', () => {
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
     store.update('plex', { sectionIds: ['1', '2'] });
     try {
-      await syncPlexState(store, store.profileRow(member.id)!, silent);
+      await syncPlexState(store, store.profileRow(member.id)!, silentLog);
       expect([...store.watchedIds(member.id)]).toEqual([1]);
       // The owner sees every library, so a refusal there is a real failure.
-      await new LibrarySync(store, silent).run();
+      await new LibrarySync(store, silentLog).run();
       expect(store.get('sync').error).toBeNull();
     } finally {
       store.update('plex', { sectionIds: ['1'] });
@@ -276,11 +274,11 @@ describe('library sync against fake Radarr and Plex servers', () => {
     const row = store.profileRow(id)!;
     const before = libraryFetches;
 
-    await Promise.all([syncPlexState(store, row, silent), syncPlexState(store, row, silent)]);
+    await Promise.all([syncPlexState(store, row, silentLog), syncPlexState(store, row, silentLog)]);
     expect(libraryFetches - before).toBe(1);
     expect([...store.watchedIds(id)]).toEqual([1]);
 
-    await syncPlexState(store, store.profileRow(id)!, silent);
+    await syncPlexState(store, store.profileRow(id)!, silentLog);
     expect(libraryFetches - before).toBe(1);
   });
 
@@ -305,7 +303,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
     const owner = plexProfile(OWNER_PLEX_ID, 'Plex owner');
     const member = plexProfile(MEMBER_PLEX_ID, 'Plex member');
     store.set('seerr', { url: base, apiKey: SEERR_KEY });
-    await new LibrarySync(store, silent).run();
+    await new LibrarySync(store, silentLog).run();
 
     // Heat; not the declined Alien, nor the movie that isn't downloaded yet.
     expect([...store.requestedIds(owner)]).toEqual([2]);
@@ -316,7 +314,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
   it('keeps the last requests when Seerr fails, without failing the library sync', async () => {
     store.set('seerr', { url: base, apiKey: 'wrong' });
-    await new LibrarySync(store, silent).run();
+    await new LibrarySync(store, silentLog).run();
     expect(store.get('seerrSync').error).toMatch(/Seerr: unauthorized/);
     expect(store.get('sync').error).toBeNull();
     expect([...store.requestedIds(plexProfile(OWNER_PLEX_ID, 'Plex owner'))]).toEqual([2]);
@@ -325,7 +323,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
   it('records a failed sync without losing the library', async () => {
     store.set('radarr', { url: base, apiKey: 'wrong' });
-    await expect(new LibrarySync(store, silent).run()).rejects.toThrow(/unauthorized/);
+    await expect(new LibrarySync(store, silentLog).run()).rejects.toThrow(/unauthorized/);
     expect(store.get('sync').error).toMatch(/Radarr: unauthorized/);
     expect(store.movies()).toHaveLength(3);
   });
@@ -356,11 +354,10 @@ describe('re-tagging the stored library', () => {
   it('applies the current vocabulary at startup, without waiting for a sync', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-retag-'));
     const store = new Store(openDb(dir));
-    const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
     // Heat, as tagged by a vocabulary that matched "cat" inside "cat and mouse".
     store.replaceMovies([{ ...fromRadarr(radarrMovies[1]!), themes: { animals: 2, heist: 4 } }], Date.now());
 
-    const library = new LibrarySync(store, silent);
+    const library = new LibrarySync(store, silentLog);
     expect(library.retag()).toBe(1);
     expect(store.movie(2)!.themes).toEqual({ heist: 4 });
     expect(library.retag()).toBe(0);
@@ -428,7 +425,6 @@ describe('a database from an older version', () => {
 });
 
 describe("the scheduler's check", () => {
-  const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
   const MINUTE = 60_000;
   const cleanups: (() => void)[] = [];
   afterAll(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
@@ -453,7 +449,7 @@ describe("the scheduler's check", () => {
       now,
     );
     store.set('sync', { at: now, movies: 2, matched: 1, error: null });
-    return { library: new LibrarySync(store, silent), store, now };
+    return { library: new LibrarySync(store, silentLog), store, now };
   }
 
   it('syncs again while a movie that just arrived is missing from Plex', () => {
@@ -488,7 +484,6 @@ describe('sync requests while a sync is under way', () => {
   let base: string;
   /** The Radarr addresses whose movies were read, in order; the old one answers slowly. */
   const reads: string[] = [];
-  const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
 
   beforeAll(async () => {
     radarr = createServer(async (req, res) => {
@@ -500,8 +495,7 @@ describe('sync requests while a sync is under way', () => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end('[]');
     });
-    await new Promise<void>((resolve) => radarr.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(radarr.address() as AddressInfo).port}`;
+    base = await listen(radarr);
   });
 
   afterAll(() => {
@@ -514,7 +508,7 @@ describe('sync requests while a sync is under way', () => {
     const store = new Store(openDb(dir));
     store.set('radarr', { url: `${base}/old`, apiKey: 'k' });
     store.set('setupComplete', true);
-    const library = new LibrarySync(store, silent);
+    const library = new LibrarySync(store, silentLog);
     const first = library.run();
     const done = async () => {
       await vi.waitFor(() => expect(library.syncing).toBe(false));

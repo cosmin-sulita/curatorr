@@ -1,12 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
+import { adminCookie, cookieOf, cookiesOf, listen, tempApp } from '../testing.js';
 
 const OWNER = 5001;
 const STRANGER = 9009;
@@ -50,8 +46,7 @@ describe('setup', () => {
       }
       json(404, {});
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    base = await listen(server);
     PLEX_HOSTS.tv = base;
   });
 
@@ -67,19 +62,12 @@ describe('setup', () => {
   });
 
   async function freshInstall() {
-    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-setup-'));
-    const { app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false });
-    cleanups.push(async () => {
-      await app.close();
-      rmSync(dir, { recursive: true, force: true });
-    });
+    const { app, ctx, close } = await tempApp('setup', { demo: false });
+    cleanups.push(close);
     return { app, store: ctx.store };
   }
 
   type App = Awaited<ReturnType<typeof freshInstall>>['app'];
-  /** The cookies a response set, as a Cookie header. */
-  const cookiesOf = (res: LightMyRequestResponse) =>
-    [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
   /** Starts a Plex sign-in in a browser, then finishes it there once plex.tv has PIN `pin` approved. */
   async function claim(app: App, pin: number, cookie = '') {
     nextPin = pin;
@@ -95,7 +83,7 @@ describe('setup', () => {
     const signedIn = await claim(app, 1);
     expect(signedIn.json()).toMatchObject({ status: 'ok' });
     expect(store.get('plex').ownerId).toBe(OWNER);
-    const cookie = String(signedIn.headers['set-cookie']).split(';')[0]!;
+    const cookie = cookieOf(signedIn);
 
     // From now on setup belongs to the owner, even though it isn't finished.
     expect((await app.inject({ method: 'GET', url: '/api/settings' })).statusCode).toBe(403);
@@ -139,7 +127,7 @@ describe('setup', () => {
     const res = await claim(app, 1);
     expect(res.json()).toMatchObject({ status: 'ok' });
     expect(store.get('plex').adminToken).toBe('owner-token');
-    const cookie = String(res.headers['set-cookie']).split(';')[0]!;
+    const cookie = cookieOf(res);
     expect((await app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } })).statusCode).toBe(200);
   });
 
@@ -156,7 +144,7 @@ describe('setup', () => {
       libraryIds: [],
     });
   const jellyfinAdmin = (app: Awaited<ReturnType<typeof freshInstall>>['app']) =>
-    `curatorr_admin=${encodeURIComponent(app.signCookie(`${'a'.repeat(32)}.${Date.now()}`))}`;
+    adminCookie(app, 'a'.repeat(32));
 
   it('lets Jellyfin go when the owner signs in with Plex while setting up', async () => {
     const { app, store } = await freshInstall();

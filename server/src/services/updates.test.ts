@@ -1,14 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openDb } from '../db.js';
-import { Store } from '../store.js';
+import type { Store } from '../store.js';
+import { fakeServer, silentLog, tempStore } from '../testing.js';
 import { checkForUpdates, updateFor } from './updates.js';
-
-const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
 
 describe('which release to tell admins about', () => {
   it('names a newer release, with a link to its notes', () => {
@@ -36,10 +29,10 @@ describe('which release to tell admins about', () => {
 });
 
 describe("reading the latest release from GitHub's API", () => {
-  let server: Server;
+  let stop: () => Promise<void>;
   let url: string;
-  let dir: string;
   let store: Store;
+  let closeStore: () => void;
   /** What the fake GitHub answers. */
   let reply: { status: number; body: unknown };
 
@@ -60,26 +53,24 @@ describe("reading the latest release from GitHub's API", () => {
   });
 
   beforeAll(async () => {
-    server = createServer((_req, res) => {
+    const github = await fakeServer((_req, res) => {
       res.writeHead(reply.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(reply.body));
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/repos/cosmin-sulita/curatorr/releases/latest`;
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-updates-'));
-    store = new Store(openDb(dir));
+    stop = github.close;
+    url = `${github.base}/repos/cosmin-sulita/curatorr/releases/latest`;
+    ({ store, close: closeStore } = tempStore('updates'));
   });
 
-  afterAll(() => {
-    server.close();
-    store.db.close();
-    rmSync(dir, { recursive: true, force: true });
+  afterAll(async () => {
+    await stop();
+    closeStore();
   });
 
   it("keeps the latest release's version", async () => {
     store.set('latestVersion', null);
     reply = { status: 200, body: release('v1.3.0') };
-    await checkForUpdates(store, silent, url);
+    await checkForUpdates(store, silentLog, url);
     expect(store.get('latestVersion')).toBe('1.3.0');
   });
 
@@ -87,7 +78,7 @@ describe("reading the latest release from GitHub's API", () => {
     store.set('latestVersion', '1.2.0');
     for (const status of [500, 403]) {
       reply = { status, body: { message: 'API rate limit exceeded for 203.0.113.7.' } };
-      await expect(checkForUpdates(store, silent, url)).resolves.toBeUndefined();
+      await expect(checkForUpdates(store, silentLog, url)).resolves.toBeUndefined();
       expect(store.get('latestVersion')).toBe('1.2.0');
     }
   });
@@ -95,7 +86,7 @@ describe("reading the latest release from GitHub's API", () => {
   it("ignores a tag that isn't a version", async () => {
     store.set('latestVersion', '1.2.0');
     reply = { status: 200, body: release('nightly') };
-    await checkForUpdates(store, silent, url);
+    await checkForUpdates(store, silentLog, url);
     expect(store.get('latestVersion')).toBe('1.2.0');
   });
 });

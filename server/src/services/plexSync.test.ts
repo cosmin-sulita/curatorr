@@ -1,8 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import type { RecommendationsResponse } from '@curatorr/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
@@ -10,13 +6,12 @@ import { PLEX_HOSTS } from '../integrations/plex.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
 import type { Store } from '../store.js';
 import { syncPlexState } from './profiles.js';
+import { cookieOf, listen, silentLog, tempApp } from '../testing.js';
 
 const RADARR_KEY = 'radarr-key';
 const OWNER = 'owner-token';
 const MEMBER = 'member-token';
 const KID = 'kid-token'; // a managed user without a Watchlist
-const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
-
 const radarrMovies: RadarrMovie[] = [
   { id: 1, title: 'The Matrix', tmdbId: 603, hasFile: true, genres: ['Action'], ratings: { rottenTomatoes: { value: 83 } } },
   { id: 2, title: 'Heat', tmdbId: 949, hasFile: true, genres: ['Crime'], ratings: { rottenTomatoes: { value: 88 } } },
@@ -38,7 +33,7 @@ interface Call {
 
 describe('two-way Plex sync over the API', () => {
   let server: Server;
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let store: Store;
   const calls: Call[] = [];
@@ -96,12 +91,11 @@ describe('two-way Plex sync over the API', () => {
       }
       json(404, {});
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const base = await listen(server);
     PLEX_HOSTS.discover = base;
 
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-plexsync-'));
-    const built = await buildApp({ configDir: dir, demo: false, logger: false });
+    const built = await tempApp('plexsync', { demo: false });
+    close = built.close;
     app = built.app;
     store = built.ctx.store;
     store.set('radarr', { url: base, apiKey: RADARR_KEY });
@@ -119,9 +113,8 @@ describe('two-way Plex sync over the API', () => {
 
   afterAll(async () => {
     PLEX_HOSTS.discover = originalDiscover;
-    await app.close();
+    await close();
     server.close();
-    rmSync(dir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -135,7 +128,7 @@ describe('two-way Plex sync over the API', () => {
     const id = store.createLocalProfile(name, admin);
     store.setProfileTokens(id, token, token);
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, payload: {} });
-    cookies[name] = String(res.headers['set-cookie']).split(';')[0]!;
+    cookies[name] = cookieOf(res);
     return id;
   }
   /** The Watchlist in Settings, in its order: each movie, with its mark's id (null when only Plex has it). */
@@ -296,7 +289,7 @@ describe('two-way Plex sync over the API', () => {
     const id = await newProfile('Unlisted', 'unlisted-token');
     expect((await mark('Unlisted', 2, 'later')).server).toBe('synced'); // Heat, on the Plex Watchlist too
     watchlists.set('unlisted-token', []); // taken off in a Plex app
-    await syncPlexState(store, store.profileRow(id)!, silent, true);
+    await syncPlexState(store, store.profileRow(id)!, silentLog, true);
     expect(await watchlisted('Unlisted')).toEqual([]);
     expect((await picks('Unlisted')).picks.find((p) => p.movie.id === 2)!.onWatchlistOf).toEqual([]);
   });
@@ -306,7 +299,7 @@ describe('two-way Plex sync over the API', () => {
     expect((await mark('Kept', 2, 'later')).server).toBe('synced');
     store.update('app', { syncToServer: false });
     watchlists.set('kept-token', []);
-    await syncPlexState(store, store.profileRow(id)!, silent, true);
+    await syncPlexState(store, store.profileRow(id)!, silentLog, true);
     expect((await watchlisted('Kept')).map((w) => w.movieId)).toEqual([2]);
   });
 
@@ -317,7 +310,7 @@ describe('two-way Plex sync over the API', () => {
       watchlistHeld = { asked: resolve, release: new Promise<void>((r) => (release = r)) };
     });
     try {
-      const read = syncPlexState(store, store.profileRow(id)!, silent, true);
+      const read = syncPlexState(store, store.profileRow(id)!, silentLog, true);
       await asked; // Plex has answered "nothing on it", but the answer is still on its way
       expect((await mark('Racing', 2, 'later')).server).toBe('synced');
       release();
@@ -334,7 +327,7 @@ describe('two-way Plex sync over the API', () => {
     const library = store.movies();
     store.replaceMovies(library.filter((m) => m.id !== 2), Date.now()); // Heat's file is being replaced, say
     try {
-      await syncPlexState(store, store.profileRow(id)!, silent, true);
+      await syncPlexState(store, store.profileRow(id)!, silentLog, true);
     } finally {
       store.replaceMovies(library, Date.now());
     }
@@ -346,7 +339,7 @@ describe('two-way Plex sync over the API', () => {
     watchlists.set('long-token', [...Array.from({ length: 150 }, (_, i) => `zz${i}`), 'aaa111']);
     watchlistSizeUnknown = true;
     try {
-      await syncPlexState(store, store.profileRow(id)!, silent, true);
+      await syncPlexState(store, store.profileRow(id)!, silentLog, true);
     } finally {
       watchlistSizeUnknown = false;
     }

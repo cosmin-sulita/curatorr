@@ -1,9 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from './app.js';
 import { config } from './config.js';
+import { adminCookie, tempApp } from './testing.js';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 const OWNER = 5001;
@@ -58,12 +55,8 @@ const PUBLIC_ROUTES: [Method, string][] = [
 const cleanups: (() => Promise<void>)[] = [];
 
 async function freshApp() {
-  const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-access-'));
-  const { app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false });
-  cleanups.push(async () => {
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const { app, ctx, close } = await tempApp('access', { demo: false });
+  cleanups.push(close);
   return { app, store: ctx.store };
 }
 
@@ -95,7 +88,7 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     });
     store.setProfileTokens(member, 'member-token', 'member-server-token');
     profile = `curatorr_profile=${encodeURIComponent(app.signCookie(String(member)))}`;
-    owner = `curatorr_admin=${encodeURIComponent(app.signCookie(`${OWNER}.${Date.now()}`))}`;
+    owner = adminCookie(app, OWNER);
   });
 
   afterAll(async () => {
@@ -231,7 +224,7 @@ describe('a Curatorr set up with Jellyfin', () => {
     for (const [id, isAdmin] of [[otherAdmin!, true], [member!, false]] as const) {
       store.upsertJellyfinProfile({ jellyfinUserId: id, name: id, avatarUrl: null, isAdmin, restrictionProfile: null });
     }
-    const signedIn = (id: string) => `curatorr_admin=${encodeURIComponent(app.signCookie(`${id}.${Date.now()}`))}`;
+    const signedIn = (id: string) => adminCookie(app, id);
 
     for (const id of [owner!, otherAdmin!]) expect((await call(app, 'GET', '/api/settings', signedIn(id))).statusCode).toBe(200);
     for (const cookie of ['', signedIn(member!), signedIn(String(OWNER))]) {

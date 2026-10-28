@@ -1,12 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type RequestListener } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { tasteEvents, type Criteria, type TasteProfile } from '@curatorr/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { openDb } from '../db.js';
-import { Store, type ProfileRow, type StoredMovie } from '../store.js';
+import type { ProfileRow, Store, StoredMovie } from '../store.js';
+import { listen, storedMovieMaker, tempStore as makeStore } from '../testing.js';
 import {
   ensurePlexIds,
   likeSeeds,
@@ -17,49 +13,14 @@ import {
   similarFor,
 } from './recommend.js';
 
-let nextId = 1;
-function movie(extra: Partial<StoredMovie> = {}): StoredMovie {
-  const id = nextId++;
-  return {
-    id,
-    tmdbId: id,
-    imdbId: null,
-    title: `Movie ${id}`,
-    year: 2000,
-    overview: '',
-    runtime: 110,
-    certification: 'PG-13',
-    genres: ['Action'],
-    keywords: [],
-    themes: {},
-    moods: {},
-    ratings: { rt: 70, imdb: null, tmdb: null, metacritic: null },
-    posterUrl: null,
-    fanartUrl: null,
-    posterPath: null,
-    fanartPath: null,
-    trailerId: null,
-    plexRatingKey: null,
-    plexSlug: null,
-    plexGuid: null,
-    jellyfinId: null,
-    saga: null,
-    addedAt: null,
-    arrivedAt: null,
-    ...extra,
-  };
-}
+const movie = storedMovieMaker({ ratings: { rt: 70 } });
 
 const cleanups: (() => void)[] = [];
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
 
-function tempStore() {
-  const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-recommend-'));
-  const store = new Store(openDb(dir));
-  cleanups.push(() => {
-    store.db.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+function tempStore(): Store {
+  const { store, close } = makeStore('recommend');
+  cleanups.push(close);
   return store;
 }
 
@@ -237,11 +198,10 @@ describe('looking up Plex ids for picks', () => {
       counter.requests++;
       handler(req, res);
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const serverUrl = await listen(server);
     cleanups.push(() => server.close());
     const store = tempStore();
-    const port = (server.address() as AddressInfo).port;
-    store.update('plex', { adminToken: 'token', machineId: 'machine', serverUrl: `http://127.0.0.1:${port}` });
+    store.update('plex', { adminToken: 'token', machineId: 'machine', serverUrl });
     store.replaceMovies([movie({ plexRatingKey: '1' }), movie({ plexRatingKey: '2' })], Date.now());
     return { store, counter };
   }

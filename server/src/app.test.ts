@@ -6,21 +6,20 @@ import type { AppStatus, LikeSeed, Profile, RecommendationsResponse, WizardOptio
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { config } from './config.js';
+import { cookieOf, tempApp } from './testing.js';
 
 describe('API (demo data)', () => {
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
   let cookie = '';
 
   beforeAll(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-test-'));
-    ({ app, ctx } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, ctx, close } = await tempApp('test'));
   });
 
   afterAll(async () => {
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
+    await close();
   });
 
   const get = async <T>(url: string) => {
@@ -47,7 +46,7 @@ describe('API (demo data)', () => {
     expect(profiles.map((p) => p.name)).toEqual(['Alex', 'Kids', 'Sam']);
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles[0]!.id}/select` });
     expect(res.statusCode).toBe(200);
-    cookie = String(res.headers['set-cookie']).split(';')[0]!;
+    cookie = cookieOf(res);
     const { body } = await get<AppStatus>('/api/status');
     expect(body.profile?.name).toBe('Alex');
   });
@@ -155,7 +154,7 @@ describe('API (demo data)', () => {
   const cookieFor = async (name: string) => {
     const { body: profiles } = await get<Profile[]>('/api/profiles');
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles.find((p) => p.name === name)!.id}/select` });
-    return String(res.headers['set-cookie']).split(';')[0]!;
+    return cookieOf(res);
   };
   const picksFor = async (who: string, query: string) =>
     (await app.inject({ method: 'GET', url: `/api/recommendations?${query}`, headers: { cookie: who } })).json() as RecommendationsResponse;
@@ -191,7 +190,7 @@ describe('API (demo data)', () => {
     const { body: profiles } = await get<Profile[]>('/api/profiles');
     const kids = profiles.find((p) => p.name === 'Kids')!;
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${kids.id}/select` });
-    const kidCookie = String(res.headers['set-cookie']).split(';')[0]!;
+    const kidCookie = cookieOf(res);
     const recs = await app.inject({ method: 'GET', url: '/api/recommendations', headers: { cookie: kidCookie } });
     const certs = new Set((recs.json() as RecommendationsResponse).picks.map((p) => p.movie.certification));
     expect([...certs].every((c) => c === 'G' || c === 'PG')).toBe(true);
@@ -307,25 +306,23 @@ describe('API (demo data)', () => {
 });
 
 describe("a profile's parental limits in its marks and lists (demo data)", () => {
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
   const ids: Record<string, number> = {};
   const cookies: Record<string, string> = {};
 
   beforeAll(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-limits-'));
-    ({ app, ctx } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, ctx, close } = await tempApp('limits'));
     for (const p of (await app.inject({ method: 'GET', url: '/api/profiles' })).json() as Profile[]) {
       ids[p.name] = p.id;
       const res = await app.inject({ method: 'POST', url: `/api/profiles/${p.id}/select` });
-      cookies[p.name] = String(res.headers['set-cookie']).split(';')[0]!;
+      cookies[p.name] = cookieOf(res);
     }
   });
 
   afterAll(async () => {
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
+    await close();
   });
 
   const movieId = (title: string) => ctx.store.movies().find((m) => m.title === title)!.id;
@@ -375,7 +372,7 @@ describe("a profile's parental limits in its marks and lists (demo data)", () =>
 
 describe('the web app', () => {
   let web: string;
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   const webDist = config.webDist;
 
@@ -394,15 +391,13 @@ describe('the web app', () => {
       writeFileSync(path.join(web, `${name}.gz`), gzipSync(files[name]!));
     }
     config.webDist = web;
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-test-'));
-    ({ app } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, close } = await tempApp('test'));
   });
 
   afterAll(async () => {
     config.webDist = webDist;
-    await app.close();
+    await close();
     rmSync(web, { recursive: true, force: true });
-    rmSync(dir, { recursive: true, force: true });
   });
 
   const get = (url: string, encoding?: string) =>

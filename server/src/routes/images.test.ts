@@ -1,11 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
-import type { StoredMovie } from '../store.js';
+import { listen, storedMovieMaker, tempApp, type App } from '../testing.js';
 
 /** What the fake Radarr answers for a MediaCover image: its content type and body. */
 const covers: Record<string, { type: string; body: string }> = {
@@ -14,40 +9,16 @@ const covers: Record<string, { type: string; body: string }> = {
   '/MediaCover/3/poster.jpg': { type: 'image/jpeg', body: 'R-RATED' },
 };
 
-const movie = (id: number, certification = 'PG'): StoredMovie => ({
-  id,
-  tmdbId: id,
-  imdbId: null,
-  title: `Movie ${id}`,
-  year: 2000,
-  overview: '',
-  runtime: 100,
-  certification,
-  genres: ['Action'],
-  keywords: [],
-  themes: {},
-  moods: {},
-  ratings: { rt: null, imdb: null, tmdb: null, metacritic: null },
-  posterUrl: `/api/image/${id}/poster`,
-  fanartUrl: null,
-  posterPath: `/MediaCover/${id}/poster.jpg`,
-  fanartPath: null,
-  trailerId: null,
-  plexRatingKey: null,
-  plexSlug: null,
-  plexGuid: null,
-  jellyfinId: null,
-  saga: null,
-  addedAt: null,
-  arrivedAt: null,
-});
+const stored = storedMovieMaker();
+const movie = (id: number, certification = 'PG') =>
+  stored({ id, certification, posterUrl: `/api/image/${id}/poster`, posterPath: `/MediaCover/${id}/poster.jpg` });
 
 describe("Radarr's images, through Curatorr", () => {
   let radarr: Server;
   let base = '';
-  let dir = '';
-  let app: Awaited<ReturnType<typeof buildApp>>['app'];
-  let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
+  let close: () => Promise<void>;
+  let app: App;
+  let ctx: Awaited<ReturnType<typeof tempApp>>['ctx'];
   /** Profiles picked on a device: one without limits, and a younger kid's. */
   let viewer = '';
   let kid = '';
@@ -58,10 +29,8 @@ describe("Radarr's images, through Curatorr", () => {
       res.writeHead(cover ? 200 : 404, { 'content-type': cover?.type ?? 'application/json' });
       res.end(cover?.body ?? '{}');
     });
-    await new Promise<void>((resolve) => radarr.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(radarr.address() as AddressInfo).port}`;
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-images-'));
-    ({ app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false }));
+    base = await listen(radarr);
+    ({ app, ctx, close } = await tempApp('images', { demo: false }));
     ctx.store.set('radarr', { url: base, apiKey: 'radarr-key' });
     ctx.store.replaceMovies([movie(1), movie(2), movie(3, 'R')], Date.now());
     const picked = (id: number) => `curatorr_profile=${encodeURIComponent(app.signCookie(String(id)))}`;
@@ -70,9 +39,8 @@ describe("Radarr's images, through Curatorr", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await close();
     radarr.close();
-    rmSync(dir, { recursive: true, force: true });
   });
 
   const image = (id: number, cookie = viewer) =>

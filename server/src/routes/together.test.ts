@@ -1,40 +1,24 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import type { AppStatus, Profile, RecommendationsResponse } from '@curatorr/shared';
-import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { togetherUntil } from '../session.js';
+import { cookiesOf, tempApp } from '../testing.js';
 
 describe('watching together (demo data)', () => {
-  let dir: string;
+  let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
   const ids: Record<string, number> = {};
 
   beforeAll(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'curatorr-together-'));
-    ({ app, ctx } = await buildApp({ configDir: dir, demo: true, logger: false }));
+    ({ app, ctx, close } = await tempApp('together'));
     for (const p of (await app.inject({ method: 'GET', url: '/api/profiles' })).json() as Profile[]) ids[p.name] = p.id;
   });
 
   afterAll(async () => {
-    await app.close();
-    rmSync(dir, { recursive: true, force: true });
+    await close();
   });
 
-  /** The cookies a response set, as a Cookie header. */
-  const cookiesOf = (res: LightMyRequestResponse, before = '') => {
-    const split = (pair: string) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)] as const;
-    const jar = new Map(before ? before.split('; ').map(split) : []);
-    for (const c of [res.headers['set-cookie'] ?? []].flat()) {
-      const [name, value] = split(String(c).split(';')[0]!);
-      if (value) jar.set(name, value);
-      else jar.delete(name);
-    }
-    return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
-  };
   const together = (names: string[], cookie = '') =>
     app.inject({ method: 'POST', url: '/api/profiles/together', headers: { cookie }, payload: { ids: names.map((n) => ids[n]) } });
   const select = (name: string, cookie = '') =>

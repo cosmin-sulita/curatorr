@@ -1,36 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_SAGA_PARTS, sagaState } from './sagas.js';
-import type { Movie } from './types.js';
+import { movieMaker } from './testing.js';
 
-let nextId = 1;
-function part(sagaId: number, part: number, parts: number): Movie {
-  const id = nextId++;
-  return {
-    id,
-    tmdbId: id,
-    imdbId: null,
-    title: `Saga ${sagaId} part ${part}`,
-    year: 2000 + part,
-    overview: '',
-    runtime: 120,
-    certification: 'PG-13',
-    genres: ['Adventure'],
-    keywords: [],
-    themes: {},
-    moods: {},
-    ratings: { rt: 80, imdb: null, tmdb: null, metacritic: null },
-    posterUrl: null,
-    fanartUrl: null,
-    trailerId: null,
-    plexRatingKey: String(id),
-    plexSlug: null,
-    plexGuid: null,
-    jellyfinId: null,
-    saga: { id: sagaId, title: `Saga ${sagaId}`, part, parts },
-    addedAt: null,
-    arrivedAt: null,
-  };
-}
+const movie = movieMaker({ runtime: 120, genres: ['Adventure'], ratings: { rt: 80 }, posterUrl: null, fanartUrl: null });
+const part = (sagaId: number, part: number, parts: number) =>
+  movie({ title: `Saga ${sagaId} part ${part}`, year: 2000 + part, saga: { id: sagaId, title: `Saga ${sagaId}`, part, parts } });
 
 describe('sagaState', () => {
   it('holds back a sequel until the previous part is watched, pointing at the first unwatched part', () => {

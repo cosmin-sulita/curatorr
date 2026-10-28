@@ -1,23 +1,20 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Profile, RecommendationsResponse } from '@curatorr/shared';
-import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import type { RadarrMovie } from '../integrations/radarr.js';
 import type { Store } from '../store.js';
 import { syncJellyfinState } from './jellyfin.js';
+import { cookiesOf, listen, silentLog, tempApp } from '../testing.js';
 
 const PUBLIC_URL = 'https://media.example.com';
 const SERVER_ID = 'server-1';
 const DAD = '1'.repeat(32);
 const KID = '2'.repeat(32);
 const RETIRED = '3'.repeat(32);
-const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
-
 interface FakeUser {
   id: string;
   name: string;
@@ -237,17 +234,13 @@ function fakeJellyfin() {
 
 type App = Awaited<ReturnType<typeof buildApp>>['app'];
 
-/** The cookies a response set, as a Cookie header. */
-const cookiesOf = (res: LightMyRequestResponse) =>
-  [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
 
 const fake = fakeJellyfin();
 let base = '';
 const cleanups: (() => Promise<void>)[] = [];
 
 beforeAll(async () => {
-  await new Promise<void>((resolve) => fake.server.listen(0, '127.0.0.1', resolve));
-  base = `http://127.0.0.1:${(fake.server.address() as AddressInfo).port}`;
+  base = await listen(fake.server);
 });
 
 afterAll(async () => {
@@ -256,12 +249,8 @@ afterAll(async () => {
 });
 
 async function freshInstall() {
-  const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-jellyfin-'));
-  const built = await buildApp({ configDir: dir, demo: false, logger: false });
-  cleanups.push(async () => {
-    await built.app.close();
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const built = await tempApp('jellyfin', { demo: false });
+  cleanups.push(built.close);
   built.ctx.store.set('radarr', { url: base, apiKey: 'radarr-key' });
   return built;
 }
@@ -456,7 +445,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
     it('takes a movie off the watchlist in Curatorr once it is no longer a favourite in Jellyfin', async () => {
       expect((await mark('Dad', 6, 'later')).server).toBe('synced'); // Finding Nemo, a favourite in Jellyfin too
       fake.state.userData[DAD]!['jf-nemo']!.IsFavorite = false; // no longer one, in a Jellyfin app
-      await syncJellyfinState(store, store.profileRow(profileId('Dad'))!, silent, true);
+      await syncJellyfinState(store, store.profileRow(profileId('Dad'))!, silentLog, true);
       const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: profiles.Dad! } });
       expect((res.json() as { movie: { id: number } }[]).map((h) => h.movie.id)).not.toContain(6);
     });

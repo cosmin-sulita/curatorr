@@ -1,9 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
@@ -12,12 +7,11 @@ import { togetherUntil } from '../session.js';
 import type { Store } from '../store.js';
 import { syncServerState } from './mediaServer.js';
 import { importHomeUsers, syncPlexState } from './profiles.js';
+import { adminCookie, cookiesOf, listen, silentLog, tempApp } from '../testing.js';
 
 const OWNER = 5001;
 const MEMBER = 5002;
 const KID = 5003;
-const silent = { info() {}, warn() {}, error() {}, debug() {} } as never;
-
 type App = Awaited<ReturnType<typeof buildApp>>['app'];
 
 describe('Plex Home profiles', () => {
@@ -86,8 +80,7 @@ describe('Plex Home profiles', () => {
       }
       json(404, {});
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    base = await listen(server);
     PLEX_HOSTS.tv = base;
     PLEX_HOSTS.discover = base;
   });
@@ -112,12 +105,8 @@ describe('Plex Home profiles', () => {
   /** A Curatorr signed in to Plex as the owner, with no profiles yet. */
   async function plexInstance() {
     pins = { [MEMBER]: '1234' };
-    const dir = mkdtempSync(path.join(tmpdir(), 'curatorr-profiles-'));
-    const { app, ctx } = await buildApp({ configDir: dir, demo: false, logger: false });
-    cleanups.push(async () => {
-      await app.close();
-      rmSync(dir, { recursive: true, force: true });
-    });
+    const { app, ctx, close } = await tempApp('profiles', { demo: false });
+    cleanups.push(close);
     const store = ctx.store;
     store.update('plex', {
       adminToken: 'owner-token',
@@ -136,25 +125,11 @@ describe('Plex Home profiles', () => {
   const idOf = (store: Store, name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
   const select = (app: App, id: number, { pin, cookie = '' }: { pin?: string; cookie?: string } = {}) =>
     app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, headers: { cookie }, payload: pin ? { pin } : {} });
-  /** The cookies a response set, as a Cookie header. */
-  const cookiesOf = (res: LightMyRequestResponse) =>
-    [res.headers['set-cookie'] ?? []].flat().map((c) => String(c).split(';')[0]).join('; ');
-  /** A device's cookies after a response: what it set, over what the device had. */
-  const jar = (res: LightMyRequestResponse, before = '') => {
-    const split = (pair: string) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)] as const;
-    const cookies = new Map(before ? before.split('; ').map(split) : []);
-    for (const c of [res.headers['set-cookie'] ?? []].flat()) {
-      const [name, value] = split(String(c).split(';')[0]!);
-      if (value) cookies.set(name, value);
-      else cookies.delete(name);
-    }
-    return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
-  };
-  const signedInAsOwner = (app: App) => `curatorr_admin=${encodeURIComponent(app.signCookie(`${OWNER}.${Date.now()}`))}`;
+  const signedInAsOwner = (app: App) => adminCookie(app, OWNER);
 
   it('imports the owner and the Home users, linking the ones without a PIN', async () => {
     const { store } = await plexInstance();
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     expect(store.profileRows(true).map((p) => [p.name, Boolean(p.server_token)])).toEqual([
       ['Owner', true],
       ['Kid', true],
@@ -164,12 +139,12 @@ describe('Plex Home profiles', () => {
 
   it("keeps everyone's profiles and marks when a refresh can't read Plex Home", async () => {
     const { store } = await plexInstance();
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     const member = idOf(store, 'Member');
     store.addFeedback(member, 1, 'never');
 
     homeUsersStatus = 503;
-    await expect(importHomeUsers(store, silent)).rejects.toThrow(/Plex: HTTP 503/);
+    await expect(importHomeUsers(store, silentLog)).rejects.toThrow(/Plex: HTTP 503/);
     expect(names(store)).toEqual(['Owner', 'Kid', 'Member']);
     expect(store.feedback(member)).toHaveLength(1);
   });
@@ -177,13 +152,13 @@ describe('Plex Home profiles', () => {
   it('still sets up the owner when the first import cannot read Plex Home', async () => {
     const { store } = await plexInstance();
     homeUsersStatus = 503;
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     expect(names(store)).toEqual(['Owner']);
   });
 
   it('asks to pick a profile again once its Plex sign-in stops working', async () => {
     const { app, store } = await plexInstance();
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     const kid = idOf(store, 'Kid');
     const cookie = cookiesOf(await select(app, kid));
     const status = async () => (await app.inject({ method: 'GET', url: '/api/status', headers: { cookie } })).json();
@@ -191,7 +166,7 @@ describe('Plex Home profiles', () => {
 
     // Plex stops accepting the Kid's token (a new password, say), so the next sync forgets it.
     revoked.add(store.profileRow(kid)!.server_token!);
-    await syncPlexState(store, store.profileRow(kid)!, silent, true);
+    await syncPlexState(store, store.profileRow(kid)!, silentLog, true);
     expect(store.profileRow(kid)!.server_token).toBeNull();
     expect((await status()).profile).toBeNull();
     const wizard = await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie } });
@@ -206,7 +181,7 @@ describe('Plex Home profiles', () => {
 
   it('reads the history and Watchlist of a profile picked before the first library sync, once the library is in', async () => {
     const { app, store, library } = await plexInstance();
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     // In Radarr and Plex already, but the first library sync hasn't stored them yet.
     inRadarr = [
       { id: 1, title: 'The Matrix', tmdbId: 603, hasFile: true, genres: ['Action'] },
@@ -221,7 +196,7 @@ describe('Plex Home profiles', () => {
     expect((await select(app, owner)).statusCode).toBe(200);
 
     await library.run();
-    await syncServerState(store, store.profileRow(owner)!, silent); // as the app's next status call does
+    await syncServerState(store, store.profileRow(owner)!, silentLog); // as the app's next status call does
     expect([...store.watchedIds(owner)]).toEqual([2]);
     expect([...store.watchlistIds(owner)]).toEqual([1]);
   });
@@ -229,13 +204,13 @@ describe('Plex Home profiles', () => {
   it('gives a user with custom Plex restrictions the strictest limit, since Curatorr can\'t read them', async () => {
     const { store } = await plexInstance();
     kidInPlex = { restricted: true, restrictionProfile: '' };
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     expect(store.profileRow(idOf(store, 'Kid'))!.restriction_profile).toBe('little_kid');
   });
 
   it('picks up a PIN or a restriction added in Plex at the next library sync', async () => {
     const { app, store, library } = await plexInstance();
-    await importHomeUsers(store, silent);
+    await importHomeUsers(store, silentLog);
     const kid = idOf(store, 'Kid');
 
     kidInPlex = { protected: true, restricted: true, restrictionProfile: 'little_kid' };
@@ -248,7 +223,7 @@ describe('Plex Home profiles', () => {
   describe('a PIN-protected profile', () => {
     it('asks for the PIN once on each device', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const member = idOf(store, 'Member');
 
       expect((await select(app, member)).json()).toMatchObject({ error: 'PIN required', needPin: true });
@@ -266,7 +241,7 @@ describe('Plex Home profiles', () => {
 
     it('tells each device which profiles still need their PIN', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const locked = async (cookie = '') =>
         ((await app.inject({ method: 'GET', url: '/api/profiles', headers: { cookie } })).json() as { name: string; locked: boolean }[]).map(
           (p) => [p.name, p.locked],
@@ -286,20 +261,20 @@ describe('Plex Home profiles', () => {
 
     it("checks the owner's PIN too, unless the owner signed in to settings on that device", async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       store.db.prepare('UPDATE profiles SET pin_protected = 1 WHERE plex_user_id = ?').run(OWNER);
       pins[OWNER] = '0000';
       const owner = idOf(store, 'Owner');
 
       expect((await select(app, owner)).json()).toMatchObject({ needPin: true });
       expect((await select(app, owner, { pin: '0000' })).statusCode).toBe(200);
-      const signedIn = `curatorr_admin=${encodeURIComponent(app.signCookie(`${OWNER}.${Date.now()}`))}`;
+      const signedIn = adminCookie(app, OWNER);
       expect((await select(app, owner, { cookie: signedIn })).statusCode).toBe(200);
     });
 
     it("asks for each protected member's PIN once when watching together", async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const [owner, member] = [idOf(store, 'Owner'), idOf(store, 'Member')];
       const together = (payload: object, cookie = '') =>
         app.inject({ method: 'POST', url: '/api/profiles/together', headers: { cookie }, payload });
@@ -318,7 +293,7 @@ describe('Plex Home profiles', () => {
 
     it('asks again on a device that picked the profile before it had a PIN', async () => {
       const { app, store, library } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const kid = idOf(store, 'Kid');
       const tablet = cookiesOf(await select(app, kid));
       const wizard = () => app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie: tablet } });
@@ -336,7 +311,7 @@ describe('Plex Home profiles', () => {
 
     it('pauses PIN entry after five wrong tries in a row, without asking plex.tv', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const member = idOf(store, 'Member');
 
       // Wrong tries before a right one don't count against the next ones.
@@ -358,7 +333,7 @@ describe('Plex Home profiles', () => {
 
     it('counts wrong PINs sent all at once, so a burst gets no further than five', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const member = idOf(store, 'Member');
 
       const asked = switches;
@@ -370,13 +345,13 @@ describe('Plex Home profiles', () => {
 
     it('asks for the PIN again once the device has moved to another profile', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const [member, kid] = [idOf(store, 'Member'), idOf(store, 'Kid')];
 
-      let tablet = jar(await select(app, member, { pin: '1234' }));
+      let tablet = cookiesOf(await select(app, member, { pin: '1234' }));
       expect((await select(app, member, { cookie: tablet })).statusCode).toBe(200);
       // A shared tablet, handed to the kid.
-      tablet = jar(await select(app, kid, { cookie: tablet }), tablet);
+      tablet = cookiesOf(await select(app, kid, { cookie: tablet }), tablet);
       const again = await select(app, member, { cookie: tablet });
       expect(again.statusCode).toBe(403);
       expect(again.json()).toMatchObject({ needPin: true, profileId: member });
@@ -384,10 +359,10 @@ describe('Plex Home profiles', () => {
 
     it("keeps a member unlocked for watching together only until the group's evening is over", async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const [owner, member] = [idOf(store, 'Owner'), idOf(store, 'Member')];
       const ends = togetherUntil(Date.now());
-      const phone = jar(
+      const phone = cookiesOf(
         await app.inject({
           method: 'POST',
           url: '/api/profiles/together',
@@ -409,22 +384,22 @@ describe('Plex Home profiles', () => {
       const { app, store } = await plexInstance();
       kidInPlex = { protected: true };
       pins[KID] = '4321';
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const [owner, member, kid] = [idOf(store, 'Owner'), idOf(store, 'Member'), idOf(store, 'Kid')];
       const together = (pin: { id: number; pin: string }, cookie = '') =>
         app.inject({ method: 'POST', url: '/api/profiles/together', headers: { cookie }, payload: { ids: [owner, member, kid], pin } });
 
       const first = await together({ id: member, pin: '1234' });
       expect(first.json()).toMatchObject({ needPin: true, profileId: kid });
-      const second = await together({ id: kid, pin: '4321' }, jar(first));
+      const second = await together({ id: kid, pin: '4321' }, cookiesOf(first));
       expect(second.statusCode).toBe(200);
-      const status = await app.inject({ method: 'GET', url: '/api/status', headers: { cookie: jar(second, jar(first)) } });
+      const status = await app.inject({ method: 'GET', url: '/api/status', headers: { cookie: cookiesOf(second, cookiesOf(first)) } });
       expect(status.json().together.map((p: { name: string }) => p.name)).toEqual(['Member', 'Kid']);
     });
 
     it('opens a profile unlocked before this version until the device picks another one', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const [member, kid] = [idOf(store, 'Member'), idOf(store, 'Kid')];
       // Linked on another device.
       expect((await select(app, member, { pin: '1234' })).statusCode).toBe(200);
@@ -432,34 +407,34 @@ describe('Plex Home profiles', () => {
       let tablet = `curatorr_unlocked=${encodeURIComponent(app.signCookie(String(member)))}`;
       const first = await select(app, member, { cookie: tablet });
       expect(first.statusCode).toBe(200);
-      tablet = jar(first, tablet);
+      tablet = cookiesOf(first, tablet);
       expect((await select(app, member, { cookie: tablet })).statusCode).toBe(200);
-      tablet = jar(await select(app, kid, { cookie: tablet }), tablet);
+      tablet = cookiesOf(await select(app, kid, { cookie: tablet }), tablet);
       expect((await select(app, member, { cookie: tablet })).json()).toMatchObject({ needPin: true });
     });
 
     it('signs out every other device, which asks for PINs again, and keeps this one signed in', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const member = idOf(store, 'Member');
       const settings = (cookie: string) => app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } });
       // Signed in to settings, and with the member's PIN entered, on two devices.
-      const phone = jar(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
-      const tablet = jar(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
+      const phone = cookiesOf(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
+      const tablet = cookiesOf(await select(app, member, { pin: '1234', cookie: signedInAsOwner(app) }), signedInAsOwner(app));
       expect((await settings(tablet)).statusCode).toBe(200);
 
       const out = await app.inject({ method: 'POST', url: '/api/settings/sign-out-everywhere', headers: { cookie: phone }, payload: {} });
       expect(out.statusCode).toBe(200);
       expect((await settings(tablet)).json()).toMatchObject({ needAdmin: true });
       expect((await select(app, member, { cookie: tablet })).json()).toMatchObject({ needPin: true });
-      const phoneNow = jar(out, phone);
+      const phoneNow = cookiesOf(out, phone);
       expect((await settings(phoneNow)).statusCode).toBe(200);
       expect((await select(app, member, { cookie: phoneNow })).statusCode).toBe(200);
     });
 
     it('leaves PINs of Plex profiles to Plex', async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const res = await app.inject({
         method: 'PUT',
         url: `/api/profiles/${idOf(store, 'Kid')}/pin`,
@@ -472,7 +447,7 @@ describe('Plex Home profiles', () => {
 
     it("doesn't count PINs that plex.tv couldn't check", async () => {
       const { app, store } = await plexInstance();
-      await importHomeUsers(store, silent);
+      await importHomeUsers(store, silentLog);
       const member = idOf(store, 'Member');
 
       switchStatus = 503;

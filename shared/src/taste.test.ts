@@ -1,42 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rankMovies } from './scoring.js';
 import { tasteEvents, tasteProfile } from './taste.js';
-import type { Movie, Ratings } from './types.js';
+import type { Movie } from './types.js';
+import { DAY, movieMaker, noRatings } from './testing.js';
 
-const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
+const movie = movieMaker({ genres: ['Horror'], posterUrl: null, fanartUrl: null });
 
-let nextId = 1;
-function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
-  const id = partial.id ?? nextId++;
-  return {
-    id,
-    tmdbId: id,
-    imdbId: null,
-    title: `Movie ${id}`,
-    year: 2000,
-    overview: '',
-    runtime: 110,
-    certification: 'PG-13',
-    genres: ['Horror'],
-    keywords: [],
-    themes: {},
-    moods: {},
-    posterUrl: null,
-    fanartUrl: null,
-    trailerId: null,
-    plexRatingKey: String(id),
-    plexSlug: null,
-    plexGuid: null,
-    jellyfinId: null,
-    saga: null,
-    addedAt: null,
-    arrivedAt: null,
-    ...partial,
-    ratings: { ...noRatings, ...partial.ratings },
-  };
-}
-
-const DAY = 86_400_000;
 // 9 pm in UTC, so the 4 am turnover is well away from every event below.
 const NOW = Date.parse('2026-10-08T21:00:00Z');
 

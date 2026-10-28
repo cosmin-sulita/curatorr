@@ -15,40 +15,10 @@ import { libraryIndex, norm, rankSimilar, signature, type Signature } from './si
 import { keywordPhrases, tagMovie } from './tagger.js';
 import { TAGGED_MOVIES } from './tagger.fixtures.js';
 import { moodById, themeById, type MoodDef, type ThemeDef } from './taxonomy.js';
-import type { FeedbackEvent, Movie, Ratings, Reason } from './types.js';
+import type { FeedbackEvent, Movie, Reason } from './types.js';
+import { DAY, movieMaker } from './testing.js';
 
-const noRatings: Ratings = { rt: null, imdb: null, tmdb: null, metacritic: null };
-
-let nextId = 1;
-function movie(partial: Omit<Partial<Movie>, 'ratings'> & { ratings?: Partial<Ratings> } = {}): Movie {
-  const id = partial.id ?? nextId++;
-  return {
-    id,
-    tmdbId: id,
-    imdbId: null,
-    title: `Movie ${id}`,
-    year: 2000,
-    overview: '',
-    runtime: 110,
-    certification: 'PG-13',
-    genres: ['Action'],
-    keywords: [],
-    themes: {},
-    moods: {},
-    posterUrl: `poster-${id}`,
-    fanartUrl: `fanart-${id}`,
-    trailerId: null,
-    plexRatingKey: String(id),
-    plexSlug: null,
-    plexGuid: null,
-    jellyfinId: null,
-    saga: null,
-    addedAt: null,
-    arrivedAt: null,
-    ...partial,
-    ratings: { ...noRatings, ...partial.ratings },
-  };
-}
+const movie = movieMaker();
 
 const NOW = Date.parse('2026-10-08T20:00:00Z');
 
