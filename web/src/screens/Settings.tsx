@@ -13,7 +13,6 @@ import { WhatsNewDialog } from '../components/WhatsNew';
 import {
   afterAccessChange,
   afterLibraryChange,
-  api,
   errorMessage,
   keys,
   useHidden,
@@ -23,6 +22,17 @@ import {
 } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { plural, relativeTime, serverCopy, serverName } from '../lib/format';
+import {
+  importUsers,
+  removeSeerr,
+  renewWebhook,
+  saveAppSettings,
+  setProfilePin,
+  showProfile,
+  signOutEverywhere,
+  signOutHere,
+  syncNow,
+} from '../lib/settings';
 import { recentReleases } from '../lib/whatsNew';
 import { ENTERED, useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
@@ -116,7 +126,7 @@ function ProfilePin({ profile, onClose }: { profile: SettingsProfile; onClose: (
   const save = async (pin: string | null) => {
     setBusy(true);
     try {
-      await api(`/api/profiles/${profile.id}/pin`, { method: 'PUT', json: { pin } });
+      await setProfilePin(profile.id, pin);
       await afterAccessChange(qc);
       toast({ message: pin ? `${profile.name}'s profile asks for this PIN now` : `${profile.name}'s profile has no PIN now` });
       onClose();
@@ -213,13 +223,9 @@ function ProfileLists({ server }: { server: MediaServer | null }) {
 }
 
 function AdminSignIn({ server }: { server: MediaServer | null }) {
-  return server === 'jellyfin' ? (
+  return (
     <Section title="Manage Curatorr" description={`Only ${serverCopy(server).admins} can change connections and profiles.`}>
-      <JellyfinSignIn />
-    </Section>
-  ) : (
-    <Section title="Manage Curatorr" description={`Only ${serverCopy(server).admins} can change connections and profiles.`}>
-      <OwnerSignIn />
+      {server === 'jellyfin' ? <JellyfinSignIn /> : <OwnerSignIn />}
     </Section>
   );
 }
@@ -269,8 +275,8 @@ const breakable = (url: string) =>
   url.split(/(?<=[/?=])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
 
 /** The address Radarr calls when a movie is imported or deleted, so new downloads show up within minutes. */
-function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webhook']; onRenewed: () => void }) {
-  const toast = useToast();
+function RadarrWebhook({ webhook }: { webhook: SettingsResponse['webhook'] }) {
+  const { toast, refresh } = useSettingsChanges();
   const field = useRef<HTMLParagraphElement>(null);
   const [renewing, setRenewing] = useState<'ask' | 'busy' | null>(null);
   const address = `${window.location.origin}/api/radarr/webhook?token=${webhook.token}`;
@@ -303,13 +309,13 @@ function RadarrWebhook({ webhook, onRenewed }: { webhook: SettingsResponse['webh
   const renew = async () => {
     setRenewing('busy');
     try {
-      await api('/api/settings/webhook', { json: {} });
+      await renewWebhook();
       toast({ message: 'Made a new address. Paste it into Radarr again.' });
     } catch (err) {
       toast({ message: errorMessage(err) });
     }
     setRenewing(null);
-    onRenewed();
+    refresh();
   };
 
   return (
@@ -491,6 +497,51 @@ function SignOutEverywhere({ onConfirm }: { onConfirm: () => void }) {
 /** Which connection is being changed. One at a time. */
 type Editing = 'radarr' | 'seerr' | MediaServer;
 
+/**
+ * What the admin sections share: refreshing Settings and the status after a change, running one with a toast for how
+ * it went, and switches that move as soon as they're tapped (the refresh after saving settles the real state).
+ */
+function useSettingsChanges() {
+  const qc = useQueryClient();
+  const toast = useToast();
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: keys.settings });
+    qc.invalidateQueries({ queryKey: keys.status });
+  };
+
+  const run = async (change: () => Promise<unknown>, success?: string) => {
+    try {
+      await change();
+      if (success) toast({ message: success });
+    } catch (err) {
+      toast({ message: errorMessage(err) });
+    } finally {
+      refresh();
+    }
+  };
+
+  const optimistic = async (change: (d: SettingsResponse) => SettingsResponse) => {
+    await qc.cancelQueries({ queryKey: keys.settings });
+    qc.setQueryData<SettingsResponse>(keys.settings, (d) => d && change(d));
+  };
+
+  const updateApp = (patch: Partial<SettingsResponse['app']>) =>
+    run(async () => {
+      await optimistic((d) => ({ ...d, app: { ...d.app, ...patch } }));
+      await saveAppSettings(patch);
+      afterLibraryChange(qc);
+    });
+
+  return { qc, toast, refresh, run, optimistic, updateApp };
+}
+
+/** How Settings names the media server, and whether it's connected far enough to have read movies and users from it. */
+function serverState(data: SettingsResponse) {
+  const copy = serverCopy(data.server);
+  return { name: copy.name, copy, connected: data.server === 'jellyfin' || Boolean(data.plex.machineId) };
+}
+
 function AdminSettings({
   data,
   demo,
@@ -501,10 +552,133 @@ function AdminSettings({
   /** Sets, changes or removes a Jellyfin profile's PIN. */
   onPin: (profile: SettingsProfile) => void;
 }) {
-  const qc = useQueryClient();
-  const toast = useToast();
+  return (
+    <>
+      <LibrarySection data={data} demo={demo} />
+      {!demo && data.radarr && <RadarrWebhook webhook={data.webhook} />}
+      <PicksSection data={data} demo={demo} />
+      {!demo && <ConnectionsSection data={data} />}
+      <ProfilesSection data={data} onPin={onPin} />
+      {!demo && (data.plex.ownerName || data.jellyfin) && <SignOutSection />}
+    </>
+  );
+}
+
+function LibrarySection({ data, demo }: { data: SettingsResponse; demo: boolean }) {
+  const { run, updateApp } = useSettingsChanges();
+  const { sync } = data;
+  const { name, connected } = serverState(data);
+  return (
+    <Section title="Library">
+      <dl className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <dt className="text-muted">Movies</dt>
+          <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.movies}</dd>
+        </div>
+        {connected && (
+          <div>
+            <dt className="text-muted">Found in {name}</dt>
+            <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matched}</dd>
+          </div>
+        )}
+      </dl>
+      {sync.error && (
+        <div className="mt-4">
+          <Notice>Last sync failed: {sync.error}</Notice>
+        </div>
+      )}
+      <div className="mt-5 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block font-medium">Last sync</span>
+            <span className="block text-sm text-muted">{sync.syncing ? 'Syncing now…' : relativeTime(sync.at)}</span>
+          </span>
+          {!demo && (
+            <Button onClick={() => run(syncNow)} loading={sync.syncing}>
+              {!sync.syncing && <RefreshCw className="size-4" />} Sync now
+            </Button>
+          )}
+        </div>
+        {!demo && (
+          <label className="flex items-center justify-between gap-4">
+            <span className="font-medium">Sync with Radarr every</span>
+            <select
+              className="h-11 rounded-xl bg-ink px-3 ring-1 ring-line"
+              value={data.app.syncIntervalHours}
+              onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
+            >
+              {SYNC_INTERVALS.map((h) => (
+                <option key={h} value={h}>
+                  {plural(h, 'hour')}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function PicksSection({ data, demo }: { data: SettingsResponse; demo: boolean }) {
+  const { updateApp } = useSettingsChanges();
+  const { name, copy, connected } = serverState(data);
+  return (
+    <Section title="Picks">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block font-medium">Include movies already watched</span>
+            <span className="block text-sm text-muted">Off: anything a profile watched in {name} is skipped.</span>
+          </span>
+          <Toggle
+            label="Include movies already watched"
+            checked={data.app.includeWatched}
+            onChange={(v) => updateApp({ includeWatched: v })}
+          />
+        </div>
+        {!demo && connected && (
+          <div className="flex items-center justify-between gap-4">
+            <span>
+              <span className="block font-medium">Update {name} when you mark movies</span>
+              <span className="block text-sm text-muted">
+                Seen it marks the movie {copy.watched} in {name}. Watchlist adds it to your {copy.watchlist}, and a movie
+                taken off there leaves Curatorr's watchlist too.
+              </span>
+            </span>
+            <Toggle
+              label={`Update ${name} when you mark movies`}
+              checked={data.app.syncToServer}
+              onChange={(v) => updateApp({ syncToServer: v })}
+            />
+          </div>
+        )}
+        {/* The demo has requests built in. */}
+        {(demo || data.seerr) && (
+          <div className="flex items-center justify-between gap-4">
+            <span>
+              <span className="block font-medium">Favour movies people requested</span>
+              <span className="block text-sm text-muted">
+                Unwatched Seerr requests rank higher for whoever asked, and say so.
+              </span>
+            </span>
+            <Toggle
+              label="Favour movies people requested"
+              checked={data.app.boostRequests}
+              onChange={(v) => updateApp({ boostRequests: v })}
+            />
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function ConnectionsSection({ data }: { data: SettingsResponse }) {
+  const { qc, toast, refresh, run } = useSettingsChanges();
   const [editing, setEditing] = useState<Editing | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const { seerr } = data;
+  const { name } = serverState(data);
 
   // Opening or closing a form takes away the button that was pressed, and focus with it. Keyboard and screen reader
   // users then carry on in the form, and on its row's button once it closes, rather than at the top of the page.
@@ -520,50 +694,6 @@ function AdminSettings({
     const target = row.querySelector<HTMLElement>(editing ? '[data-form]' : 'button');
     target?.focus({ preventScroll: true });
   }, [editing]);
-
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: keys.settings });
-    qc.invalidateQueries({ queryKey: keys.status });
-  };
-
-  const run = async (fn: () => Promise<unknown>, success?: string) => {
-    try {
-      await fn();
-      if (success) toast({ message: success });
-    } catch (err) {
-      toast({ message: errorMessage(err) });
-    } finally {
-      refresh();
-    }
-  };
-
-  // Switches move as soon as they're tapped; the refresh after saving settles the real state.
-  const optimistic = async (change: (d: SettingsResponse) => SettingsResponse) => {
-    await qc.cancelQueries({ queryKey: keys.settings });
-    qc.setQueryData<SettingsResponse>(keys.settings, (d) => d && change(d));
-  };
-
-  const updateApp = (patch: Partial<SettingsResponse['app']>) =>
-    run(async () => {
-      await optimistic((d) => ({ ...d, app: { ...d.app, ...patch } }));
-      await api('/api/settings/app', { method: 'PUT', json: patch });
-      afterLibraryChange(qc);
-    });
-
-  const { sync, seerr } = data;
-  const name = serverName(data.server);
-  // Connected far enough to have read movies and users from it.
-  const connected = data.server === 'jellyfin' || Boolean(data.plex.machineId);
-  const copy = serverCopy(data.server);
-  const home = copy.home;
-
-  const refreshProfiles = async () => {
-    const server = data.server ?? 'plex';
-    setRefreshing(true);
-    await run(() => api(`/api/setup/${server}/users`, { json: {} }), `Profiles updated from ${home}`);
-    qc.invalidateQueries({ queryKey: keys.profiles });
-    setRefreshing(false);
-  };
 
   const change = (what: Editing, service: string, label = 'Change') => (
     <Button variant="ghost" onClick={() => setEditing(what)} aria-label={`${label} ${service}`}>
@@ -586,288 +716,195 @@ function AdminSettings({
   );
   const syncAfter = (message: string) => {
     setEditing(null);
-    run(() => api('/api/sync', { json: {} }), message);
+    run(syncNow, message);
   };
 
   return (
-    <>
-      <Section title="Library">
-        <dl className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <dt className="text-muted">Movies</dt>
-            <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.movies}</dd>
-          </div>
-          {connected && (
-            <div>
-              <dt className="text-muted">Found in {name}</dt>
-              <dd className="mt-0.5 text-2xl font-semibold tabular-nums">{sync.matched}</dd>
-            </div>
-          )}
-        </dl>
-        {sync.error && (
-          <div className="mt-4">
-            <Notice>Last sync failed: {sync.error}</Notice>
-          </div>
-        )}
-        <div className="mt-5 space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <span>
-              <span className="block font-medium">Last sync</span>
-              <span className="block text-sm text-muted">{sync.syncing ? 'Syncing now…' : relativeTime(sync.at)}</span>
-            </span>
-            {!demo && (
-              <Button onClick={() => run(() => api('/api/sync', { json: {} }))} loading={sync.syncing}>
-                {!sync.syncing && <RefreshCw className="size-4" />} Sync now
-              </Button>
-            )}
-          </div>
-          {!demo && (
-            <label className="flex items-center justify-between gap-4">
-              <span className="font-medium">Sync with Radarr every</span>
-              <select
-                className="h-11 rounded-xl bg-ink px-3 ring-1 ring-line"
-                value={data.app.syncIntervalHours}
-                onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
-              >
-                {SYNC_INTERVALS.map((h) => (
-                  <option key={h} value={h}>
-                    {plural(h, 'hour')}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-      </Section>
-
-      {!demo && data.radarr && <RadarrWebhook webhook={data.webhook} onRenewed={refresh} />}
-
-      <Section title="Picks">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <span>
-              <span className="block font-medium">Include movies already watched</span>
-              <span className="block text-sm text-muted">Off: anything a profile watched in {name} is skipped.</span>
-            </span>
-            <Toggle
-              label="Include movies already watched"
-              checked={data.app.includeWatched}
-              onChange={(v) => updateApp({ includeWatched: v })}
+    <Section title="Connections">
+      <ul className="divide-y divide-line">
+        <Connection
+          row="radarr"
+          name="Radarr"
+          detail={data.radarr?.url ?? 'Not connected'}
+          editing={editing === 'radarr'}
+          action={editing !== 'radarr' && change('radarr', 'Radarr', data.radarr ? 'Change' : 'Connect')}
+        >
+          {editing === 'radarr' && (
+            <ServiceForm
+              service="Radarr"
+              heading={false}
+              initialUrl={data.radarr?.url ?? ''}
+              hasKey={Boolean(data.radarr?.hasApiKey)}
+              actions={cancel}
+              onSaved={() => {
+                setEditing(null);
+                refresh();
+                toast({ message: 'Radarr connected. Syncing your library.' });
+              }}
             />
-          </div>
-          {!demo && connected && (
-            <div className="flex items-center justify-between gap-4">
-              <span>
-                <span className="block font-medium">Update {name} when you mark movies</span>
-                <span className="block text-sm text-muted">
-                  Seen it marks the movie {copy.watched} in {name}. Watchlist adds it to your {copy.watchlist}, and a
-                  movie taken off there leaves Curatorr's watchlist too.
-                </span>
-              </span>
-              <Toggle
-                label={`Update ${name} when you mark movies`}
-                checked={data.app.syncToServer}
-                onChange={(v) => updateApp({ syncToServer: v })}
-              />
-            </div>
           )}
-          {/* The demo has requests built in. */}
-          {(demo || seerr) && (
-            <div className="flex items-center justify-between gap-4">
-              <span>
-                <span className="block font-medium">Favour movies people requested</span>
-                <span className="block text-sm text-muted">
-                  Unwatched Seerr requests rank higher for whoever asked, and say so.
-                </span>
-              </span>
-              <Toggle
-                label="Favour movies people requested"
-                checked={data.app.boostRequests}
-                onChange={(v) => updateApp({ boostRequests: v })}
-              />
-            </div>
-          )}
-        </div>
-      </Section>
+        </Connection>
 
-      {!demo && (
-        <Section title="Connections">
-          <ul className="divide-y divide-line">
-            <Connection
-              row="radarr"
-              name="Radarr"
-              detail={data.radarr?.url ?? 'Not connected'}
-              editing={editing === 'radarr'}
-              action={editing !== 'radarr' && change('radarr', 'Radarr', data.radarr ? 'Change' : 'Connect')}
-            >
-              {editing === 'radarr' && (
-                <ServiceForm
-                  service="Radarr"
-                  heading={false}
-                  initialUrl={data.radarr?.url ?? ''}
-                  hasKey={Boolean(data.radarr?.hasApiKey)}
-                  actions={cancel}
-                  onSaved={() => {
+        <Connection
+          row="server"
+          name={data.server ? name : 'Media server'}
+          detail={serverDescription(data)}
+          editing={editing === 'plex' || editing === 'jellyfin'}
+          action={
+            // Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here.
+            editing !== data.server &&
+            (data.server === 'jellyfin'
+              ? change('jellyfin', 'Jellyfin')
+              : data.server === 'plex' && change('plex', 'Plex', data.plex.machineId ? 'Change' : 'Connect'))
+          }
+        >
+          {editing === 'plex' ? (
+            <>
+              <PlexConnect signedIn={data.plex.signedIn} saved={data.plex} onDone={() => syncAfter('Plex connected')} />
+              <div className="mt-3">{cancel}</div>
+            </>
+          ) : editing === 'jellyfin' ? (
+            <>
+              <JellyfinConnect saved={data.jellyfin} onDone={() => syncAfter('Jellyfin connected')} />
+              <div className="mt-3">{cancel}</div>
+            </>
+          ) : (
+            !data.server && (
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => setEditing('plex')}>Connect Plex</Button>
+                <Button onClick={() => setEditing('jellyfin')}>Connect Jellyfin</Button>
+              </div>
+            )
+          )}
+        </Connection>
+
+        <Connection
+          row="seerr"
+          name="Seerr"
+          editing={editing === 'seerr'}
+          detail={
+            seerr ? (
+              <>
+                <span className="block">{seerr.url}</span>
+                <span className="block">
+                  {plural(seerr.requests, 'requested movie')} in your library, for {plural(seerr.profiles, 'profile')}
+                  {seerr.at && `, read ${relativeTime(seerr.at)}`}
+                </span>
+              </>
+            ) : (
+              'Optional. Picks favour movies each person requested in Seerr.'
+            )
+          }
+          action={editing !== 'seerr' && change('seerr', 'Seerr', seerr ? 'Change' : 'Connect')}
+        >
+          {editing === 'seerr' ? (
+            <>
+              <ServiceForm
+                service="Seerr"
+                heading={false}
+                initialUrl={seerr?.url ?? ''}
+                hasKey={Boolean(seerr?.hasApiKey)}
+                actions={cancel}
+                onSaved={() => {
+                  setEditing(null);
+                  afterLibraryChange(qc);
+                  refresh();
+                  toast({ message: 'Seerr connected' });
+                }}
+              />
+              {seerr && (
+                <DisconnectSeerr
+                  onConfirm={() => {
                     setEditing(null);
-                    refresh();
-                    toast({ message: 'Radarr connected. Syncing your library.' });
+                    run(async () => {
+                      await removeSeerr();
+                      afterLibraryChange(qc);
+                    }, 'Seerr disconnected');
                   }}
                 />
               )}
-            </Connection>
+            </>
+          ) : (
+            seerr?.error && <Notice>Last read failed: {seerr.error}</Notice>
+          )}
+        </Connection>
+      </ul>
+    </Section>
+  );
+}
 
-            <Connection
-              row="server"
-              name={data.server ? name : 'Media server'}
-              detail={serverDescription(data)}
-              editing={editing === 'plex' || editing === 'jellyfin'}
-              action={
-                // Plex or Jellyfin is chosen once, in setup; one set up without either can connect one here.
-                editing !== data.server &&
-                (data.server === 'jellyfin'
-                  ? change('jellyfin', 'Jellyfin')
-                  : data.server === 'plex' && change('plex', 'Plex', data.plex.machineId ? 'Change' : 'Connect'))
-              }
-            >
-              {editing === 'plex' ? (
-                <>
-                  <PlexConnect signedIn={data.plex.signedIn} saved={data.plex} onDone={() => syncAfter('Plex connected')} />
-                  <div className="mt-3">{cancel}</div>
-                </>
-              ) : editing === 'jellyfin' ? (
-                <>
-                  <JellyfinConnect saved={data.jellyfin} onDone={() => syncAfter('Jellyfin connected')} />
-                  <div className="mt-3">{cancel}</div>
-                </>
-              ) : (
-                !data.server && (
-                  <div className="flex flex-wrap gap-3">
-                    <Button onClick={() => setEditing('plex')}>Connect Plex</Button>
-                    <Button onClick={() => setEditing('jellyfin')}>Connect Jellyfin</Button>
-                  </div>
-                )
-              )}
-            </Connection>
+function ProfilesSection({ data, onPin }: { data: SettingsResponse; onPin: (profile: SettingsProfile) => void }) {
+  const { qc, run, optimistic } = useSettingsChanges();
+  const [refreshing, setRefreshing] = useState(false);
+  const { name, copy, connected } = serverState(data);
 
-            <Connection
-              row="seerr"
-              name="Seerr"
-              editing={editing === 'seerr'}
-              detail={
-                seerr ? (
-                  <>
-                    <span className="block">{seerr.url}</span>
-                    <span className="block">
-                      {plural(seerr.requests, 'requested movie')} in your library, for {plural(seerr.profiles, 'profile')}
-                      {seerr.at && `, read ${relativeTime(seerr.at)}`}
-                    </span>
-                  </>
-                ) : (
-                  'Optional. Picks favour movies each person requested in Seerr.'
-                )
-              }
-              action={editing !== 'seerr' && change('seerr', 'Seerr', seerr ? 'Change' : 'Connect')}
-            >
-              {editing === 'seerr' ? (
-                <>
-                  <ServiceForm
-                    service="Seerr"
-                    heading={false}
-                    initialUrl={seerr?.url ?? ''}
-                    hasKey={Boolean(seerr?.hasApiKey)}
-                    actions={cancel}
-                    onSaved={() => {
-                      setEditing(null);
-                      afterLibraryChange(qc);
-                      refresh();
-                      toast({ message: 'Seerr connected' });
-                    }}
-                  />
-                  {seerr && (
-                    <DisconnectSeerr
-                      onConfirm={() => {
-                        setEditing(null);
-                        run(async () => {
-                          await api('/api/settings/seerr', { method: 'DELETE' });
-                          afterLibraryChange(qc);
-                        }, 'Seerr disconnected');
-                      }}
-                    />
-                  )}
-                </>
-              ) : (
-                seerr?.error && <Notice>Last read failed: {seerr.error}</Notice>
-              )}
-            </Connection>
-          </ul>
-        </Section>
-      )}
+  const refreshProfiles = async () => {
+    setRefreshing(true);
+    await run(() => importUsers(data.server ?? 'plex'), `Profiles updated from ${copy.home}`);
+    qc.invalidateQueries({ queryKey: keys.profiles });
+    setRefreshing(false);
+  };
 
-      <Section title="Profiles" description="Hidden profiles don't appear on the Who's watching screen.">
-        <ul className="divide-y divide-line">
-          {data.profiles.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 py-3">
-              <Avatar name={p.name} src={p.avatarUrl} className="size-10" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{p.name}</span>
-                <span className="block text-xs text-muted">
-                  {p.isAdmin
-                    ? copy.adminTitle
-                    : p.restrictionProfile
-                      ? `Restricted to ${RESTRICTION_LABEL[p.restrictionProfile]} by ${name}`
-                      : 'Member'}
-                  {p.serverUser && !p.linked && ', waiting for PIN'}
-                </span>
+  return (
+    <Section title="Profiles" description="Hidden profiles don't appear on the Who's watching screen.">
+      <ul className="divide-y divide-line">
+        {data.profiles.map((p) => (
+          <li key={p.id} className="flex items-center gap-3 py-3">
+            <Avatar name={p.name} src={p.avatarUrl} className="size-10" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{p.name}</span>
+              <span className="block text-xs text-muted">
+                {p.isAdmin
+                  ? copy.adminTitle
+                  : p.restrictionProfile
+                    ? `Restricted to ${RESTRICTION_LABEL[p.restrictionProfile]} by ${name}`
+                    : 'Member'}
+                {p.serverUser && !p.linked && ', waiting for PIN'}
               </span>
-              {/* Jellyfin has no PINs, so Curatorr keeps one for whoever needs it. */}
-              {data.server === 'jellyfin' && p.serverUser && (
-                <Button variant="ghost" className="shrink-0 px-3" onClick={() => onPin(p)}>
-                  {p.pinProtected ? 'Change PIN' : 'Set PIN'}
-                </Button>
-              )}
-              {/* The Plex owner always shows. A Jellyfin administrator may be an account nobody watches with. */}
-              {(!p.isAdmin || data.server === 'jellyfin') && (
-                <Toggle
-                  label={`Show ${p.name}`}
-                  checked={!p.hidden}
-                  onChange={(show) =>
-                    run(async () => {
-                      await optimistic((d) => ({
-                        ...d,
-                        profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
-                      }));
-                      await api(`/api/profiles/${p.id}`, { method: 'PATCH', json: { hidden: !show } });
-                      qc.invalidateQueries({ queryKey: keys.profiles });
-                    })
-                  }
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-        {connected && (
-          <Button variant="ghost" className="mt-2 -ml-4" loading={refreshing} onClick={refreshProfiles}>
-            {!refreshing && <RefreshCw className="size-4" />} Refresh profiles from {home}
-          </Button>
-        )}
-      </Section>
-
-      {!demo && (data.plex.ownerName || data.jellyfin) && (
-        <>
-          <Button
-            variant="ghost"
-            className="w-full"
-            onClick={() => run(() => api('/api/admin/logout', { json: {} }).then(() => afterAccessChange(qc)))}
-          >
-            <LogOut className="size-4" /> Sign out of settings on this device
-          </Button>
-          <SignOutEverywhere
-            onConfirm={() =>
-              run(() => api('/api/settings/sign-out-everywhere', { json: {} }), 'Signed out all other devices')
-            }
-          />
-        </>
+            </span>
+            {/* Jellyfin has no PINs, so Curatorr keeps one for whoever needs it. */}
+            {data.server === 'jellyfin' && p.serverUser && (
+              <Button variant="ghost" className="shrink-0 px-3" onClick={() => onPin(p)}>
+                {p.pinProtected ? 'Change PIN' : 'Set PIN'}
+              </Button>
+            )}
+            {/* The Plex owner always shows. A Jellyfin administrator may be an account nobody watches with. */}
+            {(!p.isAdmin || data.server === 'jellyfin') && (
+              <Toggle
+                label={`Show ${p.name}`}
+                checked={!p.hidden}
+                onChange={(show) =>
+                  run(async () => {
+                    await optimistic((d) => ({
+                      ...d,
+                      profiles: d.profiles.map((x) => (x.id === p.id ? { ...x, hidden: !show } : x)),
+                    }));
+                    await showProfile(p.id, show);
+                    qc.invalidateQueries({ queryKey: keys.profiles });
+                  })
+                }
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+      {connected && (
+        <Button variant="ghost" className="mt-2 -ml-4" loading={refreshing} onClick={refreshProfiles}>
+          {!refreshing && <RefreshCw className="size-4" />} Refresh profiles from {copy.home}
+        </Button>
       )}
+    </Section>
+  );
+}
+
+function SignOutSection() {
+  const { qc, run } = useSettingsChanges();
+  return (
+    <>
+      <Button variant="ghost" className="w-full" onClick={() => run(() => signOutHere().then(() => afterAccessChange(qc)))}>
+        <LogOut className="size-4" /> Sign out of settings on this device
+      </Button>
+      <SignOutEverywhere onConfirm={() => run(signOutEverywhere, 'Signed out all other devices')} />
     </>
   );
 }

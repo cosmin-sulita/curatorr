@@ -5,9 +5,11 @@ import { Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, Spinner, urlField } from '../components/ui';
-import { afterAccessChange, api, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
+import { useAction } from '../lib/action';
+import { afterAccessChange, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
+import { completeSetup, saveRadarr, saveSeerr, skipServer } from '../lib/settings';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 
@@ -106,7 +108,7 @@ export function SetupScreen() {
               settings={settings.data}
               onDone={() => setStep('seerr')}
               onSkip={async () => {
-                await api('/api/setup/server/skip', { json: {} });
+                await skipServer();
                 // No Seerr step: its requests are matched to profiles by Plex or Jellyfin account.
                 setStep('finish');
               }}
@@ -239,15 +241,13 @@ export function Panel({
 /** What differs between the services Curatorr connects to with an address and an API key. */
 const SERVICES = {
   Radarr: {
-    endpoint: '/api/setup/radarr',
-    method: 'POST',
+    save: saveRadarr,
     urlPlaceholder: 'http://192.168.1.10:7878',
     keyHint: 'In Radarr: Settings, then General, then Security.',
     keyPlaceholder: '32 characters',
   },
   Seerr: {
-    endpoint: '/api/settings/seerr',
-    method: 'PUT',
+    save: saveSeerr,
     urlPlaceholder: 'http://192.168.1.10:5055',
     keyHint: 'In Seerr: Settings, then General, then API Key.',
     keyPlaceholder: 'Paste the key',
@@ -279,25 +279,17 @@ export function ServiceForm({
   const config = SERVICES[service];
   const [url, setUrl] = useState(initialUrl);
   const [apiKey, setApiKey] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, run } = useAction();
   const [saved, setSaved] = useState(false);
   // The server only keeps a saved key for the address it was saved with.
   const keepsKey = hasKey && url.trim() === initialUrl;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setError(null);
     setSaved(false);
-    try {
-      await api(config.endpoint, { method: config.method, json: { url, apiKey: apiKey || undefined } });
+    if (await run(() => config.save(url, apiKey || undefined))) {
       setSaved(true);
       onSaved();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -355,20 +347,14 @@ export function ServiceForm({
 
 function Finish() {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
 
   const finish = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api('/api/setup/complete', { json: {} });
+    const done = await run(async () => {
+      await completeSetup();
       await afterAccessChange(qc);
-      navigate('/profiles', { replace: true });
-    } catch (err) {
-      setError(errorMessage(err));
-      setBusy(false);
-    }
+    });
+    if (done) navigate('/profiles', { replace: true });
   };
 
   return (

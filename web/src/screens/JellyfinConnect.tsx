@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Button, Field, inputClass, nextFieldOnEnter, Notice, plainField, urlField } from '../components/ui';
-import { afterAccessChange, api, errorMessage, type ServerLibrary, type SettingsResponse } from '../lib/api';
+import { useAction } from '../lib/action';
+import { afterAccessChange, type ServerLibrary, type SettingsResponse } from '../lib/api';
+import { connectJellyfin, jellyfinSignIn, saveJellyfinLibraries } from '../lib/settings';
 import { LibraryPicker, UserImport } from './MediaServer';
 
 type Stage = 'connect' | 'libraries' | 'users';
@@ -28,7 +30,7 @@ export function JellyfinConnect({ saved, onDone }: { saved: SettingsResponse['je
         libraries={libraries}
         // Jellyfin's library ids are unique, so another server's never match.
         initial={saved?.libraryIds}
-        onSave={(libraryIds) => api('/api/setup/jellyfin/libraries', { json: { libraryIds } })}
+        onSave={saveJellyfinLibraries}
         onSaved={() => setStage('users')}
         onBack={() => setStage('connect')}
         backLabel="Change the address"
@@ -49,25 +51,16 @@ function ConnectForm({
   const [username, setUsername] = useState(saved?.ownerName ?? '');
   const [password, setPassword] = useState('');
   const [publicUrl, setPublicUrl] = useState(saved?.publicUrl ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, run } = useAction();
   // The server keeps its sign-in when the password is left empty, for the address it was made at.
   const keepsSignIn = Boolean(saved) && url.trim() === saved?.url;
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await api<{ libraries: ServerLibrary[] }>('/api/setup/jellyfin', {
-        json: { url, username, password: password || undefined, publicUrl },
-      });
+    void run(async () => {
+      const res = await connectJellyfin({ url, username, password: password || undefined, publicUrl });
       onConnected(res.libraries);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -138,21 +131,14 @@ export function JellyfinSignIn() {
   const qc = useQueryClient();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api('/api/jellyfin/login', { json: { username, password } });
+    void run(async () => {
+      await jellyfinSignIn(username, password);
       await afterAccessChange(qc);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   return (

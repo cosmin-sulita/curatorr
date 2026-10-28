@@ -2,8 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { Button, Field, inputClass, Notice, Spinner, urlField } from '../components/ui';
-import { afterAccessChange, api, errorMessage, keys, type PlexServerOption, type ServerLibrary } from '../lib/api';
+import { useAction } from '../lib/action';
+import { afterAccessChange, errorMessage, keys, type ServerLibrary } from '../lib/api';
 import { usePlexSignIn } from '../lib/plexAuth';
+import { choosePlexServer, plexServers, savePlexLibraries } from '../lib/settings';
 import { LibraryPicker, UserImport } from './MediaServer';
 
 type Stage = 'signin' | 'server' | 'libraries' | 'users';
@@ -79,7 +81,7 @@ export function PlexConnect({
         libraries={libraries}
         // Every Plex server numbers its libraries from 1, so the saved ones only mean something on the same server.
         initial={saved && saved.machineId === machineId ? saved.sectionIds : undefined}
-        onSave={(sectionIds) => api('/api/setup/plex/libraries', { json: { sectionIds } })}
+        onSave={savePlexLibraries}
         onSaved={() => setStage('users')}
         onBack={() => setStage('server')}
         backLabel="Choose another server"
@@ -99,32 +101,24 @@ function ServerPicker({
 }) {
   const servers = useQuery({
     queryKey: keys.plexServers,
-    // Trying each of the servers' addresses takes a while.
-    queryFn: () => api<PlexServerOption[]>('/api/setup/plex/servers', { timeout: 60_000 }),
+    queryFn: plexServers,
     staleTime: 0,
   });
   const [choice, setChoice] = useState<{ machineId: string; url: string; name: string } | null>(null);
   const [manual, setManual] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, run } = useAction();
 
   const firstOk = servers.data?.flatMap((s) => s.connections.filter((c) => c.ok).map((c) => ({ ...c, server: s })))[0];
   const selected =
     choice ?? (firstOk ? { machineId: firstOk.server.machineId, url: firstOk.url, name: firstOk.server.name } : null);
 
-  const save = async () => {
+  const save = () => {
     const target = manual.trim() && selected ? { ...selected, url: manual.trim() } : selected;
     if (!target) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await api<{ libraries: ServerLibrary[] }>('/api/setup/plex/server', { json: target });
+    void run(async () => {
+      const res = await choosePlexServer(target);
       onPicked(res.libraries, target.machineId);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   if (servers.isLoading) {

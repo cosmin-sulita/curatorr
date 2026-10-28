@@ -1,10 +1,12 @@
-import type { MediaServer, Profile } from '@curatorr/shared';
+import type { MediaServer } from '@curatorr/shared';
 import { useMutation } from '@tanstack/react-query';
 import { Check, Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
-import { api, errorMessage, type ServerLibrary } from '../lib/api';
+import { useAction } from '../lib/action';
+import { errorMessage, type ServerLibrary } from '../lib/api';
 import { serverCopy } from '../lib/format';
+import { importUsers } from '../lib/settings';
 
 // Setting up Plex and Jellyfin ends the same way: their movie libraries, then their users as profiles.
 
@@ -29,20 +31,10 @@ export function LibraryPicker({
     const kept = libraries.filter((l) => initial?.includes(l.key));
     return new Set((kept.length ? kept : libraries).map((l) => l.key));
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, run } = useAction();
 
   const save = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave([...selected]);
-      onSaved();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    if (await run(() => onSave([...selected]))) onSaved();
   };
 
   if (!libraries.length) {
@@ -88,7 +80,7 @@ export function UserImport({ server, onDone }: { server: MediaServer; onDone: ()
   // A change on the server, so it runs each time this step opens (once, although React may mount it twice), never
   // from a cache: users changed on the server since show as they are now.
   const users = useMutation({
-    mutationFn: () => api<(Profile & { hidden: boolean })[]>(`/api/setup/${server}/users`, { json: {} }),
+    mutationFn: () => importUsers(server),
   });
   const { mutate } = users;
   const started = useRef(false);
