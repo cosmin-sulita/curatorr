@@ -1,10 +1,8 @@
-import type { MediaServer } from '@curatorr/shared';
+import { formatRuntime, type MediaServer } from '@curatorr/shared';
 
+/** A movie's length as its chips write it, or null when unknown. */
 export function runtime(minutes: number | null) {
-  if (!minutes) return null;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h ? `${h}h ${m.toString().padStart(2, '0')}m` : `${m}m`;
+  return minutes ? formatRuntime(minutes) : null;
 }
 
 export function relativeTime(epochMs: number | null) {

@@ -257,10 +257,11 @@ function reasonsFor(m: Movie, c: Criteria): Reason[] {
   return reasons;
 }
 
+/** "45m", "1h 05m", "2h": the pick's header and its chips write a length the same way. */
 export function formatRuntime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
+  return h ? `${h}h${m ? ` ${String(m).padStart(2, '0')}m` : ''}` : `${m}m`;
 }
 
 export interface RankOptions {

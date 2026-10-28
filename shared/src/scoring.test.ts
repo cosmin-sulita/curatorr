@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   eligibleMovies,
+  formatRuntime,
   matchesShelf,
   pickingDay,
   qualityScore,
@@ -824,5 +825,11 @@ describe('watching together', () => {
     expect(together.find((r) => r.movie.id === a.id)!.reasons).toContainEqual({ kind: 'taste', label: 'Because Sam watched Inception' });
     const solo = rankMovies([a, b, d, e], {}, [], { now: NOW, seed: 'test', taste: { ...alexToo, name: undefined } });
     expect(solo.find((r) => r.movie.id === a.id)!.reasons).toContainEqual({ kind: 'taste', label: 'Because you watched Heat' });
+  });
+});
+
+describe('formatRuntime', () => {
+  it('writes a length one way, with minutes in two digits after the hours', () => {
+    expect([45, 65, 105, 120, 181].map(formatRuntime)).toEqual(['45m', '1h 05m', '1h 45m', '2h', '3h 01m']);
   });
 });
