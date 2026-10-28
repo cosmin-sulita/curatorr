@@ -3,6 +3,7 @@ import {
   allowedFor,
   dayStart,
   eligibleMovies,
+  excludedIds,
   isSurprise,
   onServer,
   qualityScore,
@@ -129,7 +130,7 @@ function dedupe(events: FeedbackEvent[]): FeedbackEvent[] {
 /**
  * The context and options for ranking at `now`, for one profile or several watching together.
  * Together, a movie is out if anyone watched it or marked it Seen it or Never; everyone's limits apply;
- * a saga goes on from where everyone has got to; anyone's watchlist and requests count; and tastes blend
+ * a saga goes on from where everyone has got to, past the parts only some have seen; anyone's watchlist and requests count; and tastes blend
  * (see `tastePoints`). One profile is a group of one. `taste` also works out tastes, which only ranking
  * the picks needs.
  */
@@ -154,12 +155,14 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
   const available = intersection(members.map((m) => m.available));
   const limits = { allowedCerts: certs, available };
   const seenByAll = intersection(views.map((v) => v.seen))!;
-  // A part someone marked Never is never offered, so it mustn't hold back the parts after it either.
-  const never = new Set(members.flatMap((m) => m.feedback.flatMap((e) => (e.kind === 'never' ? [e.movieId] : []))));
+  const feedback = members.length > 1 ? dedupe(members.flatMap((m) => m.feedback)) : d.feedback;
+  // A part that's out for whoever is picking (marked Never, or watched by only some of a group) is never offered, so it
+  // mustn't hold back the parts after it either. One everyone has seen counts as watched.
+  const out = excludedIds({ watched, feedback, includeWatched: d.includeWatched });
   // Only parts everyone can play and may see count: a part held back by limits mustn't hold back the sequels.
   const playable = d.movies.filter(
     (m) =>
-      (!never.has(m.id) || seenByAll.has(m.id)) &&
+      (!out.has(m.id) || seenByAll.has(m.id)) &&
       (!requireServer || onServer(m, requireServer)) &&
       allowedFor(m, limits),
   );
@@ -167,7 +170,7 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
   const watchlist = union(members.map((m) => m.watchlist));
   const ctx: ProfileContext = {
     watched,
-    feedback: members.length > 1 ? dedupe(members.flatMap((m) => m.feedback)) : d.feedback,
+    feedback,
     sagas: sagaState(playable, seenByAll),
     allowedCerts: certs,
     requireServer,

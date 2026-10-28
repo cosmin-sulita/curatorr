@@ -90,7 +90,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - **Kept for a screen's look-ahead:** requests go through `pickingFor`, which keeps `groupData` + `picking` for the last four groups (each in its order, and with taste per evening, `dayStart`) until the next write to the database: `Store.version()` is SQLite's `total_changes()`, which every insert, update and delete moves. Only `opts.now` is the request's own, so ranking must read nothing but the store and `now`, or the memo would serve it stale.
     - **Watching together:** `picking` takes one profile or several; a profile on its own is a group of one, and `npm run eval -- --compare` must stay at +0.000 when this changes. Together:
       - a movie is out if anyone watched it or marked it Seen it or Never;
-      - limits and Jellyfin's `available` are intersections, and sagas use what everyone has seen;
+      - limits and Jellyfin's `available` are intersections, and sagas use what everyone has seen, but a part only some of them have seen doesn't hold back the next (decided with the maintainer);
       - watchlists and requests are unions, with `wantedBy` naming whose for the chips;
       - each member's taste blends in `tastePoints` (half the mean plus half the lowest, without members who have no history);
       - feedback is the union, deduplicated by movie, kind and time, so a group's skip saved for each member counts once.

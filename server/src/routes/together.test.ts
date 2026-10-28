@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { AppStatus, Profile, RecommendationsResponse, WizardOptionsResponse } from '@curatorr/shared';
+import type { AppStatus, Profile, RecommendationsResponse } from '@curatorr/shared';
 import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
@@ -51,14 +51,17 @@ describe('watching together (demo data)', () => {
     const picks = (await get<RecommendationsResponse>('/api/recommendations', cookie)).picks;
     expect(picks.length).toBeGreaterThan(3);
     expect(picks.every((p) => ['G', 'PG'].includes(p.movie.certification!))).toBe(true);
-    // Alex has watched Back to the Future: not tonight, with Kids.
-    const titles = (await get<RecommendationsResponse>('/api/recommendations?theme=time-travel', cookie)).picks.map((p) => p.movie.title);
+    // Alex has watched Back to the Future: not tonight, with Kids. The saga goes on with Part II instead.
+    const timeTravel = async (c: string) =>
+      (await get<RecommendationsResponse>('/api/recommendations?theme=time-travel', c)).picks.map((p) => p.movie.title);
+    const titles = await timeTravel(cookie);
     expect(titles).not.toContain('Back to the Future');
+    expect(titles).toContain('Back to the Future Part II');
 
-    const alone = cookiesOf(await select('Kids'));
-    const kidsAlone = (await get<WizardOptionsResponse>('/api/wizard/genre', alone)).total;
-    const withAlex = (await get<WizardOptionsResponse>('/api/wizard/genre', cookie)).total;
-    expect(withAlex).toBeLessThan(kidsAlone);
+    // Kids alone starts at the beginning.
+    const alone = await timeTravel(cookiesOf(await select('Kids')));
+    expect(alone).toContain('Back to the Future');
+    expect(alone).not.toContain('Back to the Future Part II');
   });
 
   it('only says "Because … watched" about movies everyone in the group may see', async () => {

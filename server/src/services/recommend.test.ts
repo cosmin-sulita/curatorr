@@ -382,16 +382,40 @@ describe('watching together', () => {
     expect(titles(await recommendFor(store, [alex, kids], {}))).toEqual(['Coco', 'Jaws', 'Up']);
   });
 
-  it('holds a sequel back until everyone has seen the part before', async () => {
+  /** A saga of three parts and another movie; Alex has seen part 1. */
+  function startedSaga() {
     const store = tempStore();
-    const part = (n: number) => movie({ title: `Saga ${n}`, saga: { id: 9, title: 'Saga', part: n, parts: 2 } });
-    const [p1, p2] = [part(1), part(2)];
-    store.replaceMovies([p1, p2, movie({ title: 'Other' })], Date.now());
+    const part = (n: number) => movie({ title: `Saga ${n}`, saga: { id: 9, title: 'Saga', part: n, parts: 3 } });
+    const parts = [part(1), part(2), part(3)];
+    store.replaceMovies([...parts, movie({ title: 'Other' })], Date.now());
     const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
     const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
-    store.replaceWatched(alex.id, [{ movieId: p1.id, viewedAt: Date.now() - 1000 }], Date.now());
+    const watch = (row: ProfileRow, ...seen: StoredMovie[]) =>
+      store.replaceWatched(row.id, seen.map((m) => ({ movieId: m.id, viewedAt: Date.now() - 86_400_000 })), Date.now());
+    watch(alex, parts[0]!);
+    return { store, parts, alex, sam, watch };
+  }
+
+  it('goes on past a part only some of them have seen', async () => {
+    const { store, alex, sam } = startedSaga();
     expect(titles(await recommendFor(store, [alex], {}))).toEqual(['Other', 'Saga 2']);
-    expect(titles(await recommendFor(store, [alex, sam], {}))).toEqual(['Other']);
+    expect(titles(await recommendFor(store, [sam], {}))).toEqual(['Other', 'Saga 1']);
+    expect(titles(await recommendFor(store, [alex, sam], {}))).toEqual(['Other', 'Saga 2']);
+  });
+
+  it('carries on from the last part everyone has seen', async () => {
+    const { store, parts, alex, sam, watch } = startedSaga();
+    watch(alex, parts[0]!, parts[1]!);
+    watch(sam, parts[0]!);
+    const picks = (await recommendFor(store, [alex, sam], {})).picks;
+    expect(picks.map((p) => p.movie.title).sort()).toEqual(['Other', 'Saga 3']);
+    expect(picks.find((p) => p.movie.title === 'Saga 3')!.reasons).toContainEqual({ kind: 'saga', label: 'Next in Saga' });
+  });
+
+  it('offers the part again when watched movies may come up', async () => {
+    const { store, alex, sam } = startedSaga();
+    store.update('app', { includeWatched: true });
+    expect(titles(await recommendFor(store, [alex, sam], {}))).toEqual(['Other', 'Saga 1']);
   });
 
   it("counts anyone's watchlist and requests, and says whose", async () => {

@@ -77,7 +77,8 @@ export interface ProfileContext {
   sagas?: SagaState;
 }
 
-export function excludedIds(ctx: ProfileContext): Set<number> {
+/** Movies the profile is never offered: marked Seen it or Never, and what it watched unless watched movies may come up. */
+export function excludedIds(ctx: Pick<ProfileContext, 'watched' | 'feedback' | 'includeWatched'>): Set<number> {
   const out = new Set<number>();
   for (const e of ctx.feedback) if (e.kind === 'seen' || e.kind === 'never') out.add(e.movieId);
   if (!ctx.includeWatched) for (const id of ctx.watched) out.add(id);
