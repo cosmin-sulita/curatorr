@@ -24,7 +24,52 @@ export function listNames(names: string[], last = ' and ') {
 }
 
 /** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
-export const serverName = (server: MediaServer | null | undefined) => (server === 'jellyfin' ? 'Jellyfin' : 'Plex');
+/** The media server's own words, for copy that names it. */
+export interface ServerCopy {
+  name: string;
+  /** Whose users become profiles. */
+  home: string;
+  /** Its watchlist, as people know it there. */
+  watchlist: string;
+  /** "… is on your Plex Watchlist", "… is in your Jellyfin favourites". */
+  onWatchlist: string;
+  /** What Seen it marks a movie there. */
+  watched: string;
+  /** Who manages it, mid-sentence: "Only the Plex server owner can…". */
+  admins: string;
+  /** An administrator's title beside their profile. */
+  adminTitle: string;
+  /** What the PIN pad asks for: Plex Home's own PIN, or one Curatorr keeps. */
+  pin: string;
+}
+
+const SERVER_COPY: Record<MediaServer, ServerCopy> = {
+  plex: {
+    name: 'Plex',
+    home: 'Plex Home',
+    watchlist: 'Plex Watchlist',
+    onWatchlist: 'on your Plex Watchlist',
+    watched: 'watched',
+    admins: 'the Plex server owner',
+    adminTitle: 'Owner',
+    pin: 'Plex PIN',
+  },
+  jellyfin: {
+    name: 'Jellyfin',
+    home: 'Jellyfin',
+    watchlist: 'Jellyfin favourites',
+    onWatchlist: 'in your Jellyfin favourites',
+    watched: 'played',
+    admins: 'a Jellyfin administrator',
+    adminTitle: 'Administrator',
+    pin: 'PIN',
+  },
+};
+
+/** The media server's words. Without one they're Plex's, so the demo and the README's screenshots read as before. */
+export const serverCopy = (server: MediaServer | null | undefined) => SERVER_COPY[server ?? 'plex'];
+
+export const serverName = (server: MediaServer | null | undefined) => serverCopy(server).name;
 
 /** iPhones and iPads. iPadOS reports itself as a Mac, so also look for touch. */
 export function isIOS() {

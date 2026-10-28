@@ -22,7 +22,7 @@ import {
   type SettingsResponse,
 } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
-import { plural, relativeTime, serverName } from '../lib/format';
+import { plural, relativeTime, serverCopy, serverName } from '../lib/format';
 import { recentReleases } from '../lib/whatsNew';
 import { ENTERED, useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
@@ -214,11 +214,11 @@ function ProfileLists({ server }: { server: MediaServer | null }) {
 
 function AdminSignIn({ server }: { server: MediaServer | null }) {
   return server === 'jellyfin' ? (
-    <Section title="Manage Curatorr" description="Only a Jellyfin administrator can change connections and profiles.">
+    <Section title="Manage Curatorr" description={`Only ${serverCopy(server).admins} can change connections and profiles.`}>
       <JellyfinSignIn />
     </Section>
   ) : (
-    <Section title="Manage Curatorr" description="Only the Plex server owner can change connections and profiles.">
+    <Section title="Manage Curatorr" description={`Only ${serverCopy(server).admins} can change connections and profiles.`}>
       <OwnerSignIn />
     </Section>
   );
@@ -554,10 +554,11 @@ function AdminSettings({
   const name = serverName(data.server);
   // Connected far enough to have read movies and users from it.
   const connected = data.server === 'jellyfin' || Boolean(data.plex.machineId);
-  const home = data.server === 'jellyfin' ? 'Jellyfin' : 'Plex Home';
+  const copy = serverCopy(data.server);
+  const home = copy.home;
 
   const refreshProfiles = async () => {
-    const server = data.server === 'jellyfin' ? 'jellyfin' : 'plex';
+    const server = data.server ?? 'plex';
     setRefreshing(true);
     await run(() => api(`/api/setup/${server}/users`, { json: {} }), `Profiles updated from ${home}`);
     qc.invalidateQueries({ queryKey: keys.profiles });
@@ -659,17 +660,8 @@ function AdminSettings({
               <span>
                 <span className="block font-medium">Update {name} when you mark movies</span>
                 <span className="block text-sm text-muted">
-                  {data.server === 'jellyfin' ? (
-                    <>
-                      Seen it marks the movie played in Jellyfin. Watchlist adds it to your Jellyfin favourites, and a
-                      movie you remove from them leaves Curatorr's watchlist too.
-                    </>
-                  ) : (
-                    <>
-                      Seen it marks the movie watched in Plex. Watchlist adds it to your Plex Watchlist, and a movie you
-                      take off there leaves Curatorr's watchlist too.
-                    </>
-                  )}
+                  Seen it marks the movie {copy.watched} in {name}. Watchlist adds it to your {copy.watchlist}, and a
+                  movie taken off there leaves Curatorr's watchlist too.
                 </span>
               </span>
               <Toggle
@@ -820,9 +812,7 @@ function AdminSettings({
                 <span className="block truncate font-medium">{p.name}</span>
                 <span className="block text-xs text-muted">
                   {p.isAdmin
-                    ? data.server === 'jellyfin'
-                      ? 'Administrator'
-                      : 'Owner'
+                    ? copy.adminTitle
                     : p.restrictionProfile
                       ? `Restricted to ${RESTRICTION_LABEL[p.restrictionProfile]} by ${name}`
                       : 'Member'}

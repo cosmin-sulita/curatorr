@@ -16,7 +16,7 @@ import {
   useStatus,
   type HiddenMovie,
 } from '../lib/api';
-import { plural, serverName } from '../lib/format';
+import { plural, serverCopy, serverName } from '../lib/format';
 import { ENTERED, useEntrance } from '../lib/wizard';
 import { unwatchlistMessage } from './Pick';
 
@@ -43,18 +43,15 @@ export const MARK_LISTS: MarkList[] = [
     title: 'Watchlist',
     Icon: Bookmark,
     // Only movies in the library: the server's watchlist can hold anything.
+    // Without a media server there's no watchlist of its own to add.
     lede: (server) =>
-      server === 'plex'
-        ? 'Movies on your Plex Watchlist that are in your library, and ones you added from a pick. Picks favour them.'
-        : server === 'jellyfin'
-          ? 'Your Jellyfin favourites and the movies you added from a pick. Picks favour them.'
-          : 'Movies you added from a pick. Picks favour them.',
+      server
+        ? `Movies ${serverCopy(server).onWatchlist} that are in your library, and ones you added from a pick. Picks favour them.`
+        : 'Movies you added from a pick. Picks favour them.',
     hint: (server) =>
-      server === 'plex'
-        ? 'Tap Watchlist on a pick or in Plex'
-        : server === 'jellyfin'
-          ? 'Tap Watchlist on a pick, or favourite a movie in Jellyfin'
-          : 'Tap Watchlist on a pick to save it',
+      server
+        ? `Tap Watchlist on a pick, or add a movie to your ${serverCopy(server).watchlist}`
+        : 'Tap Watchlist on a pick to save it',
     action: 'Remove',
     ActionIcon: BookmarkMinus,
   },

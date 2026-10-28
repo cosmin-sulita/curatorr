@@ -4,6 +4,7 @@ import { Check, Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
 import { api, errorMessage, type ServerLibrary } from '../lib/api';
+import { serverCopy } from '../lib/format';
 
 // Setting up Plex and Jellyfin ends the same way: their movie libraries, then their users as profiles.
 
@@ -96,7 +97,7 @@ export function UserImport({ server, onDone }: { server: MediaServer; onDone: ()
     started.current = true;
     mutate();
   }, [mutate]);
-  const who = server === 'plex' ? 'Plex Home' : 'Jellyfin';
+  const who = serverCopy(server).home;
 
   if (users.isIdle || users.isPending) {
     return (

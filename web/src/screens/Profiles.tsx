@@ -7,7 +7,7 @@ import { PinPad } from '../components/PinPad';
 import { BottomBar, CenteredState, Shell } from '../components/Shell';
 import { Avatar, Button, Notice, Spinner } from '../components/ui';
 import { ApiError, errorMessage, useProfiles, useSelectProfile, useSelectTogether, useStatus } from '../lib/api';
-import { listNames, serverName } from '../lib/format';
+import { listNames, serverCopy, serverName } from '../lib/format';
 import { navigate } from '../lib/router';
 
 /** Who a parental limit is for, as Curatorr applies it (custom Plex limits and Jellyfin ages map to these). */
@@ -106,9 +106,7 @@ export function ProfilesScreen() {
           {profiles && profiles.length === 0 && (
             <CenteredState title="No profiles yet">
               <p className="text-muted">
-                {status?.server === 'jellyfin'
-                  ? 'An administrator can import Jellyfin users in Settings.'
-                  : 'The server owner can import Plex Home users in Settings.'}
+                {`In Settings, ${serverCopy(status?.server).admins} can import ${serverCopy(status?.server).home} users.`}
               </p>
             </CenteredState>
           )}
@@ -193,7 +191,7 @@ export function ProfilesScreen() {
         {pinFor && (
           <PinPad
             profile={pinFor}
-            title={`Enter ${pinFor.name}'s ${status?.server === 'plex' ? 'Plex PIN' : 'PIN'}`}
+            title={`Enter ${pinFor.name}'s ${serverCopy(status?.server).pin}`}
             subtitle="Asked again once this device switches to someone else."
             error={pinError}
             busy={pending}

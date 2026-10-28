@@ -56,7 +56,17 @@ import {
   wizardQuery,
   type ServerSyncResult,
 } from '../lib/api';
-import { fallBackIfStillHere, listNames, plural, runtime, serverName, vibrate, watchLink, type WatchLink } from '../lib/format';
+import {
+  fallBackIfStillHere,
+  listNames,
+  plural,
+  runtime,
+  serverCopy,
+  serverName,
+  vibrate,
+  watchLink,
+  type WatchLink,
+} from '../lib/format';
 import { useLongPress } from '../lib/longPress';
 import { justArrived, navigate, withQuery } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
@@ -95,13 +105,13 @@ function markMessage(
   if (kind === 'never') return `${title} won't be suggested again`;
   if (kind === 'later') {
     if (result === 'synced' || result === 'already') {
-      return server === 'jellyfin' ? `${title} is in your Jellyfin favourites` : `${title} is on your Plex Watchlist`;
+      return `${title} is ${serverCopy(server).onWatchlist}`;
     }
     if (result === 'failed') return `Added ${title} to your watchlist, but couldn't reach ${name}`;
     return `Added ${title} to your watchlist`;
   }
   if (result === 'synced') {
-    return server === 'jellyfin' ? `Marked ${title} as played in Jellyfin` : `Marked ${title} as watched in Plex`;
+    return `Marked ${title} as ${serverCopy(server).watched} in ${name}`;
   }
   if (result === 'failed') return `Marked ${title} as seen, but couldn't update ${name}`;
   return `Marked ${title} as seen`;
@@ -135,12 +145,12 @@ export function unwatchlistMessage(
     if (!off.length) return `${unreachable}${title} is still on ${lists(kept)}`;
     return `Removed ${title} from ${lists(off)}${kept.length ? `, but it's still on ${lists(kept)}` : ''}`;
   }
-  const serverList = server === 'jellyfin' ? 'Jellyfin favourites' : 'Plex Watchlist';
+  const copy = serverCopy(server);
   if (!off.length) {
     if (unreachable) return `${unreachable}${title} is still on your watchlist`;
-    return `${title} is still ${server === 'jellyfin' ? 'in' : 'on'} your ${serverList}`;
+    return `${title} is still ${copy.onWatchlist}`;
   }
-  return `Removed ${title} from your ${result === 'synced' ? serverList : 'watchlist'}`;
+  return `Removed ${title} from your ${result === 'synced' ? copy.watchlist : 'watchlist'}`;
 }
 
 // Once someone has swiped a pick away, the hint under the poster has done its job.
