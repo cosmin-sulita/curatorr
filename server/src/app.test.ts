@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
 import type { AppStatus, LikeSeed, Profile, RecommendationsResponse, WizardOptionsResponse } from '@curatorr/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { config } from './config.js';
 import { cookieOf, tempApp } from './testing.js';
@@ -12,23 +12,26 @@ describe('API (demo data)', () => {
   let close: () => Promise<void>;
   let app: Awaited<ReturnType<typeof buildApp>>['app'];
   let ctx: Awaited<ReturnType<typeof buildApp>>['ctx'];
+  /** Alex's profile, picked on this device. */
   let cookie = '';
 
-  beforeAll(async () => {
+  // Each test starts from the demo as it's seeded, with Alex picked, so it runs the same on its own.
+  beforeEach(async () => {
     ({ app, ctx, close } = await tempApp('test'));
+    cookie = await cookieFor('Alex');
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await close();
   });
 
-  const get = async <T>(url: string) => {
-    const res = await app.inject({ method: 'GET', url, headers: { cookie } });
+  const get = async <T>(url: string, as = cookie) => {
+    const res = await app.inject({ method: 'GET', url, headers: { cookie: as } });
     return { status: res.statusCode, body: res.json() as T };
   };
 
   it('reports status', async () => {
-    const { body } = await get<AppStatus>('/api/status');
+    const { body } = await get<AppStatus>('/api/status', '');
     expect(body.setupComplete).toBe(true);
     expect(body.demo).toBe(true);
     expect(body.server).toBeNull();
@@ -37,7 +40,7 @@ describe('API (demo data)', () => {
   });
 
   it('requires a profile for the wizard', async () => {
-    const { status } = await get('/api/wizard/genre');
+    const { status } = await get('/api/wizard/genre', '');
     expect(status).toBe(401);
   });
 
@@ -46,8 +49,7 @@ describe('API (demo data)', () => {
     expect(profiles.map((p) => p.name)).toEqual(['Alex', 'Kids', 'Sam']);
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${profiles[0]!.id}/select` });
     expect(res.statusCode).toBe(200);
-    cookie = cookieOf(res);
-    const { body } = await get<AppStatus>('/api/status');
+    const { body } = await get<AppStatus>('/api/status', cookieOf(res));
     expect(body.profile?.name).toBe('Alex');
   });
 
@@ -126,6 +128,8 @@ describe('API (demo data)', () => {
   });
 
   it("lists the profile's movies with what its lists show of each: the title, year and poster", async () => {
+    const movieId = (await get<RecommendationsResponse>('/api/recommendations?genre=Drama')).body.picks[0]!.movie.id;
+    await app.inject({ method: 'POST', url: '/api/feedback', headers: { cookie }, payload: { movieId, kind: 'later' } });
     const listed = (await get<{ kind: string; movie: { id: number } }[]>('/api/hidden')).body;
     expect(listed.map((h) => h.kind)).toContain('later');
     for (const { movie } of listed) {
@@ -312,7 +316,7 @@ describe("a profile's parental limits in its marks and lists (demo data)", () =>
   const ids: Record<string, number> = {};
   const cookies: Record<string, string> = {};
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     ({ app, ctx, close } = await tempApp('limits'));
     for (const p of (await app.inject({ method: 'GET', url: '/api/profiles' })).json() as Profile[]) {
       ids[p.name] = p.id;
@@ -321,7 +325,7 @@ describe("a profile's parental limits in its marks and lists (demo data)", () =>
     }
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await close();
   });
 
@@ -356,6 +360,7 @@ describe("a profile's parental limits in its marks and lists (demo data)", () =>
 
   it('leaves movies outside its limits out of its lists, and its watchlist alone', async () => {
     // Marks and a media server watchlist from before the limit applied.
+    ctx.store.addFeedback(ids.Kids!, movieId('Finding Nemo'), 'later');
     ctx.store.addFeedback(ids.Kids!, movieId('The Godfather'), 'never');
     ctx.store.addFeedback(ids.Kids!, movieId('Up'), 'seen');
     ctx.store.addToWatchlist(ids.Kids!, movieId('Alien'));

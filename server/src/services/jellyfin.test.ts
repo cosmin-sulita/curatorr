@@ -268,9 +268,13 @@ describe('Curatorr with Jellyfin, over the API', () => {
   let admin = '';
   const profiles: Record<string, string> = {};
 
-  beforeAll(async () => {
+  // Each test starts from a fresh install and a fresh Jellyfin, and sets up as far as it needs with the stages below,
+  // so it runs the same on its own.
+  beforeEach(async () => {
     fake.reset();
     ({ app, ctx: { store, library } } = await freshInstall());
+    admin = '';
+    for (const name of Object.keys(profiles)) delete profiles[name];
   });
 
   const profileId = (name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
@@ -288,6 +292,27 @@ describe('Curatorr with Jellyfin, over the API', () => {
       server?: string;
     };
   const settings = (cookie = admin) => app.inject({ method: 'GET', url: '/api/settings', headers: { cookie } });
+
+  /** Setting up, each stage after the one before: Jellyfin connected as Dad, the administrator… */
+  const connected = async () => {
+    const res = await connect(app, { url: base, username: 'Dad', password: 'dad-pass', publicUrl: PUBLIC_URL });
+    expect(res.statusCode).toBe(200);
+    admin = cookiesOf(res);
+  };
+  /** …its Movies and Kids libraries chosen, and its users imported as profiles… */
+  const imported = async () => {
+    await connected();
+    expect((await post(app, '/api/setup/jellyfin/libraries', { libraryIds: ['lib-movies', 'lib-kids'] }, admin)).statusCode).toBe(200);
+    expect((await post(app, '/api/setup/jellyfin/users', {}, admin)).statusCode).toBe(200);
+  };
+  /** …and the library synced, with Dad and Kid each picked on a device of their own. */
+  const synced = async () => {
+    await imported();
+    store.set('setupComplete', true);
+    await library.run();
+    await select('Dad');
+    await select('Kid');
+  };
 
   it('refuses a wrong password, a member who is not an administrator, and Jellyfin older than 10.9', async () => {
     const wrong = await connect(app, { url: base, username: 'Dad', password: 'nope' });
@@ -331,6 +356,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it('keeps the sign-in when the password is left empty, for the same address only', async () => {
+    await connected();
     const { token } = store.get('jellyfin')!;
     const signIns = fake.state.signIns;
     expect((await connect(app, { url: base, publicUrl: PUBLIC_URL }, admin)).statusCode).toBe(200);
@@ -343,6 +369,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it('imports the users who can sign in, with their parental limits and pictures', async () => {
+    await connected();
     expect((await post(app, '/api/setup/jellyfin/libraries', { libraryIds: ['lib-movies', 'lib-kids'] }, admin)).statusCode).toBe(200);
     expect(store.get('jellyfin')!.libraryIds).toEqual(['lib-movies', 'lib-kids']);
 
@@ -355,6 +382,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("reads the library and each person's history, and only offers a kid what Jellyfin lets them open", async () => {
+    await imported();
     store.set('setupComplete', true);
     await library.run();
     expect(store.get('sync')).toMatchObject({ movies: 6, matched: 5, error: null });
@@ -375,13 +403,15 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("shows a person's Jellyfin favourites in Settings, as their watchlist", async () => {
+    await synced();
     const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: profiles.Dad! } });
     const listed = res.json() as { id: number | null; kind: string; movie: { id: number } }[];
     expect(listed.map((h) => [h.movie.id, h.kind, h.id])).toEqual([[1, 'later', null]]);
   });
 
   describe('marks', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+      await synced();
       fake.state.marks.length = 0;
       store.update('app', { syncToServer: true });
     });
@@ -452,6 +482,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("serves a Jellyfin user's picture from Curatorr, for known users only", async () => {
+    await imported();
     const res = await app.inject({ method: 'GET', url: `/api/avatar/${DAD}?tag=dadtag` });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('image/png');
@@ -461,6 +492,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("lets an administrator's profile be hidden, as long as one profile stays on Who's watching", async () => {
+    await imported();
     const hide = (name: string, hidden: boolean) =>
       app.inject({ method: 'PATCH', url: `/api/profiles/${profileId(name)}`, payload: { hidden }, headers: { cookie: admin } });
     expect((await hide('Dad', true)).statusCode).toBe(200);
@@ -471,6 +503,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it('refreshes profiles from Jellyfin, keeping who was hidden in Curatorr and dropping removed users', async () => {
+    await imported();
     store.setProfileHidden(profileId('Kid'), true);
     const refresh = () => post(app, '/api/setup/jellyfin/users', {}, admin);
 
@@ -485,6 +518,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("changes nobody's profile when Jellyfin can't list its users", async () => {
+    await imported();
     const before = store.profileRows(true);
     fake.state.usersStatus = 503;
     const res = await post(app, '/api/setup/jellyfin/users', {}, admin);
@@ -494,6 +528,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("takes settings away from an administrator Jellyfin demoted, at the next library sync", async () => {
+    await synced();
     const mum: FakeUser = { id: '4'.repeat(32), name: 'Mum', password: 'mum-pass', admin: true, libraries: ['lib-movies'] };
     fake.state.users = [DAD_USER, KID_USER, RETIRED_USER, mum];
     await post(app, '/api/setup/jellyfin/users', {}, admin);
@@ -509,6 +544,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("lets any Jellyfin administrator sign in to settings, without replacing Curatorr's own sign-in", async () => {
+    await imported();
     const { token, deviceId } = store.get('jellyfin')!;
     const logouts = fake.state.logouts.length;
     const res = await post(app, '/api/jellyfin/login', { username: 'Dad', password: 'dad-pass' });
@@ -526,6 +562,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
   });
 
   it("only asks Jellyfin about administrators' passwords, so nobody else can be locked out through Curatorr", async () => {
+    await imported();
     const signIns = fake.state.signIns;
     for (const username of ['Kid', 'kid', 'Nobody', 'Retired']) {
       for (let i = 0; i < 3; i++) {
