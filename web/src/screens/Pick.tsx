@@ -281,7 +281,8 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
               undoAll(ids)
                 .then((res) => {
                   refreshQuestions();
-                  if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
+                  if (res.partial) toast({ message: `Undone, but not for everyone: ${errorMessage(res.partial)}` });
+                  else if (res.server === 'failed') toast({ message: `Undone here, but ${name} couldn't be updated` });
                 })
                 .catch((err) => toast({ message: errorMessage(err) }));
             },

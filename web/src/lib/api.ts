@@ -225,10 +225,19 @@ export function undoFeedback(id: number) {
   return api<{ ok: true; server?: ServerSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
 }
 
-/** Undoes a mark saved for several people: whether the media server failed for any of them. */
-export async function undoAll(ids: number[]): Promise<{ server?: ServerSyncResult }> {
-  const results = await Promise.all(ids.map(undoFeedback));
-  return { server: results.some((r) => r.server === 'failed') ? 'failed' : results[0]?.server };
+/**
+ * Undoes a mark saved for several people: whether the media server failed for any of them, and the error when some
+ * rows couldn't be undone. It only throws when none could.
+ */
+export async function undoAll(ids: number[]): Promise<{ server?: ServerSyncResult; partial?: unknown }> {
+  const results = await Promise.allSettled(ids.map(undoFeedback));
+  const done = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failed && !done.length) throw failed.reason;
+  return {
+    server: done.some((r) => r.server === 'failed') ? 'failed' : done[0]?.server,
+    partial: failed?.reason,
+  };
 }
 
 /**
