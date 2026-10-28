@@ -62,7 +62,9 @@ export function ProfilesScreen() {
         },
         onError: (err) => {
           if (err instanceof ApiError && err.data.needPin) {
-            askPin(profiles?.find((p) => p.id === err.data.profileId), err, pin?.pin);
+            // Once one person's PIN went through, the next person's pad opens clean: it's only wrong when it's theirs.
+            const theirs = pin && pin.id === err.data.profileId ? pin.pin : undefined;
+            askPin(profiles?.find((p) => p.id === err.data.profileId), err, theirs);
           }
         },
       },
