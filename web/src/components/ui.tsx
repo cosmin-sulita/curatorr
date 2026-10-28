@@ -141,14 +141,17 @@ export function warmImages(urls: (string | null | undefined)[], priority: Priori
 /** A picture that arrives this soon after it's shown came from the device's storage, not the network. */
 const QUICK_MS = 100;
 
-/** An image that fades in when loaded and degrades to a tinted block when missing. */
-export function Img({
-  src,
-  className,
-  alt = '',
-  style,
-  ...rest
-}: Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null }) {
+type ImgProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & { src?: string | null };
+
+/**
+ * An image that fades in when loaded and degrades to a tinted block when missing. A new address is a new picture: it
+ * fades in or fails on its own, and loads with CORS again even if the last one had to go without.
+ */
+export function Img(props: ImgProps) {
+  return <Picture key={props.src ?? ''} {...props} />;
+}
+
+function Picture({ src, className, alt = '', style, ...rest }: ImgProps) {
   // Starting out loaded means a preloaded or just-shown image appears at once instead of fading in.
   const [loaded, setLoaded] = useState(() => isCached(src));
   const [shownAt] = useState(() => performance.now());
@@ -192,11 +195,12 @@ const BLOBATAR_OPTIONS: BlobatarOptions = {
 };
 
 export function Avatar({ name, src, className }: { name: string; src: string | null; className?: string }) {
-  const [failed, setFailed] = useState(false);
+  // The address that failed: a new photo gets its own try.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   return (
     <span className={clsx('relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full', className)}>
-      {src && !failed ? (
-        <img src={src} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
+      {src && src !== failedSrc ? (
+        <img src={src} alt="" className="size-full object-cover" onError={() => setFailedSrc(src)} />
       ) : (
         // No photo: a blobatar seeded by the name, the same creature on every device.
         <img src={blobatarUri(name, BLOBATAR_OPTIONS)} alt="" aria-hidden className="size-full" />
