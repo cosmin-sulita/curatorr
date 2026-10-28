@@ -43,6 +43,16 @@ export const isNetworkError = (err: unknown) => err instanceof TypeError || isTi
  */
 const READ_TIMEOUT_MS = 15_000;
 
+let signedOut: () => void = () => {};
+
+/**
+ * What to do when an answer says the device has no profile any more (its cookie expired, or the profile was removed)
+ * or setup isn't complete: reads and changes alike.
+ */
+export function whenSignedOut(fn: () => void) {
+  signedOut = fn;
+}
+
 /** `timeout`: how long to wait for an answer, in ms; null waits as long as it takes. Reads default to READ_TIMEOUT_MS. */
 export async function api<T>(
   path: string,
@@ -74,7 +84,10 @@ export async function api<T>(
     if (signal?.aborted) throw timedOut();
     data = {};
   }
-  if (!res.ok) throw new ApiError(res.status, String(data.error ?? res.statusText), data);
+  if (!res.ok) {
+    if (data.needProfile || data.needSetup) signedOut();
+    throw new ApiError(res.status, String(data.error ?? res.statusText), data);
+  }
   return data as T;
 }
 
