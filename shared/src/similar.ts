@@ -118,10 +118,13 @@ export interface LibraryIndex {
   typicalNorm: number;
 }
 
-const indexes = new WeakMap<Movie[], LibraryIndex>();
+const indexes = new WeakMap<readonly Movie[], LibraryIndex>();
 
-/** Worked out once per library: the store keeps the same array until the next sync. */
-export function libraryIndex(library: Movie[]): LibraryIndex {
+/**
+ * Worked out once per library array: the store keeps the same one until anything about its movies changes (a sync, a
+ * retag), when it hands out new movies in a new array (sync.test.ts checks it).
+ */
+export function libraryIndex(library: readonly Movie[]): LibraryIndex {
   let index = indexes.get(library);
   if (!index) {
     const keywords = library.map(usableKeywords);

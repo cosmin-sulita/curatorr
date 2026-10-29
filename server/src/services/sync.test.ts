@@ -211,6 +211,21 @@ describe('library sync against fake Radarr and Plex servers', () => {
     expect(toDTO(store, store.movie(4)!).watchUrl).toContain('app.plex.tv/desktop/#!/server/machine/details');
   });
 
+  // "Something like…" and the season's shortcut keep what they work out per movie object and per library array
+  // (WeakMaps in shared), trusting that a movie's tags and keywords never change in place.
+  it('hands out new movie objects after a sync or a retag, so caches kept per movie start afresh', async () => {
+    await sync();
+    const first = store.movies();
+    store.updateTags([{ id: 1, themes: { kept: 4 }, moods: {} }]);
+    const retagged = store.movies();
+    expect(retagged).not.toBe(first);
+    expect(retagged.find((m) => m.id === 1)).not.toBe(first.find((m) => m.id === 1));
+    await sync();
+    const synced = store.movies();
+    expect(synced).not.toBe(retagged);
+    expect(synced.find((m) => m.id === 1)).not.toBe(retagged.find((m) => m.id === 1));
+  });
+
   it('keeps looked-up slugs when the library syncs again', async () => {
     await sync();
     await ensurePlexIds(store, store.movies());
