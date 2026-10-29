@@ -69,6 +69,7 @@ import {
 import { config } from '../config.js';
 import { picking, type Picking, type ProfileData } from '../services/recommend.js';
 import { idKeys, readMovies } from '../store.js';
+import { beats, bootstrapMeans, margin, mean, quantile, resultOf, sd, type Result } from './evalStats.js';
 
 const { values } = parseArgs({
   options: {
@@ -222,25 +223,6 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
 // Helpers
 // ---------------------------------------------------------------------------
 
-const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
-const sd = (xs: number[]) => Math.sqrt(mean(xs.map((x) => (x - mean(xs)) ** 2)));
-/** Half the width of a mean's 95% interval. */
-const margin = (xs: number[]) => (1.96 * sd(xs)) / Math.sqrt(xs.length);
-/** The share of the others that `xs[i]` is above, ties counting half: 0.5 says nothing about it. */
-function beats(xs: number[], i: number) {
-  let wins = 0;
-  xs.forEach((x, j) => {
-    if (j !== i) wins += xs[i]! > x ? 1 : xs[i] === x ? 0.5 : 0;
-  });
-  return wins / (xs.length - 1);
-}
-function quantile(xs: number[], q: number) {
-  const s = [...xs].sort((a, b) => a - b);
-  if (!s.length) return NaN;
-  const pos = (s.length - 1) * q;
-  const lo = Math.floor(pos);
-  return s[lo]! + (s[Math.min(lo + 1, s.length - 1)]! - s[lo]!) * (pos - lo);
-}
 const pct = (x: number, digits = 0) => (Number.isFinite(x) ? `${(x * 100).toFixed(digits)}%` : '–');
 const num = (x: number, digits = 3) => (Number.isFinite(x) ? x.toFixed(digits) : '–');
 const signed = (x: number, digits = 3) => `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`;
@@ -251,18 +233,6 @@ const noImage = () => null;
 
 function heading(text: string) {
   console.log(`\n${text}`);
-}
-
-/** Deterministic random numbers, so the intervals don't change between runs. */
-function random(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 /** Every answer path the wizard offers, weighted as if each offered answer (and "any") were equally likely. */
@@ -330,18 +300,6 @@ const answers = (c: Criteria) =>
 const FAMILIES = ['Surprise me', 'genre', 'genre + theme', 'genre + mood', 'Just arrived', 'Season'] as const;
 type Family = (typeof FAMILIES)[number];
 
-/** How one watch fared for one kind of question (averaged over the questions of that kind). */
-interface Result {
-  rr: number;
-  h1: number;
-  h12: number;
-  pctl: number;
-  /** The same, ranking the matches by rating alone (best first), for reference. */
-  rrRated: number;
-  /** Expected at random. */
-  rrRandom: number;
-  h12Random: number;
-}
 interface Watch {
   key: string;
   at: number;
@@ -408,12 +366,6 @@ function questions(p: Picking, m: Movie): { family: Family; c: Criteria }[] {
   return out;
 }
 
-function harmonic(n: number) {
-  let h = 0;
-  for (let i = 1; i <= n; i++) h += 1 / i;
-  return h;
-}
-
 function replay(profileId: number): Watch[] {
   const echo = seenEchoes(feedback.filter((f) => f.profile_id === profileId).map(toEvent));
   const replayable = watched
@@ -445,18 +397,7 @@ function replay(profileId: number): Watch[] {
       if (values.parts && n) watch.parts.push(...partRecords(p, c, exact, pos));
       const rated = [...exact].sort((a, b) => qualityScore(b.movie.ratings) - qualityScore(a.movie.ratings));
       const posRated = rated.findIndex((r) => r.movie.id === m.id);
-      const result: Result =
-        pos < 0
-          ? { rr: 0, h1: 0, h12: 0, pctl: 1, rrRated: 0, rrRandom: n ? harmonic(n) / n : 0, h12Random: n ? Math.min(12, n) / n : 0 }
-          : {
-              rr: 1 / (pos + 1),
-              h1: Number(pos === 0),
-              h12: Number(pos < 12),
-              pctl: n > 1 ? pos / (n - 1) : 0,
-              rrRated: 1 / (posRated + 1),
-              rrRandom: harmonic(n) / n,
-              h12Random: Math.min(12, n) / n,
-            };
+      const result = resultOf(pos, posRated, n, MAX_RESULTS);
       byFamily.set(family, [...(byFamily.get(family) ?? []), result]);
     }
     for (const [family, rs] of byFamily) {
@@ -796,19 +737,11 @@ function compare(runs: Map<number, Watch[]>, savedFile: string) {
       const keys = Object.keys(families[family]).filter((k) => old[family]?.[k]);
       if (keys.length < 5) continue;
       const diff = (k: string, f: 'rr' | 'h12') => families[family][k]![f] - old[family]![k]![f];
-      const draw = random(42);
-      const boot = { rr: [] as number[], h12: [] as number[] };
-      for (let i = 0; i < 2000; i++) {
-        let rr = 0;
-        let h12 = 0;
-        for (let j = 0; j < keys.length; j++) {
-          const k = keys[Math.floor(draw() * keys.length)]!;
-          rr += diff(k, 'rr');
-          h12 += diff(k, 'h12');
-        }
-        boot.rr.push(rr / keys.length);
-        boot.h12.push(h12 / keys.length);
-      }
+      // The same draws for both, so each redrawn sample pairs a watch's two changes.
+      const boot = {
+        rr: bootstrapMeans(keys.map((k) => diff(k, 'rr'))),
+        h12: bootstrapMeans(keys.map((k) => diff(k, 'h12'))),
+      };
       const was = mean(keys.map((k) => old[family]![k]!.rr));
       const is = mean(keys.map((k) => families[family][k]!.rr));
       const h12Change = mean(keys.map((k) => diff(k, 'h12')));
