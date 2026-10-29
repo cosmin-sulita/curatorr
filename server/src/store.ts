@@ -80,7 +80,6 @@ export interface RadarrWebhookInfo {
   title: string | null;
 }
 
-export const newWebhookToken = () => randomBytes(24).toString('base64url');
 
 interface SettingsShape {
   setupComplete: boolean;
@@ -111,11 +110,15 @@ export interface JellyfinMisses {
   lastLoginAt: number | null;
 }
 
-const defaults = (): SettingsShape => ({
-  setupComplete: false,
-  cookieSecret: randomBytes(32).toString('hex'),
-  radarr: null,
-  plex: {
+/**
+ * Each setting's value before anything is saved, made when asked for, so a read only makes its own: a fresh object
+ * every time, and the secrets (the cookie secret, Plex's client id, the webhook's token) only where they're needed.
+ */
+const DEFAULTS: { [K in keyof SettingsShape]: () => SettingsShape[K] } = {
+  setupComplete: () => false,
+  cookieSecret: () => randomBytes(32).toString('hex'),
+  radarr: () => null,
+  plex: () => ({
     clientId: randomUUID(),
     adminToken: null,
     ownerId: null,
@@ -124,17 +127,18 @@ const defaults = (): SettingsShape => ({
     serverName: null,
     serverUrl: null,
     sectionIds: [],
-  },
-  jellyfin: null,
-  app: { includeWatched: false, syncIntervalHours: 6, syncToServer: true, boostRequests: true },
-  sync: { at: null, movies: 0, matched: 0, error: null },
-  seerr: null,
-  seerrSync: { at: null, requests: 0, profiles: 0, error: null },
-  radarrWebhook: { token: newWebhookToken(), at: null, event: null, title: null },
-  latestVersion: null,
-  jellyfinMisses: {},
-  sessionEpoch: null,
-});
+  }),
+  jellyfin: () => null,
+  app: () => ({ includeWatched: false, syncIntervalHours: 6, syncToServer: true, boostRequests: true }),
+  sync: () => ({ at: null, movies: 0, matched: 0, error: null }),
+  seerr: () => null,
+  seerrSync: () => ({ at: null, requests: 0, profiles: 0, error: null }),
+  // The secret in the address Radarr calls.
+  radarrWebhook: () => ({ token: randomBytes(24).toString('base64url'), at: null, event: null, title: null }),
+  latestVersion: () => null,
+  jellyfinMisses: () => ({}),
+  sessionEpoch: () => null,
+};
 
 // ---------------------------------------------------------------------------
 // Row types
@@ -227,7 +231,7 @@ export class Store {
 
   get<K extends keyof SettingsShape>(key: K): SettingsShape[K] {
     const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
-    const fallback = defaults()[key];
+    const fallback = DEFAULTS[key]();
     if (row) {
       const stored = JSON.parse(row.value) as SettingsShape[K];
       // Settings saved by an older version lack newer keys: fill them from the defaults.
@@ -238,6 +242,11 @@ export class Store {
     // Persist generated defaults (secrets, client id) so they stay stable.
     if (key === 'cookieSecret' || key === 'plex' || key === 'radarrWebhook') this.set(key, fallback);
     return fallback;
+  }
+
+  /** Puts a setting back as it starts out: a new webhook address, Seerr's requests forgotten. */
+  reset(key: keyof SettingsShape) {
+    this.set(key, DEFAULTS[key]());
   }
 
   set<K extends keyof SettingsShape>(key: K, value: SettingsShape[K]) {
@@ -277,7 +286,7 @@ export class Store {
 
   /** Forgets the Plex sign-in, server and libraries; keeps the client id Plex knows Curatorr by. */
   resetPlex() {
-    this.set('plex', { ...defaults().plex, clientId: this.get('plex').clientId });
+    this.set('plex', { ...DEFAULTS.plex(), clientId: this.get('plex').clientId });
   }
 
   // ---- movies -------------------------------------------------------------

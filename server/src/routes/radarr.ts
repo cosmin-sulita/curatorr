@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
 import { requireAdmin } from '../session.js';
-import { newWebhookToken } from '../store.js';
 
 /** Radarr's events that change which movies have files: an import (or upgrade) and the deletions. */
 const LIBRARY_EVENTS = new Set(['Download', 'MovieFileDelete', 'MovieDelete']);
@@ -42,7 +41,7 @@ export const radarrRoutes: RouteModule = (app, { store, library }) => {
   /** A new address for the webhook, so one that leaked stops working. */
   app.post('/api/settings/webhook', async (req) => {
     requireAdmin(req, store);
-    store.set('radarrWebhook', { token: newWebhookToken(), at: null, event: null, title: null });
+    store.reset('radarrWebhook');
     return store.get('radarrWebhook');
   });
 };

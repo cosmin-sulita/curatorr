@@ -92,7 +92,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
     transaction(store.db, () => {
       store.set('seerr', null);
       store.replaceRequests([]);
-      store.set('seerrSync', { at: null, requests: 0, profiles: 0, error: null });
+      store.reset('seerrSync');
     });
     return { ok: true };
   });
