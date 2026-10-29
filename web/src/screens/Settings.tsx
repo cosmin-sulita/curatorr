@@ -36,7 +36,7 @@ import {
 import { recentReleases } from '../lib/whatsNew';
 import { ENTERED, useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
-import { MARK_LISTS } from './Marks';
+import { MARK_LISTS } from '../lib/marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 import { RESTRICTION_LABEL } from './Profiles';
 import { ServiceForm } from './Setup';

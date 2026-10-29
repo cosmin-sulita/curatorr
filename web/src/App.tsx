@@ -16,7 +16,8 @@ import {
 import { useLocation } from './lib/router';
 import { isStep } from './lib/wizard';
 import { LikeScreen } from './screens/Like';
-import { isMarkList, MarksScreen } from './screens/Marks';
+import { isMarkList } from './lib/marks';
+import { MarksScreen } from './screens/Marks';
 import { PickScreen } from './screens/Pick';
 import { ProfilesScreen } from './screens/Profiles';
 import { SettingsScreen } from './screens/Settings';

@@ -1,6 +1,5 @@
-import type { MediaServer } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Bookmark, BookmarkMinus, Eye, RotateCcw, Search, type LucideIcon } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
@@ -16,68 +15,9 @@ import {
   useStatus,
   type HiddenMovie,
 } from '../lib/api';
-import { plural, serverCopy, serverName } from '../lib/format';
+import { plural, serverName } from '../lib/format';
+import { MARK_LISTS, unwatchlistMessage, type MarkListId } from '../lib/marks';
 import { ENTERED, useEntrance } from '../lib/wizard';
-import { unwatchlistMessage } from './Pick';
-
-export type MarkListId = 'watchlist' | 'seen' | 'never';
-
-interface MarkList {
-  id: MarkListId;
-  kind: HiddenMovie['kind'];
-  title: string;
-  Icon: LucideIcon;
-  /** What the list is, with the media server Curatorr uses. */
-  lede: (server: MediaServer | null) => string;
-  /** How a movie gets on the list, for an empty one. */
-  hint: (server: MediaServer | null) => string;
-  action: 'Remove' | 'Restore';
-  ActionIcon: LucideIcon;
-}
-
-/** The profile's lists, named and ordered like the buttons on a pick. `later` is the Watchlist's internal name. */
-export const MARK_LISTS: MarkList[] = [
-  {
-    id: 'watchlist',
-    kind: 'later',
-    title: 'Watchlist',
-    Icon: Bookmark,
-    // Only movies in the library: the server's watchlist can hold anything.
-    // Without a media server there's no watchlist of its own to add.
-    lede: (server) =>
-      server
-        ? `Movies ${serverCopy(server).onWatchlist} that are in your library, and ones you added from a pick. Picks favour them.`
-        : 'Movies you added from a pick. Picks favour them.',
-    hint: (server) =>
-      server
-        ? `Tap Watchlist on a pick, or add a movie to your ${serverCopy(server).watchlist}`
-        : 'Tap Watchlist on a pick to save it',
-    action: 'Remove',
-    ActionIcon: BookmarkMinus,
-  },
-  {
-    id: 'seen',
-    kind: 'seen',
-    title: 'Seen it',
-    Icon: Eye,
-    lede: () => 'Movies you marked as seen. Restore one to see it in picks again.',
-    hint: () => "Tap Seen it on a pick you've watched",
-    action: 'Restore',
-    ActionIcon: RotateCcw,
-  },
-  {
-    id: 'never',
-    kind: 'never',
-    title: 'Never',
-    Icon: Ban,
-    lede: () => "Movies that won't be suggested to you. Restore one to see it in picks again.",
-    hint: () => "Tap Never on a pick you don't want",
-    action: 'Restore',
-    ActionIcon: RotateCcw,
-  },
-];
-
-export const isMarkList = (id: string | undefined): id is MarkListId => MARK_LISTS.some((l) => l.id === id);
 
 /** Posters shown at a time: each one is fetched as soon as it's on the page, and a list can grow to hundreds. */
 const PAGE = 30;
