@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { FeedbackEvent, FeedbackKind, MediaServer, Movie, Profile, RestrictionProfile } from '@curatorr/shared';
+import { MARK_KINDS } from '@curatorr/shared';
+import type { FeedbackEvent, FeedbackKind, MarkKind, MediaServer, Movie, Profile, RestrictionProfile } from '@curatorr/shared';
 import { transaction, type DB } from './db.js';
 
 // ---------------------------------------------------------------------------
@@ -670,11 +671,11 @@ export class Store {
     return this.db
       .prepare(`
         SELECT MAX(f.id) AS id, f.movie_id AS movieId, f.kind, MAX(f.created_at) AS createdAt
-        FROM feedback f WHERE f.profile_id = ? AND f.kind IN ('seen', 'never', 'later')
+        FROM feedback f WHERE f.profile_id = ? AND f.kind IN (${MARK_KINDS.map((k) => `'${k}'`).join(', ')})
         GROUP BY f.movie_id, f.kind
         ORDER BY createdAt DESC
       `)
-      .all(profileId) as { id: number; movieId: number; kind: 'seen' | 'never' | 'later'; createdAt: number }[];
+      .all(profileId) as { id: number; movieId: number; kind: MarkKind; createdAt: number }[];
   }
 
   // ---- watching together --------------------------------------------------

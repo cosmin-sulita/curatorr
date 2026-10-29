@@ -1,7 +1,9 @@
 import {
+  FEEDBACK_KINDS,
   STEP_ORDER,
   allowedFor,
   dayStart,
+  isMark,
   shelfById,
   type Criteria,
   type FeedbackResponse,
@@ -106,14 +108,14 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const body = parse(
       z.object({
         movieId: z.number().int(),
-        kind: z.enum(['shown', 'skipped', 'seen', 'never', 'accepted', 'later']),
+        kind: z.enum(FEEDBACK_KINDS),
         profileIds: z.array(z.number().int()).max(20).optional(),
       }),
       req.body,
     );
     const movie = store.movie(body.movieId);
     if (!movie) throw new HttpError(404, 'Movie not found');
-    const personal = body.kind === 'seen' || body.kind === 'never' || body.kind === 'later';
+    const personal = isMark(body.kind);
     const targets = personal ? markedFor(group, body.profileIds) : group;
     allowedForEach(store, movie, targets);
     const at = Date.now();
@@ -145,7 +147,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (!entry || othersOlder) throw new HttpError(404, 'Not found');
     const profile = group.find((r) => r.id === entry.profileId)!;
 
-    if (entry.kind !== 'seen' && entry.kind !== 'never' && entry.kind !== 'later') {
+    if (!isMark(entry.kind)) {
       store.deleteFeedback(profile.id, id);
       return { ok: true };
     }

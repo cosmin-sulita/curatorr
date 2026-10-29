@@ -53,7 +53,14 @@ export interface Saga {
   parts: number;
 }
 
-export type FeedbackKind = 'shown' | 'skipped' | 'seen' | 'never' | 'accepted' | 'later';
+/** What the profile did with a pick. `later` is the Watchlist button's internal name. */
+export const FEEDBACK_KINDS = ['shown', 'skipped', 'seen', 'never', 'accepted', 'later'] as const;
+export type FeedbackKind = (typeof FEEDBACK_KINDS)[number];
+
+/** The marks: kept until undone, listed in Settings, and saved for whoever the "For whom?" sheet names. */
+export const MARK_KINDS = ['seen', 'never', 'later'] as const;
+export type MarkKind = (typeof MARK_KINDS)[number];
+export const isMark = (kind: FeedbackKind): kind is MarkKind => (MARK_KINDS as readonly string[]).includes(kind);
 
 export interface FeedbackEvent {
   movieId: number;
@@ -234,7 +241,7 @@ export interface WatchlistRemoval {
  * media server's watchlist has no mark, so no `id`; its `createdAt` is when Curatorr first saw it there, if it knows.
  */
 export type HiddenMovie =
-  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: ListedMovie }
+  | { id: number; kind: MarkKind; createdAt: number; movie: ListedMovie }
   | { id: null; kind: 'later'; createdAt: number | null; movie: ListedMovie };
 
 /** GET /api/profiles. `locked`: the profile has a PIN this device hasn't entered yet. */
