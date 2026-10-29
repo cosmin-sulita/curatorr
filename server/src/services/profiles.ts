@@ -71,9 +71,10 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
 
 /** Switches to the profile's Plex Home user; plex.tv checks the PIN of a protected one. */
 async function switchToUser(store: Store, row: ProfileRow, pin?: string) {
-  const plex = store.get('plex');
+  const { clientId, adminToken } = store.get('plex');
+  if (!adminToken || row.plex_user_id == null) throw new HttpError(400, 'Profile is not linked to Plex');
   try {
-    return await switchHomeUser(plex.clientId, plex.adminToken!, row.plex_user_id!, pin);
+    return await switchHomeUser(clientId, adminToken, row.plex_user_id, pin);
   } catch (err) {
     if (err instanceof UpstreamError && (err.status === 401 || err.status === 403)) {
       throw new HttpError(403, pin ? 'Wrong PIN, try again' : 'PIN required', { needPin: true, profileId: row.id });

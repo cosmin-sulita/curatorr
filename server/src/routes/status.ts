@@ -3,8 +3,7 @@ import { config } from '../config.js';
 import type { RouteModule } from '../context.js';
 import { syncServerState } from '../services/mediaServer.js';
 import { updateFor } from '../services/updates.js';
-import { currentGroup, isAdmin } from '../session.js';
-import { toProfile } from '../store.js';
+import { currentGroup, isAdmin, profileFor } from '../session.js';
 
 export const statusRoutes: RouteModule = (app, { store, library }) => {
   app.get('/api/health', async () => ({ ok: true }));
@@ -30,8 +29,8 @@ export const statusRoutes: RouteModule = (app, { store, library }) => {
       demo: store.demo,
       server: store.mediaServer(),
       isAdmin: admin,
-      profile: profile ? toProfile(profile) : null,
-      together: together.map(toProfile),
+      profile: profile ? profileFor(store, profile) : null,
+      together: together.map((r) => profileFor(store, r)),
       library: { movies: store.movies().length, lastSync: sync.at, syncing: library.syncing, lastError },
     };
   });

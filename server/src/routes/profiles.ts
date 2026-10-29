@@ -12,7 +12,9 @@ import {
   clearProfileCookie,
   clearTogetherCookie,
   currentProfile,
+  needsPlexLink,
   pinNeededHere,
+  profileFor,
   requireAdmin,
   setProfileCookie,
   setTogetherCookie,
@@ -20,15 +22,15 @@ import {
   togetherUntil,
   unlocksHere,
 } from '../session.js';
-import { toProfile, type ProfileRow } from '../store.js';
+import type { ProfileRow } from '../store.js';
 
 /** How long selecting a profile waits for its watch history before moving on. */
 const WATCHED_WAIT_MS = 8_000;
 
 /** Checks the PIN Curatorr keeps for a Jellyfin profile, as plex.tv does for a Plex Home one. */
 function checkKeptPin(row: ProfileRow, pin?: string) {
-  if (!pin) throw new HttpError(403, 'PIN required', { needPin: true, profileId: row.id });
-  if (!pinMatches(pin, row.pin_hash!)) throw new HttpError(403, 'Wrong PIN, try again', { needPin: true, profileId: row.id });
+  if (!pin || row.pin_hash == null) throw new HttpError(403, 'PIN required', { needPin: true, profileId: row.id });
+  if (!pinMatches(pin, row.pin_hash)) throw new HttpError(403, 'Wrong PIN, try again', { needPin: true, profileId: row.id });
 }
 
 export const profileRoutes: RouteModule = (app, { store }) => {
@@ -51,7 +53,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
         else checkKeptPin(row, pin);
         pinEntered = true;
       }
-      if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) {
+      if (needsPlexLink(store, row)) {
         row = await linkProfile(store, row, pin);
       }
     } catch (err) {
@@ -64,7 +66,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
   }
 
   app.get('/api/profiles', async (req): Promise<ProfileChoice[]> =>
-    store.profileRows().map((r) => ({ ...toProfile(r), locked: pinNeededHere(req, store, r) })),
+    store.profileRows().map((r) => ({ ...profileFor(store, r), locked: pinNeededHere(req, store, r) })),
   );
 
   app.post('/api/profiles/:id/select', async (req, reply) => {
@@ -84,7 +86,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     // One profile on its own ends watching together.
     clearTogetherCookie(reply);
     await within(syncServerState(store, row, req.log), WATCHED_WAIT_MS);
-    return toProfile(row);
+    return profileFor(store, row);
   });
 
   /**
@@ -136,7 +138,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     const held = members.filter((m) => unlocks.has(m.id) || entered.has(m.id));
     setUnlocks(req, reply, store, new Map(held.map((m) => [m.id, until(m.id)])));
     await within(Promise.all(members.map((m) => syncServerState(store, m, req.log))), WATCHED_WAIT_MS);
-    return [lead, ...others].map(toProfile);
+    return [lead, ...others].map((r) => profileFor(store, r));
   });
 
   app.post('/api/profiles/logout', async (_req, reply) => {
@@ -175,6 +177,6 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     if (row.plex_user_id != null) throw new HttpError(400, 'Plex profiles use the PIN set in Plex');
     if (row.jellyfin_user_id == null) throw new HttpError(400, 'Only Jellyfin profiles get a PIN in Curatorr');
     store.setProfilePin(id, pin ? hashPin(pin) : null);
-    return toProfile(store.profileRow(id)!);
+    return profileFor(store, store.profileRow(id)!);
   });
 };

@@ -32,14 +32,22 @@ export async function importJellyfinUsers(store: Store) {
  * (its watchlist), or null when the read failed. Null for a profile that isn't a Jellyfin user (see syncServerState).
  */
 export function jellyfinStateReader(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
-  if (!store.get('jellyfin') || row.jellyfin_user_id == null) return null;
-  return () => readState(store, row, log);
+  const jellyfin = store.get('jellyfin');
+  const userId = row.jellyfin_user_id;
+  if (!jellyfin || userId == null) return null;
+  return () => readState(store, row, JellyfinClient.connected(jellyfin), userId, log);
 }
 
-async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger): Promise<number[] | null> {
+async function readState(
+  store: Store,
+  row: ProfileRow,
+  client: JellyfinClient,
+  userId: string,
+  log: FastifyBaseLogger,
+): Promise<number[] | null> {
   try {
     // One read: every movie the person can open, with their marks.
-    const items = await JellyfinClient.connected(store.get('jellyfin')!).movies({ userId: row.jellyfin_user_id! });
+    const items = await client.movies({ userId });
     const index = indexByIds(items);
     const watched: { movieId: number; viewedAt: number | null }[] = [];
     const watchlist: number[] = [];

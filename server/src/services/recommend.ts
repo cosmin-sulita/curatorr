@@ -222,14 +222,15 @@ export function onWatchlistOf(store: Store, rows: ProfileRow[], movieId: number)
 
 /** Links that open a movie on the media server: `web` in a browser, `app` in its phone apps. */
 function watchLinks(store: Store, m: StoredMovie): { web: string; app: string | null } | null {
+  const server = store.mediaServer();
   const jellyfin = store.get('jellyfin');
-  if (jellyfin) {
+  if (server === 'jellyfin' && jellyfin) {
     // Jellyfin's apps don't open links, so phones get its web app too.
     if (!m.jellyfinId) return null;
     return { web: jellyfinLink(jellyfin.publicUrl ?? jellyfin.url, jellyfin.serverId, m.jellyfinId), app: null };
   }
   const plex = store.get('plex');
-  return m.plexRatingKey && plex.machineId ? plexLinks(plex.machineId, m.plexRatingKey, m.plexSlug) : null;
+  return server === 'plex' && m.plexRatingKey && plex.machineId ? plexLinks(plex.machineId, m.plexRatingKey, m.plexSlug) : null;
 }
 
 export function toDTO(store: Store, m: StoredMovie): MovieDTO {

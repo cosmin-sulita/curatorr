@@ -250,9 +250,15 @@ export class Store {
     this.set(key, { ...this.get(key), ...patch });
   }
 
-  plexConfigured(): boolean {
+  /** The Plex server Curatorr reads, once the owner has signed in and chosen one; null before. */
+  plexConnection(): (PlexSettings & { adminToken: string; machineId: string; serverUrl: string }) | null {
     const plex = this.get('plex');
-    return Boolean(plex.adminToken && plex.machineId && plex.serverUrl);
+    const { adminToken, machineId, serverUrl } = plex;
+    return adminToken && machineId && serverUrl ? { ...plex, adminToken, machineId, serverUrl } : null;
+  }
+
+  plexConfigured(): boolean {
+    return this.plexConnection() != null;
   }
 
   /** The media server Curatorr uses, or is being set up with. Connecting one lets the other go. */
@@ -773,14 +779,15 @@ function rowToMovie(r: MovieRow): StoredMovie {
   };
 }
 
-export function toProfile(r: ProfileRow): Profile {
+/** A profile as the app sees it. `pinProtected` comes from `hasPin` (session.ts), which knows the media server. */
+export function toProfile(r: ProfileRow, pinProtected: boolean): Profile {
   return {
     id: r.id,
     name: r.name,
     avatarUrl: r.avatar_url,
     isAdmin: Boolean(r.is_admin),
     restrictionProfile: (r.restriction_profile as RestrictionProfile) ?? null,
-    pinProtected: Boolean(r.pin_protected) || r.pin_hash != null,
+    pinProtected,
     // Jellyfin users need no token of their own: Curatorr reads their history with the administrator's.
     linked: Boolean(r.server_token) || r.jellyfin_user_id != null,
   };

@@ -6,8 +6,7 @@ import { Guesses } from '../guesses.js';
 import { HttpError, normalizeBaseUrl, UpstreamError } from '../http.js';
 import { JellyfinClient, jellyfinIdKey, supportedJellyfin, type JellyfinUser } from '../integrations/jellyfin.js';
 import { importJellyfinUsers, saveJellyfinProfile } from '../services/jellyfin.js';
-import { requireAdmin, setAdminCookie } from '../session.js';
-import { toProfile } from '../store.js';
+import { profileFor, requireAdmin, setAdminCookie } from '../session.js';
 
 const username = z.string().trim().max(256);
 const password = z.string().max(256);
@@ -19,9 +18,8 @@ const SIGN_IN_TRIES = 2;
  * How many wrong passwords in a row Settings sign-in may pass on for an account: two, but never so many that
  * Jellyfin would disable it, with room left for wrong ones typed in Jellyfin's own apps meanwhile.
  */
-function passwordTries(account: JellyfinUser | null): number {
-  const after = account?.lockoutAfter;
-  return after == null ? SIGN_IN_TRIES : Math.min(Math.max(after - 2, 0), SIGN_IN_TRIES);
+function passwordTries(lockoutAfter: number | null | undefined): number {
+  return lockoutAfter == null ? SIGN_IN_TRIES : Math.min(Math.max(lockoutAfter - 2, 0), SIGN_IN_TRIES);
 }
 
 export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
@@ -128,7 +126,7 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
   app.post('/api/setup/jellyfin/users', async (req): Promise<ImportedProfile[]> => {
     guard(req);
     const rows = await importJellyfinUsers(store);
-    return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));
+    return rows.map((r) => ({ ...profileFor(store, r), hidden: Boolean(r.hidden) }));
   });
 
   /**
@@ -142,10 +140,10 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     // date is compared with the one it gave when the count began, so a clock that's off can't start it again.
     const since = missed?.lastLoginAt;
     if (missed && account?.lastLoginAt != null && (since == null || account.lastLoginAt > since)) missed = undefined;
-    const tries = passwordTries(account);
-    if (tries === 0) {
+    const after = account?.lockoutAfter;
+    const tries = passwordTries(after);
+    if (tries === 0 && after != null) {
       // Not a matter of wrong passwords: one could already disable the account, whatever happens in Jellyfin.
-      const after = account!.lockoutAfter!;
       throw new HttpError(
         403,
         `Jellyfin disables ${name}'s account after ${after} wrong password${after === 1 ? '' : 's'}, so Curatorr ` +

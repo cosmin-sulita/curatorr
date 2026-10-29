@@ -9,12 +9,12 @@ import {
   adminId,
   clearAdminCookie,
   newSessionEpoch,
+  profileFor,
   requireAdmin,
   setAdminCookie,
   setUnlocks,
   unlocksHere,
 } from '../session.js';
-import { toProfile } from '../store.js';
 
 export const settingsRoutes: RouteModule = (app, { store, library }) => {
   app.get('/api/settings', async (req): Promise<SettingsResponse> => {
@@ -48,7 +48,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
       // The secret in the address Radarr calls; only the owner sees it.
       webhook: store.get('radarrWebhook'),
       profiles: store.profileRows(true).map((r) => ({
-        ...toProfile(r),
+        ...profileFor(store, r),
         hidden: Boolean(r.hidden),
         serverUser: r.plex_user_id != null || r.jellyfin_user_id != null,
       })),

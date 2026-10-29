@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { dayStart } from '@curatorr/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { HttpError } from './http.js';
-import type { ProfileRow, Store } from './store.js';
+import { toProfile, type ProfileRow, type Store } from './store.js';
 
 const PROFILE_COOKIE = 'curatorr_profile';
 const ADMIN_COOKIE = 'curatorr_admin';
@@ -137,14 +137,23 @@ export function pinNeededHere(req: FastifyRequest, store: Store, row: ProfileRow
   return !(row.is_admin && adminId(req, store) === String(row.plex_user_id ?? row.jellyfin_user_id));
 }
 
+/**
+ * A Plex Home user whose tokens Plex stopped accepting (or who never had any): it would silently stop syncing, so
+ * picking the profile links it anew, with its PIN if it has one, as it did the first time.
+ */
+export function needsPlexLink(store: Store, row: ProfileRow): boolean {
+  return store.plexConfigured() && row.plex_user_id != null && !row.server_token;
+}
+
+/** A profile as the app sees it, with whether it has a PIN here. */
+export const profileFor = (store: Store, row: ProfileRow) => toProfile(row, hasPin(store, row));
+
 export function currentProfile(req: FastifyRequest, store: Store): ProfileRow | null {
   const value = readSigned(req, PROFILE_COOKIE);
   if (!value) return null;
   const row = store.profileRow(Number(value));
   if (!row || row.hidden) return null;
-  // A Plex user whose tokens Plex stopped accepting would silently stop syncing: picking the
-  // profile again links it anew (with the PIN, if it has one), as it did the first time.
-  if (store.plexConfigured() && row.plex_user_id != null && !row.server_token) return null;
+  if (needsPlexLink(store, row)) return null;
   // A PIN added in Plex since this device picked the profile: it asks, as for a new device.
   if (pinNeededHere(req, store, row)) return null;
   return row;
@@ -188,7 +197,7 @@ export function currentGroup(req: FastifyRequest, store: Store): ProfileRow[] {
   if (!profile) return [];
   const others = togetherIds(req).flatMap((id) => {
     const row = id === profile.id ? undefined : store.profileRow(id);
-    if (!row || row.hidden || (store.plexConfigured() && row.plex_user_id != null && !row.server_token)) return [];
+    if (!row || row.hidden || needsPlexLink(store, row)) return [];
     if (pinNeededHere(req, store, row)) return [];
     return [row];
   });

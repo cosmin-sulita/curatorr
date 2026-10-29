@@ -37,12 +37,12 @@ export type PlexIds = Pick<StoredMovie, 'plexSlug' | 'plexGuid'>;
  */
 export async function ensurePlexIds(store: Store, movies: StoredMovie[]): Promise<Map<number, PlexIds>> {
   const ids = new Map<number, PlexIds>(movies.map((m) => [m.id, { plexSlug: m.plexSlug, plexGuid: m.plexGuid }]));
-  if (!store.plexConfigured() || Date.now() < (lookupsPausedUntil.get(store) ?? 0)) return ids;
+  const plex = store.plexConnection();
+  if (!plex || Date.now() < (lookupsPausedUntil.get(store) ?? 0)) return ids;
   const missing = movies.filter((m) => m.plexRatingKey && (m.plexSlug == null || m.plexGuid == null));
   if (!missing.length) return ids;
 
-  const plex = store.get('plex');
-  const client = new PlexServerClient(plex.serverUrl!, plex.clientId, plex.adminToken!);
+  const client = new PlexServerClient(plex.serverUrl, plex.clientId, plex.adminToken);
   await Promise.all(
     missing.map(async (m) => {
       try {

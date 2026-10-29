@@ -12,13 +12,13 @@ export async function applyToPlex(
   kind: ServerMark,
   log: FastifyBaseLogger,
 ): Promise<ServerSyncResult> {
-  if (!store.plexConfigured() || !movie.plexRatingKey) return 'skipped';
-  const plex = store.get('plex');
+  const plex = store.plexConnection();
+  if (!plex || !movie.plexRatingKey) return 'skipped';
   try {
     if (kind === 'seen') {
       if (!profile.server_token) return 'skipped';
       if (store.watchedIds(profile.id).has(movie.id)) return 'already';
-      await new PlexServerClient(plex.serverUrl!, plex.clientId, profile.server_token).scrobble(movie.plexRatingKey);
+      await new PlexServerClient(plex.serverUrl, plex.clientId, profile.server_token).scrobble(movie.plexRatingKey);
       store.addWatched(profile.id, movie.id);
       return 'synced';
     }
@@ -44,12 +44,12 @@ export async function revertInPlex(
   kind: ServerMark,
   log: FastifyBaseLogger,
 ): Promise<ServerSyncResult> {
-  if (!store.plexConfigured() || !movie.plexRatingKey) return 'skipped';
-  const plex = store.get('plex');
+  const plex = store.plexConnection();
+  if (!plex || !movie.plexRatingKey) return 'skipped';
   try {
     if (kind === 'seen') {
       if (!profile.server_token) return 'skipped';
-      await new PlexServerClient(plex.serverUrl!, plex.clientId, profile.server_token).unscrobble(movie.plexRatingKey);
+      await new PlexServerClient(plex.serverUrl, plex.clientId, profile.server_token).unscrobble(movie.plexRatingKey);
       store.removeWatched(profile.id, movie.id);
       return 'synced';
     }

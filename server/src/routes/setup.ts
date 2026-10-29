@@ -13,8 +13,7 @@ import {
   PlexServerClient,
 } from '../integrations/plex.js';
 import { importHomeUsers } from '../services/profiles.js';
-import { isAdmin, plexPinsHere, rememberPlexPin, requireAdmin, setAdminCookie } from '../session.js';
-import { toProfile } from '../store.js';
+import { isAdmin, plexPinsHere, profileFor, rememberPlexPin, requireAdmin, setAdminCookie } from '../session.js';
 
 const radarrBody = z.object({ url: serviceUrl, apiKey: z.string().min(1) });
 
@@ -157,7 +156,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
   app.post('/api/setup/plex/users', async (req): Promise<ImportedProfile[]> => {
     guard(req);
     const rows = await importHomeUsers(store, req.log);
-    return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));
+    return rows.map((r) => ({ ...profileFor(store, r), hidden: Boolean(r.hidden) }));
   });
 
   /** Continue without a media server: one local profile, no watch history. */

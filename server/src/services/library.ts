@@ -51,9 +51,10 @@ export class LibrarySync {
       assignSagas(movies, collections);
 
       let matched = 0;
-      const plex = this.store.get('plex');
-      if (this.store.plexConfigured()) {
-        const items = await fetchPlexItems(this.store, plex.adminToken!);
+      const server = this.store.mediaServer();
+      const plex = this.store.plexConnection();
+      if (server === 'plex' && plex) {
+        const items = await fetchPlexItems(this.store, plex.adminToken);
         const index = indexByIds(items);
         for (const m of movies) {
           const item = findByIds(index, m);
@@ -67,7 +68,7 @@ export class LibrarySync {
         }
       }
       const jellyfin = this.store.get('jellyfin');
-      if (jellyfin) {
+      if (server === 'jellyfin' && jellyfin) {
         const client = JellyfinClient.connected(jellyfin);
         const items = (await Promise.all(jellyfin.libraryIds.map((libraryId) => client.movies({ libraryId })))).flat();
         const index = indexByIds(items);
