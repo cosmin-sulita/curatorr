@@ -70,10 +70,6 @@ export interface ProfileContext {
   /** Movies the profile can open on the media server (Jellyfin: its library access and parental controls). */
   available?: Set<number> | null;
   includeWatched: boolean;
-  /** Movies on the profile's watchlist: the Plex Watchlist, or Jellyfin favourites. */
-  watchlist: Set<number>;
-  /** Unwatched movies the profile requested in Seerr. */
-  requested?: Set<number>;
   /** Where the profile stands in each saga; blocked sequels aren't offered. */
   sagas?: SagaState;
 }
@@ -216,6 +212,14 @@ export function seededUnit(seed: string): number {
     h = Math.imul(h, 16777619);
   }
   return ((h >>> 0) % 100000) / 100000;
+}
+
+/**
+ * The movies a profile wants to watch: on its media server's watchlist (the Plex Watchlist, Jellyfin favourites), or
+ * saved with Watchlist in Curatorr. The ranking's bonus and the pick's "On watchlist" both go by this.
+ */
+export function wantedIds(watchlist: Iterable<number> | undefined, feedback: FeedbackEvent[]): Set<number> {
+  return new Set([...(watchlist ?? []), ...latestByKind(feedback, 'later').keys()]);
 }
 
 function latestByKind(feedback: FeedbackEvent[], kind: FeedbackEvent['kind']) {
@@ -391,7 +395,7 @@ export function profileSignals(feedback: FeedbackEvent[], opts: RankOptions): Pr
   return {
     skips,
     shownEvenings: new Map([...shownDays].map(([id, days]) => [id, days.size])),
-    wanted: new Set([...(opts.watchlist ?? []), ...latestByKind(feedback, 'later').keys()]),
+    wanted: wantedIds(opts.watchlist, feedback),
     requested: opts.requested ?? new Set(),
     day: pickingDay(opts.now),
   };

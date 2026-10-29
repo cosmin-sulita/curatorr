@@ -13,6 +13,7 @@ import {
   surpriseOrder,
   tasteEvents,
   tasteProfile,
+  wantedIds,
   wizardOptions,
   type Criteria,
   type FeedbackEvent,
@@ -103,9 +104,8 @@ export interface Picking {
 
 const union = <T>(sets: Iterable<T>[]) => new Set(sets.flatMap((s) => [...s]));
 
-/** The movies a profile wants to watch: on its media server's watchlist, or saved with "Watchlist" in Curatorr. */
-const wantedIds = (d: { watchlist: Set<number>; feedback: FeedbackEvent[] }) =>
-  union([d.watchlist, d.feedback.filter((e) => e.kind === 'later').map((e) => e.movieId)]);
+/** The movies a profile wants to watch (see `wantedIds` in shared). */
+const wantedOf = (d: { watchlist: Set<number>; feedback: FeedbackEvent[] }) => wantedIds(d.watchlist, d.feedback);
 
 /** What every non-null set holds; null when none limits anything. */
 function intersection<T>(sets: (Set<T> | null)[]): Set<T> | null {
@@ -143,7 +143,7 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
     const seen = new Set([...watched, ...m.feedback.filter((e) => e.kind === 'seen').map((e) => e.movieId)]);
     // Only requests still waiting to be watched get the boost and the label.
     const requested = new Set(d.boostRequests ? [...m.requested].filter((id) => !seen.has(id)) : []);
-    return { m, watched, seen, requested, wanted: wantedIds(m) };
+    return { m, watched, seen, requested, wanted: wantedOf(m) };
   });
   const watched = union(views.map((v) => v.watched));
   const certs = intersection(members.map((m) => allowedCerts(m.restriction)));
@@ -172,8 +172,6 @@ export function picking(group: ProfileData | ProfileData[], now: number, { taste
     requireServer,
     available,
     includeWatched: d.includeWatched,
-    watchlist,
-    requested,
   };
   return {
     ctx,
@@ -216,7 +214,7 @@ function wantedBy(views: { m: ProfileData; requested: Set<number>; wanted: Set<n
 /** Who among `rows` has the movie on their watchlist, in their order. */
 export function onWatchlistOf(store: Store, rows: ProfileRow[], movieId: number): number[] {
   return rows.flatMap((row) =>
-    wantedIds({ watchlist: store.watchlistIds(row.id), feedback: store.feedback(row.id) }).has(movieId) ? [row.id] : [],
+    wantedOf({ watchlist: store.watchlistIds(row.id), feedback: store.feedback(row.id) }).has(movieId) ? [row.id] : [],
   );
 }
 
@@ -306,7 +304,7 @@ export function optionsFor(store: Store, rows: ProfileRow[], step: WizardStep, c
 
 async function toResponse(store: Store, group: ProfileData[], ranked: RankedMovie[]): Promise<RecommendationsResponse> {
   const plexIds = await ensurePlexIds(store, ranked.map((r) => r.movie as StoredMovie));
-  const wanted = group.map((d) => ({ profileId: d.profileId, movies: wantedIds(d) }));
+  const wanted = group.map((d) => ({ profileId: d.profileId, movies: wantedOf(d) }));
   return {
     total: ranked.filter((r) => r.tier === 0).length,
     picks: ranked.map((r) => ({
