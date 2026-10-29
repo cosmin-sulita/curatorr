@@ -6,8 +6,8 @@ import type { RadarrMovie } from '../integrations/radarr.js';
 import { togetherUntil } from '../session.js';
 import type { Store } from '../store.js';
 import { syncServerState } from './mediaServer.js';
-import { importHomeUsers, syncPlexState } from './profiles.js';
-import { adminCookie, cookiesOf, listen, silentLog, tempApp } from '../testing.js';
+import { importHomeUsers } from './profiles.js';
+import { adminCookie, cookiesOf, listen, silentLog, storedMovieMaker, tempApp } from '../testing.js';
 
 const OWNER = 5001;
 const MEMBER = 5002;
@@ -164,9 +164,11 @@ describe('Plex Home profiles', () => {
     const status = async () => (await app.inject({ method: 'GET', url: '/api/status', headers: { cookie } })).json();
     expect((await status()).profile).toMatchObject({ name: 'Kid' });
 
-    // Plex stops accepting the Kid's token (a new password, say), so the next sync forgets it.
+    // Plex stops accepting the Kid's token (a new password, say), so the next sync forgets it. (A sync reads nobody
+    // before the library has movies.)
+    store.replaceMovies([storedMovieMaker()({ plexRatingKey: '1' })], Date.now());
     revoked.add(store.profileRow(kid)!.server_token!);
-    await syncPlexState(store, store.profileRow(kid)!, silentLog, true);
+    await syncServerState(store, store.profileRow(kid)!, silentLog, true);
     expect(store.profileRow(kid)!.server_token).toBeNull();
     expect((await status()).profile).toBeNull();
     const wizard = await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie } });

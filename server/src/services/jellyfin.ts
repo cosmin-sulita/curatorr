@@ -5,9 +5,6 @@ import type { ProfileRow, StoredMovie, Store } from '../store.js';
 import { findByIds, indexByIds } from './matching.js';
 import type { ServerMark, ServerSyncResult } from './mediaServer.js';
 
-/** As with Plex, a watch history younger than this is fresh enough. */
-const WATCHED_TTL_MS = 10 * 60 * 1000;
-
 /** Saves a Jellyfin user's profile. Their picture comes through Curatorr: phones may not reach Jellyfin. */
 export function saveJellyfinProfile(store: Store, user: JellyfinUser): number {
   return store.upsertJellyfinProfile({
@@ -30,24 +27,16 @@ export async function importJellyfinUsers(store: Store) {
   return store.profileRows(true);
 }
 
-/** Syncs under way per profile, so status refetches and a profile pick share one read. */
-const syncing = new Map<number, Promise<void>>();
-
-/** Refreshes what a Jellyfin profile watched, its favourites and the movies it can open, if they are stale. */
-export async function syncJellyfinState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
-  if (!store.get('jellyfin') || row.jellyfin_user_id == null) return;
-  if (!force && row.watched_synced_at && Date.now() - row.watched_synced_at < WATCHED_TTL_MS) return;
-  let sync = syncing.get(row.id);
-  if (!sync) {
-    sync = readState(store, row, log).finally(() => syncing.delete(row.id));
-    syncing.set(row.id, sync);
-  }
-  await sync;
+/**
+ * Reads what a Jellyfin profile watched, its favourites and the movies it can open, in one read. Answers its favourites
+ * (its watchlist), or null when the read failed. Null for a profile that isn't a Jellyfin user (see syncServerState).
+ */
+export function jellyfinStateReader(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
+  if (!store.get('jellyfin') || row.jellyfin_user_id == null) return null;
+  return () => readState(store, row, log);
 }
 
-async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
-  // Before Jellyfin is asked: a movie Curatorr adds while the answer is on its way wasn't taken off in Jellyfin.
-  const before = store.watchlistIds(row.id);
+async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger): Promise<number[] | null> {
   try {
     // One read: every movie the person can open, with their marks.
     const items = await JellyfinClient.connected(store.get('jellyfin')!).movies({ userId: row.jellyfin_user_id! });
@@ -60,19 +49,14 @@ async function readState(store: Store, row: ProfileRow, log: FastifyBaseLogger) 
       if (item?.favorite) watchlist.push(movie.id);
     }
     store.replaceJellyfinState(row.id, { watched, watchlist, available: items }, Date.now());
-    const removed = store.followWatchlistRemovals(row.id, before, watchlist);
     log.info(
-      {
-        profile: row.name,
-        watched: watched.length,
-        watchlist: watchlist.length,
-        movies: items.length,
-        removed: removed.length,
-      },
+      { profile: row.name, watched: watched.length, watchlist: watchlist.length, movies: items.length },
       'Jellyfin state synced',
     );
+    return watchlist;
   } catch (err) {
     log.warn({ err, profile: row.name }, 'Jellyfin state sync failed');
+    return null;
   }
 }
 

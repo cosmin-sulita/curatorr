@@ -9,7 +9,7 @@ import { fromRadarr, type RadarrMovie } from '../integrations/radarr.js';
 import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
-import { syncPlexState } from './profiles.js';
+import { syncServerState } from './mediaServer.js';
 import { ensurePlexIds } from './plexLibrary.js';
 import { toDTO } from './recommend.js';
 import { listen, silentLog, tempStore } from '../testing.js';
@@ -257,8 +257,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
     store.setProfileTokens(owner.id, OWNER_TOKEN, OWNER_TOKEN);
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
 
-    await syncPlexState(store, store.profileRow(owner.id)!, silentLog);
-    await syncPlexState(store, store.profileRow(member.id)!, silentLog);
+    await syncServerState(store, store.profileRow(owner.id)!, silentLog);
+    await syncServerState(store, store.profileRow(member.id)!, silentLog);
 
     expect([...store.watchedIds(owner.id)]).toEqual([2]);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
@@ -269,7 +269,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
     const member = store.profileRow(store.createLocalProfile('Not shared', false))!;
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
     store.update('plex', { sectionIds: ['1', '2'] });
-    await syncPlexState(store, store.profileRow(member.id)!, silentLog);
+    await syncServerState(store, store.profileRow(member.id)!, silentLog);
     expect([...store.watchedIds(member.id)]).toEqual([1]);
     // The owner sees every library, so a refusal there is a real failure.
     await sync();
@@ -283,11 +283,11 @@ describe('library sync against fake Radarr and Plex servers', () => {
     const row = store.profileRow(id)!;
     const before = libraryFetches;
 
-    await Promise.all([syncPlexState(store, row, silentLog), syncPlexState(store, row, silentLog)]);
+    await Promise.all([syncServerState(store, row, silentLog), syncServerState(store, row, silentLog)]);
     expect(libraryFetches - before).toBe(1);
     expect([...store.watchedIds(id)]).toEqual([1]);
 
-    await syncPlexState(store, store.profileRow(id)!, silentLog);
+    await syncServerState(store, store.profileRow(id)!, silentLog);
     expect(libraryFetches - before).toBe(1);
   });
 

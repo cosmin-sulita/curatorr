@@ -12,8 +12,6 @@ import type { ProfileRow, Store } from '../store.js';
 import { findByIds, indexByIds } from './matching.js';
 import { fetchPlexItems } from './plexLibrary.js';
 
-const WATCHED_TTL_MS = 10 * 60 * 1000;
-
 /** Creates/updates one profile per Plex Home user and links the ones that need no PIN. */
 export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
   const plex = store.get('plex');
@@ -109,41 +107,31 @@ export async function linkProfile(store: Store, row: ProfileRow, pin?: string) {
   return store.profileRow(row.id)!;
 }
 
-/** Syncs under way per profile, so status refetches and a profile pick share one Plex fetch. */
-const syncing = new Map<number, Promise<void>>();
-
-/** Refreshes a profile's Plex watch history and Watchlist if they are stale. */
-export async function syncPlexState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
-  if (!store.plexConfigured() || !row.server_token) return;
-  if (!force && row.watched_synced_at && Date.now() - row.watched_synced_at < WATCHED_TTL_MS) return;
-  let sync = syncing.get(row.id);
-  if (!sync) {
-    // Separate failures: e.g. managed users may not have a Watchlist, which must not
-    // stop their watch history from syncing.
-    sync = Promise.all([syncWatched(store, row, log), syncWatchlist(store, row, log)])
-      .then(() => undefined)
-      .finally(() => syncing.delete(row.id));
-    syncing.set(row.id, sync);
-  }
-  await sync;
+/**
+ * Reads a profile's Plex watch history and Watchlist, each on its own: managed users may have no Watchlist, which
+ * mustn't stop their history. Answers the Watchlist read, or null without one. Null when the profile has no Plex
+ * sign-in (see syncServerState).
+ */
+export function plexStateReader(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
+  if (!store.plexConfigured() || !row.server_token) return null;
+  return async () => {
+    const [, watchlist] = await Promise.all([syncWatched(store, row, log), syncWatchlist(store, row, log)]);
+    return watchlist;
+  };
 }
 
-async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogger) {
-  if (!row.user_token) return;
-  // Before Plex is asked: a movie Curatorr adds while the answer is on its way wasn't taken off in Plex.
-  const before = store.watchlistIds(row.id);
+async function syncWatchlist(store: Store, row: ProfileRow, log: FastifyBaseLogger): Promise<number[] | null> {
+  if (!row.user_token) return null;
   try {
     const guids = await getWatchlist(store.get('plex').clientId, row.user_token);
     const byGuid = new Map(store.movies().flatMap((m) => (m.plexGuid ? [[m.plexGuid, m.id] as const] : [])));
     const movieIds = guids.flatMap((g) => byGuid.get(g) ?? []);
     store.replaceWatchlist(row.id, movieIds);
-    const removed = store.followWatchlistRemovals(row.id, before, movieIds);
-    log.info(
-      { profile: row.name, watchlist: guids.length, inLibrary: movieIds.length, removed: removed.length },
-      'watchlist synced',
-    );
+    log.info({ profile: row.name, watchlist: guids.length, inLibrary: movieIds.length }, 'watchlist synced');
+    return movieIds;
   } catch (err) {
     log.warn({ err, profile: row.name }, 'watchlist sync failed');
+    return null;
   }
 }
 

@@ -1,9 +1,14 @@
 import type { ServerSyncResult } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
-import { applyToJellyfin, importJellyfinUsers, revertInJellyfin, syncJellyfinState } from './jellyfin.js';
+import { applyToJellyfin, importJellyfinUsers, jellyfinStateReader, revertInJellyfin } from './jellyfin.js';
 import { applyToPlex, revertInPlex } from './plexSync.js';
-import { importHomeUsers, syncPlexState } from './profiles.js';
+import { importHomeUsers, plexStateReader } from './profiles.js';
+
+/** A profile's watch history and watchlist read from the media server this recently are fresh enough. */
+const SERVER_STATE_TTL_MS = 10 * 60 * 1000;
+/** Reads under way, per store and profile, so status refetches and a profile pick share one. */
+const reading = new WeakMap<Store, Map<number, Promise<void>>>();
 
 /**
  * What happened on the media server after a mark:
@@ -29,14 +34,43 @@ export async function refreshProfiles(store: Store, log: FastifyBaseLogger) {
   if (server === 'jellyfin') await importJellyfinUsers(store);
 }
 
-/** Refreshes a profile's watch history and watchlist from the media server, if they are stale. */
+/**
+ * Refreshes a profile's watch history and watchlist from the media server, if they are stale (or `force`). Plex and
+ * Jellyfin each read and store their own; what's common happens here: freshness, one read at a time per profile, and
+ * following movies taken off the server's watchlist.
+ */
 export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
   // Before the first library sync there's nothing to match them with, and an empty read would pass for fresh for
   // ten minutes. The status calls made while that sync runs read them once the library is in.
   if (!store.movies().length) return;
   const server = store.mediaServer();
-  if (server === 'plex') await syncPlexState(store, row, log, force);
-  if (server === 'jellyfin') await syncJellyfinState(store, row, log, force);
+  const read =
+    server === 'plex' ? plexStateReader(store, row, log) : server === 'jellyfin' ? jellyfinStateReader(store, row, log) : null;
+  if (!read) return;
+  if (!force && row.watched_synced_at && Date.now() - row.watched_synced_at < SERVER_STATE_TTL_MS) return;
+
+  let pending = reading.get(store);
+  if (!pending) reading.set(store, (pending = new Map()));
+  let sync = pending.get(row.id);
+  if (!sync) {
+    sync = readAndFollow(store, row, log, read).finally(() => pending.delete(row.id));
+    pending.set(row.id, sync);
+  }
+  await sync;
+}
+
+async function readAndFollow(
+  store: Store,
+  row: ProfileRow,
+  log: FastifyBaseLogger,
+  read: () => Promise<number[] | null>,
+) {
+  // Before the server is asked: a movie Curatorr adds while the answer is on its way wasn't taken off there.
+  const before = store.watchlistIds(row.id);
+  const watchlist = await read();
+  if (!watchlist) return;
+  const removed = store.followWatchlistRemovals(row.id, before, watchlist);
+  if (removed.length) log.info({ profile: row.name, removed: removed.length }, 'taken off the media server watchlist');
 }
 
 /** Mirrors a mark to the media server, unless the owner turned that off. */
