@@ -51,3 +51,17 @@ export const saveJellyfinLibraries = (libraryIds: string[]) =>
 /** A Jellyfin administrator signs in to manage Curatorr on this device. */
 export const jellyfinSignIn = (username: string, password: string) =>
   api('/api/jellyfin/login', { json: { username, password } });
+
+/** Setup's steps, in order. */
+export type SetupStep = 'radarr' | 'server' | 'seerr' | 'finish';
+
+/**
+ * After a reload, setup carries on at the first step still to do. The server is done once its users are profiles, or
+ * once it was skipped, which leaves a profile of Curatorr's own; Seerr needs a server, so finishing is all that's left.
+ */
+export function resumeAt(s: SettingsResponse | undefined): SetupStep {
+  if (!s?.radarr) return 'radarr';
+  if (!s.server && s.profiles.length) return 'finish';
+  if (!s.profiles.some((p) => p.serverUser)) return 'server';
+  return s.seerr ? 'finish' : 'seerr';
+}

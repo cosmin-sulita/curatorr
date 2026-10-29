@@ -1,5 +1,7 @@
 import { useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from 'react';
 
+export { withQuery } from './url';
+
 /**
  * A deliberately tiny history router. Every wizard answer lives in the URL,
  * so the phone's back gesture steps back through the questions.
@@ -79,10 +81,3 @@ export function Link({
   return <a href={to} onClick={handle} {...rest} />;
 }
 
-/** Builds `path?query`, dropping empty values. */
-export function withQuery(path: string, params: Record<string, string | null | undefined>) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
-  const s = qs.toString();
-  return s ? `${path}?${s}` : path;
-}

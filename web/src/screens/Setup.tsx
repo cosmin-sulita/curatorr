@@ -9,28 +9,16 @@ import { useAction } from '../lib/action';
 import { afterAccessChange, ApiError, errorMessage, useSettings, useStatus, type SettingsResponse } from '../lib/api';
 import { useDeferUpdates } from '../lib/appUpdate';
 import { navigate } from '../lib/router';
-import { completeSetup, saveRadarr, saveSeerr, skipServer } from '../lib/settings';
+import { completeSetup, resumeAt, saveRadarr, saveSeerr, skipServer, type SetupStep as Step } from '../lib/settings';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
 
-type Step = 'radarr' | 'server' | 'seerr' | 'finish';
 const STEPS: { id: Step; label: string }[] = [
   { id: 'radarr', label: 'Radarr' },
   { id: 'server', label: 'Server' },
   { id: 'seerr', label: 'Seerr' },
   { id: 'finish', label: 'Finish' },
 ];
-
-/**
- * After a reload, setup carries on at the first step still to do. The server is done once its users are profiles, or
- * once it was skipped, which leaves a profile of Curatorr's own; Seerr needs a server, so finishing is all that's left.
- */
-function resumeAt(s: SettingsResponse | undefined): Step {
-  if (!s?.radarr) return 'radarr';
-  if (!s.server && s.profiles.length) return 'finish';
-  if (!s.profiles.some((p) => p.serverUser)) return 'server';
-  return s.seerr ? 'finish' : 'seerr';
-}
 
 export function SetupScreen() {
   const settings = useSettings(true);

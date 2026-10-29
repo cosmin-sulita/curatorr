@@ -1,10 +1,13 @@
-import { NO_PREFERENCE, STEP_ORDER, type Criteria, type WizardStep } from '@curatorr/shared';
+import { NO_PREFERENCE, STEP_ORDER, type WizardStep } from '@curatorr/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useReducedMotionConfig } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { warmImages } from '../components/ui';
 import { firstPictures, recommendationsQuery, wizardQuery } from './api';
-import { justArrived, navigate, navigationDirection, withQuery } from './router';
+import { answersBefore, criteriaFrom, isStep, nextUrl } from './criteria';
+import { warmImages } from './pictures';
+import { justArrived, navigate, navigationDirection } from './router';
+
+export { SURPRISE_URL, answersBefore, criteriaFrom, isStep, nextUrl } from './criteria';
 
 // Moving on, when the next screen's answers aren't loaded yet (see useLookAhead): when the tapped answer starts
 // saying it's loading, and the longest the old screen stays before the next shows its own spinner.
@@ -12,40 +15,6 @@ const SLOW = 300;
 const MAX_WAIT = 1500;
 /** How many answers load ahead at once (see useLookAhead). */
 const AHEAD_AT_ONCE = 3;
-
-/** "Surprise me": no answers, straight to a pick. */
-export const SURPRISE_URL = withQuery('/pick', Object.fromEntries(STEP_ORDER.map((s) => [s, NO_PREFERENCE])));
-
-// Every wizard answer lives in the address, so the phone's back gesture steps back through the questions.
-
-export const isStep = (s: string | undefined): s is WizardStep => STEP_ORDER.includes(s as WizardStep);
-
-export function criteriaFrom(search: URLSearchParams): Criteria {
-  return {
-    genre: search.get('genre'),
-    theme: search.get('theme'),
-    mood: search.get('mood'),
-    time: search.get('time'),
-    shelf: search.get('shelf'),
-  };
-}
-
-/** Answers given before `step`; later answers are dropped when going back. */
-export function answersBefore(step: WizardStep, c: Criteria): Criteria {
-  const out: Criteria = {};
-  for (const s of STEP_ORDER) {
-    if (s === step) break;
-    out[s] = c[s] ?? null;
-  }
-  return out;
-}
-
-export function nextUrl(step: WizardStep, c: Criteria, value: string) {
-  const answers = { ...answersBefore(step, c), [step]: value };
-  const index = STEP_ORDER.indexOf(step);
-  const next = STEP_ORDER[index + 1];
-  return withQuery(next ? `/ask/${next}` : '/pick', answers);
-}
 
 /**
  * Loads what `url` shows and returns where to go: a question with no real choice is passed over with "no preference",

@@ -18,12 +18,8 @@ export function relativeTime(epochMs: number | null) {
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** "Alex", "Alex and Sam", "Alex, Sam and Kids"; `last` joins the final two. */
-export function listNames(names: string[], last = ' and ') {
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${last}${names.at(-1)}` : (names[0] ?? '');
-}
+export { listNames } from '@curatorr/shared';
 
-/** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
 /** The media server's own words, for copy that names it. */
 export interface ServerCopy {
   name: string;
@@ -69,6 +65,7 @@ const SERVER_COPY: Record<MediaServer, ServerCopy> = {
 /** The media server's words. Without one they're Plex's, so the demo and the README's screenshots read as before. */
 export const serverCopy = (server: MediaServer | null | undefined) => SERVER_COPY[server ?? 'plex'];
 
+/** The media server's name in the UI. Without one (the demo, say), Curatorr talks about Plex, as it always did. */
 export const serverName = (server: MediaServer | null | undefined) => serverCopy(server).name;
 
 /** iPhones and iPads. iPadOS reports itself as a Mac, so also look for touch. */

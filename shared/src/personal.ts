@@ -122,9 +122,9 @@ export interface WantedBy {
   watchlist: string[];
 }
 
-/** "Alex", "Alex and Sam", "Alex, Sam and Kids". */
-export function listNames(names: string[]) {
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '');
+/** "Alex", "Alex and Sam", "Alex, Sam and Kids"; `last` joins the final two. */
+export function listNames(names: string[], last = ' and ') {
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${last}${names.at(-1)}` : (names[0] ?? '');
 }
 
 /** Chips for movies the profile wants to watch: requested in Seerr first, then the watchlist. Groups name who. */

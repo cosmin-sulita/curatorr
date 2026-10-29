@@ -24,10 +24,10 @@ import type {
   WizardOptionsResponse,
   WizardStep,
 } from '@curatorr/shared';
-import { PICTURE, sized, warmImages } from '../components/ui';
+import { PICTURE, sized, warmImages } from './pictures';
 
 export type { HiddenMovie, PlexServerOption, ServerLibrary, ServerSyncResult, SettingsResponse } from '@curatorr/shared';
-import { withQuery } from './router';
+import { withQuery } from './url';
 
 export class ApiError extends Error {
   constructor(
