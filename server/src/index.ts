@@ -1,16 +1,7 @@
 import { buildApp } from './app.js';
 import { config } from './config.js';
-import { scheduleTogether } from './services/together.js';
-import { scheduleUpdateChecks } from './services/updates.js';
 
-const { app, ctx } = await buildApp();
-
-if (!config.demo) {
-  ctx.library.schedule();
-  scheduleTogether(ctx.store, app.log);
-}
-// Needs nothing but GitHub, so the demo looks too.
-scheduleUpdateChecks(ctx.store, app.log);
+const { app } = await buildApp({ schedule: true });
 
 await app.listen({ port: config.port, host: config.host });
 app.log.info(

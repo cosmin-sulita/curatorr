@@ -18,6 +18,8 @@ import { settingsRoutes } from './routes/settings.js';
 import { setupRoutes } from './routes/setup.js';
 import { statusRoutes } from './routes/status.js';
 import { LibrarySync } from './services/library.js';
+import { scheduleTogether } from './services/together.js';
+import { scheduleUpdateChecks } from './services/updates.js';
 import { Store } from './store.js';
 
 /**
@@ -46,6 +48,11 @@ export async function buildApp(
     logger?: boolean;
     /** Told of each route as it's added: the access test checks every one is classified. */
     onRoute?: (method: string, url: string) => void;
+    /**
+     * Start the background timers: library syncs and settling movies watched together (not in demo mode), and the
+     * update check. Closing the app stops them. Tests leave them off.
+     */
+    schedule?: boolean;
   } = {},
 ) {
   const demo = opts.demo ?? config.demo;
@@ -147,8 +154,18 @@ export async function buildApp(
     app.log.warn(`web build not found at ${config.webDist}; serving the API only`);
   }
 
+  const stops: (() => void)[] = [() => library.stop()];
+  if (opts.schedule) {
+    if (!demo) {
+      library.schedule();
+      stops.push(scheduleTogether(store, app.log));
+    }
+    // Needs nothing but GitHub, so the demo looks too.
+    stops.push(scheduleUpdateChecks(store, app.log));
+  }
+
   app.addHook('onClose', async () => {
-    library.stop();
+    for (const stop of stops) stop();
     db.close();
   });
 
