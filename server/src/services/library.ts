@@ -1,56 +1,12 @@
 import { onServer, tagMovie } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import { UpstreamError } from '../http.js';
 import { assignSagas, fromRadarr, RadarrClient } from '../integrations/radarr.js';
 import { JellyfinClient } from '../integrations/jellyfin.js';
-import { PlexServerClient, type PlexItem } from '../integrations/plex.js';
 import type { StoredMovie, Store } from '../store.js';
+import { findByIds, indexByIds } from './matching.js';
 import { refreshProfiles } from './mediaServer.js';
+import { fetchPlexItems } from './plexLibrary.js';
 import { syncRequests } from './requests.js';
-
-interface Ids {
-  tmdbId: number | null;
-  imdbId: string | null;
-}
-
-/** A media server's items by TMDB and IMDb id, to find the one for each Radarr movie. */
-export interface IdIndex<T> {
-  byTmdb: Map<number, T>;
-  byImdb: Map<string, T>;
-}
-
-export function indexByIds<T extends Ids>(items: T[]): IdIndex<T> {
-  const byTmdb = new Map<number, T>();
-  const byImdb = new Map<string, T>();
-  for (const item of items) {
-    if (item.tmdbId != null) byTmdb.set(item.tmdbId, item);
-    if (item.imdbId) byImdb.set(item.imdbId, item);
-  }
-  return { byTmdb, byImdb };
-}
-
-export function findByIds<T>(index: IdIndex<T>, m: Ids): T | undefined {
-  return (m.tmdbId != null ? index.byTmdb.get(m.tmdbId) : undefined) ?? (m.imdbId ? index.byImdb.get(m.imdbId) : undefined);
-}
-
-/**
- * The movies in Curatorr's Plex libraries, as the token's user sees them. With `sharedOnly`, libraries Plex
- * refuses that user are left out: the owner needn't share every library with everyone at home.
- */
-export async function fetchPlexItems(store: Store, token: string, { sharedOnly = false } = {}): Promise<PlexItem[]> {
-  const plex = store.get('plex');
-  if (!plex.serverUrl) return [];
-  const client = new PlexServerClient(plex.serverUrl, plex.clientId, token);
-  const all: PlexItem[] = [];
-  for (const section of plex.sectionIds) {
-    try {
-      all.push(...(await client.movies(section)));
-    } catch (err) {
-      if (!(sharedOnly && err instanceof UpstreamError && err.status === 403)) throw err;
-    }
-  }
-  return all;
-}
 
 /** Radarr reports an import before Plex or Jellyfin has scanned the file, so its webhook syncs this much later. */
 const WEBHOOK_SYNC_DELAY_MS = 2 * 60 * 1000;

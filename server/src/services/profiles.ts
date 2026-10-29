@@ -9,7 +9,8 @@ import {
   type PlexHomeUser,
 } from '../integrations/plex.js';
 import type { ProfileRow, Store } from '../store.js';
-import { fetchPlexItems, findByIds, indexByIds } from './library.js';
+import { findByIds, indexByIds } from './matching.js';
+import { fetchPlexItems } from './plexLibrary.js';
 
 const WATCHED_TTL_MS = 10 * 60 * 1000;
 

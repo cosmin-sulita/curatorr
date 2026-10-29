@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { HttpError } from '../http.js';
 import { JellyfinClient, jellyfinRestriction, type JellyfinUser } from '../integrations/jellyfin.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
-import { findByIds, indexByIds } from './library.js';
+import { findByIds, indexByIds } from './matching.js';
 import type { ServerMark, ServerSyncResult } from './mediaServer.js';
 
 /** As with Plex, a watch history younger than this is fresh enough. */
