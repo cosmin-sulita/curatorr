@@ -1,4 +1,4 @@
-import type { AppStatus, MediaServer, SettingsProfile } from '@curatorr/shared';
+import { SYNC_INTERVAL_HOURS, type AppStatus, type MediaServer, type SettingsProfile } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, MonitorSmartphone, RefreshCw } from 'lucide-react';
@@ -237,7 +237,9 @@ function serverDescription({ server, plex, jellyfin }: SettingsResponse) {
   return server ? 'Not connected' : 'Not connected. Plex or Jellyfin brings profiles, watch history and parental limits.';
 }
 
-const SYNC_INTERVALS = [1, 3, 6, 12, 24];
+/** The intervals on offer, and the one saved when an older version allowed another, so the list shows it. */
+const syncIntervals = (saved: number) =>
+  [...new Set<number>([...SYNC_INTERVAL_HOURS, saved])].sort((a, b) => a - b);
 
 /** What Radarr's last webhook call was about; null before the first one. */
 function lastCall({ at, event, title }: SettingsResponse['webhook']) {
@@ -605,7 +607,7 @@ function LibrarySection({ data, demo }: { data: SettingsResponse; demo: boolean 
               value={data.app.syncIntervalHours}
               onChange={(e) => updateApp({ syncIntervalHours: Number(e.target.value) })}
             >
-              {SYNC_INTERVALS.map((h) => (
+              {syncIntervals(data.app.syncIntervalHours).map((h) => (
                 <option key={h} value={h}>
                   {plural(h, 'hour')}
                 </option>

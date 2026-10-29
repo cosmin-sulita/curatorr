@@ -1,4 +1,4 @@
-import type { SettingsResponse } from '@curatorr/shared';
+import { SYNC_INTERVAL_HOURS, type SettingsResponse } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
@@ -61,7 +61,10 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
         includeWatched: z.boolean().optional(),
         syncToServer: z.boolean().optional(),
         boostRequests: z.boolean().optional(),
-        syncIntervalHours: z.number().int().min(1).max(168).optional(),
+        syncIntervalHours: z
+          .number()
+          .refine((h) => (SYNC_INTERVAL_HOURS as readonly number[]).includes(h), 'Choose one of the intervals offered')
+          .optional(),
       }),
       req.body,
     );

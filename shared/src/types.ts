@@ -339,3 +339,6 @@ export interface ErrorFlags {
   /** Only an administrator signed in on this device may do this. */
   needAdmin?: boolean;
 }
+
+/** How often Settings offers to sync with Radarr, in hours. The server takes no other value. */
+export const SYNC_INTERVAL_HOURS = [1, 3, 6, 12, 24] as const;

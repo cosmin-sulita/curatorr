@@ -283,6 +283,14 @@ describe('API (demo data)', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('only syncs as often as Settings offers', async () => {
+    const every = (syncIntervalHours: number) =>
+      app.inject({ method: 'PUT', url: '/api/settings/app', headers: { cookie }, payload: { syncIntervalHours } });
+    expect((await every(12)).statusCode).toBe(200);
+    expect((await every(48)).statusCode).toBe(400);
+    expect(ctx.store.get('app').syncIntervalHours).toBe(12);
+  });
+
   it("refuses an answer it doesn't offer, and takes no preference as none", async () => {
     for (const query of ['genre=Westerns', 'theme=nope', 'mood=nope', 'time=nope']) {
       expect((await get(`/api/recommendations?${query}`)).status, query).toBe(400);
