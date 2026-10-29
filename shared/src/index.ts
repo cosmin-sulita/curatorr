@@ -6,3 +6,4 @@ export * from './scoring.js';
 export * from './changelog.js';
 export * from './similar.js';
 export * from './taste.js';
+export * from './text.js';

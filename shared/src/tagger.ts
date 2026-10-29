@@ -1,3 +1,4 @@
+import { normalizeKeyword } from './text.js';
 import { MOODS, THEMES, type MoodDef, type ThemeDef } from './taxonomy.js';
 import type { TagScores } from './types.js';
 
@@ -66,11 +67,6 @@ function buildVocabulary(defs: (ThemeDef | MoodDef)[]): Vocabulary {
 
 const themeVocabulary = buildVocabulary(THEMES);
 const moodVocabulary = buildVocabulary(MOODS);
-
-/** Lowercase and trimmed. TMDB sometimes writes "human‑animal" with a non-breaking hyphen. */
-function normalizeKeyword(keyword: string) {
-  return keyword.toLowerCase().trim().replace(/[\u2010\u2011]/g, '-');
-}
 
 /**
  * All phrases a keyword can satisfy: the whole keyword plus every run of

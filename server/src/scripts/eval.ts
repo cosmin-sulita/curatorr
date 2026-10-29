@@ -65,6 +65,7 @@ import {
   type ScorePart,
   type ScoreParts,
   type Signature,
+  fold,
 } from '@curatorr/shared';
 import { config } from '../config.js';
 import { picking, type Picking, type ProfileData } from '../services/recommend.js';
@@ -214,7 +215,6 @@ const name = (m: Movie) => (m.year ? `${m.title} (${m.year})` : m.title);
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
 const noImage = () => null;
 /** Lowercase without accents, so "amelie" finds "Amélie". */
-const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 function heading(text: string) {
   console.log(`\n${text}`);

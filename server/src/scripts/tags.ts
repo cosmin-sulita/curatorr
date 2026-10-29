@@ -25,6 +25,7 @@ import {
   themeById,
   type TagEvidence,
   type TagExplanations,
+  fold,
 } from '@curatorr/shared';
 import { config } from '../config.js';
 import { readMovies, type StoredMovie } from '../store.js';
@@ -77,7 +78,6 @@ const byQuality = (a: Row, b: Row) => qualityScore(b.movie.ratings) - qualitySco
 const byCount = (a: [string, number], b: [string, number]) => b[1] - a[1] || a[0].localeCompare(b[0]);
 const summary = (m: StoredMovie) => `${name(m)} · ${m.genres.join(', ') || 'no genres'} · ${m.keywords.length} keywords`;
 /** Lowercase without accents, so "amelie" finds "Amélie". */
-const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 function heading(text: string) {
   console.log(`\n${text}`);

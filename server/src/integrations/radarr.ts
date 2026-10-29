@@ -1,4 +1,4 @@
-import { tagMovie } from '@curatorr/shared';
+import { normalizeKeyword, tagMovie } from '@curatorr/shared';
 import { normalizeBaseUrl, request, requestJson, TIMEOUT } from '../http.js';
 import type { StoredMovie } from '../store.js';
 
@@ -119,7 +119,7 @@ export function fromRadarr(r: RadarrMovie, stored?: StoredMovie): StoredMovie {
   const poster = r.images?.find((i) => i.coverType === 'poster');
   const fanart = r.images?.find((i) => i.coverType === 'fanart');
   const genres = r.genres ?? [];
-  const keywords = (r.keywords ?? []).map((k) => k.toLowerCase());
+  const keywords = (r.keywords ?? []).map(normalizeKeyword);
   const overview = r.overview ?? '';
   const runtime = r.runtime && r.runtime > 0 ? r.runtime : null;
   const unchanged =

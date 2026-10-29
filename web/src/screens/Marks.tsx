@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { fold } from '@curatorr/shared';
 import { Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
@@ -24,8 +25,6 @@ const PAGE = 30;
 /** Longer lists get a search field. */
 const SEARCH_FROM = 12;
 
-/** Lower case and without accents, so "amelie" finds Amélie. */
-const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 /** Every movie on one of the profile's lists, newest first, each with Restore (or Remove, on the watchlist). */
 export function MarksScreen({ list: id }: { list: MarkListId }) {

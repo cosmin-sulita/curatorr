@@ -3,6 +3,7 @@ import { addedReasons, personalAdjustment, profileSignals, wantedReasons } from 
 import { qualityScore } from './quality.js';
 import { NEXT_PART_BONUS, tagStrength, topRanked, type RankOptions, type RankedMovie } from './ranking.js';
 import { keywordPhrases } from './tagger.js';
+import { normalizeKeyword } from './text.js';
 import { moodById, themeById, type MoodDef, type ThemeDef } from './taxonomy.js';
 import type { FeedbackEvent, Movie, Reason } from './types.js';
 
@@ -55,7 +56,7 @@ export type Signature = Map<string, number>;
 function usableKeywords(m: Movie): Set<string> {
   const out = new Set<string>();
   for (const raw of m.keywords) {
-    const k = raw.toLowerCase().trim();
+    const k = normalizeKeyword(raw);
     if (k && !IGNORED_KEYWORDS.has(k) && !TONE_KEYWORDS.has(k)) out.add(k);
   }
   return out;

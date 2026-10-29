@@ -28,6 +28,7 @@ import {
   type WantedBy,
   type WizardOptionsResponse,
   type WizardStep,
+  fold,
 } from '@curatorr/shared';
 import { HttpError } from '../http.js';
 import { jellyfinLink } from '../integrations/jellyfin.js';
@@ -333,7 +334,6 @@ export async function similarFor(store: Store, rows: ProfileRow[], likedId: numb
 }
 
 /** Lowercase without accents, so "amelie" finds "Amélie". */
-const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 /**
  * Movies to start "Something like…" from: without a query, what the profile (or anyone watching
