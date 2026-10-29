@@ -40,7 +40,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript source (no build step).
 
 - **`shared/`**: pure, unit-tested logic used by both sides.
-  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, the first question's shortcuts (`SHELVES`: `JUST_ARRIVED` and the `SEASONS`), plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`).
+  - `taxonomy.ts`: the genre, theme, mood and time vocabulary, the first question's shortcuts (`SHELVES`: `JUST_ARRIVED` and the `SEASONS`), plus wizard constants (`STEP_ORDER`, `MIN_OPTION_COUNT = 3`, and the answers `NO_PREFERENCE` and `SAGA_TIME`). The picks routes refuse an answer that isn't in the vocabulary (400), as they do an unknown shortcut.
   - `tagger.ts`: turns TMDB genres, keywords and overview into themes and moods. `explainTags` keeps the evidence behind each tag.
     - Each keyword counts once per tag, through its best term, and each term counts once.
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.

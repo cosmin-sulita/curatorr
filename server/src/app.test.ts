@@ -283,6 +283,14 @@ describe('API (demo data)', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("refuses an answer it doesn't offer, and takes no preference as none", async () => {
+    for (const query of ['genre=Westerns', 'theme=nope', 'mood=nope', 'time=nope']) {
+      expect((await get(`/api/recommendations?${query}`)).status, query).toBe(400);
+      expect((await get(`/api/wizard/genre?${query}`)).status, query).toBe(400);
+    }
+    expect((await get('/api/recommendations?genre=any&theme=any&mood=any&time=any')).status).toBe(200);
+  });
+
   it("leaves the liked movie's saga out", async () => {
     const alex = await cookieFor('Alex');
     const bttf = (await likeFor(alex, 'back to the future')).find((m) => m.title === 'Back to the Future')!;

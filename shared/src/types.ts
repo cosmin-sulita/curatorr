@@ -1,3 +1,5 @@
+import type { STEP_ORDER } from './taxonomy.js';
+
 /** Tag strengths keyed by theme/mood id. Higher means a stronger signal. */
 export type TagScores = Record<string, number>;
 
@@ -97,7 +99,7 @@ export interface Criteria {
   shelf?: string | null;
 }
 
-export type WizardStep = 'genre' | 'theme' | 'mood' | 'time';
+export type WizardStep = (typeof STEP_ORDER)[number];
 
 export interface WizardOption {
   id: string;

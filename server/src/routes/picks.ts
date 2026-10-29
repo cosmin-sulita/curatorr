@@ -1,10 +1,15 @@
 import {
   FEEDBACK_KINDS,
+  NO_PREFERENCE,
   STEP_ORDER,
   allowedFor,
   dayStart,
+  genreById,
   isMark,
+  moodById,
   shelfById,
+  themeById,
+  timeById,
   type Criteria,
   type FeedbackResponse,
   type HiddenMovie,
@@ -27,10 +32,13 @@ import {
 import { requireGroup, requireProfile } from '../session.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
-const optional = z
-  .string()
-  .optional()
-  .transform((v) => (v && v !== 'any' ? v : null));
+/** An answer to one question: one Curatorr offers, or none. "No preference" counts as none. */
+const answer = (known: ReadonlyMap<string, unknown>, what: string) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => (v && v !== NO_PREFERENCE ? v : null))
+    .refine((v) => v === null || known.has(v), `unknown ${what}`);
 
 /** A shortcut from the first question: one Curatorr knows, or none. */
 const shelf = z
@@ -39,7 +47,13 @@ const shelf = z
   .refine((v) => !v || shelfById.has(v), 'unknown shortcut')
   .transform((v) => v || null);
 
-const criteriaSchema = z.object({ genre: optional, theme: optional, mood: optional, time: optional, shelf });
+const criteriaSchema = z.object({
+  genre: answer(genreById, 'genre'),
+  theme: answer(themeById, 'theme'),
+  mood: answer(moodById, 'mood'),
+  time: answer(timeById, 'time'),
+  shelf,
+});
 
 /** What happened on the media server for a mark made for several people: the worst news first. */
 function overall(results: ServerSyncResult[]): ServerSyncResult {

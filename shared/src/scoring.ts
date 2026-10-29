@@ -3,6 +3,7 @@ import {
   JUST_ARRIVED,
   MIN_OPTION_COUNT,
   MOODS,
+  SAGA_TIME,
   SEASONS,
   THEMES,
   TIME_OPTIONS,
@@ -552,7 +553,7 @@ export function rankMovies(
 ): RankedMovie[] {
   const signals = profileSignals(feedback, opts);
   const sagas = opts.sagas ?? emptySagaState();
-  const startingSaga = c.time === 'saga';
+  const startingSaga = c.time === SAGA_TIME;
   const season = c.shelf ? seasonById.get(c.shelf) : undefined;
 
   // "Start a saga" only offers first parts of sagas the profile hasn't started.
@@ -794,10 +795,10 @@ export function wizardOptions(
   } else {
     options = TIME_OPTIONS.map((t) => ({
       t,
-      movies: pool.filter((m) => (t.id === 'saga' ? opts.sagaStarters?.has(m.id) : matchesTime(m, t.id))),
+      movies: pool.filter((m) => (t.id === SAGA_TIME ? opts.sagaStarters?.has(m.id) : matchesTime(m, t.id))),
     }))
       // "Any length" is always offered; one saga is enough to offer starting it.
-      .filter(({ t, movies }) => (t.id === 'saga' ? movies.length > 0 : t.maxRuntime == null || narrows(movies.length)))
+      .filter(({ t, movies }) => (t.id === SAGA_TIME ? movies.length > 0 : t.maxRuntime == null || narrows(movies.length)))
       .map(({ t, movies }) => ({
         id: t.id,
         label: t.label,

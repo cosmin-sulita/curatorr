@@ -35,6 +35,7 @@ import { parseArgs } from 'node:util';
 import {
   JUST_ARRIVED,
   NEXT_PART_BONUS,
+  NO_PREFERENCE,
   SCORE_PARTS,
   allowedFor,
   arrivalTime,
@@ -235,7 +236,7 @@ function random(seed: number) {
 function wizardPaths(p: Picking): { c: Criteria; weight: number; skipped: string[] }[] {
   const facet = { image: noImage, sagaStarters: p.ctx.sagas?.starters };
   const choices = (res: ReturnType<typeof wizardOptions>, any: boolean) => {
-    const ids: (string | null)[] = res.options.map((o) => (o.id === 'any' ? null : o.id));
+    const ids: (string | null)[] = res.options.map((o) => (o.id === NO_PREFERENCE ? null : o.id));
     if (any) ids.push(null);
     return res.skip ? [{ id: null, w: 1 }] : ids.map((id) => ({ id, w: 1 / ids.length }));
   };

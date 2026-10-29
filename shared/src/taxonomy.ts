@@ -435,12 +435,20 @@ export interface TimeOption {
   maxRuntime: number | null;
 }
 
+/**
+ * "No preference" in an address: the answer that skips a question, which the server reads as no answer. The time
+ * question's "I've got all night" is the same thing, so it shares the id.
+ */
+export const NO_PREFERENCE = 'any';
+/** The time question's "Start a saga": first parts of sagas not started yet, instead of a length. */
+export const SAGA_TIME = 'saga';
+
 export const TIME_OPTIONS: TimeOption[] = [
   { id: 'quick', label: 'A quick one', description: 'Under 1h45', icon: 'Timer', maxRuntime: 105 },
   { id: 'standard', label: 'A regular movie', description: 'Up to 2h15', icon: 'Clock', maxRuntime: 135 },
-  { id: 'any', label: "I've got all night", description: 'Any length', icon: 'Moon', maxRuntime: null },
+  { id: NO_PREFERENCE, label: "I've got all night", description: 'Any length', icon: 'Moon', maxRuntime: null },
   // Only first parts of sagas the profile hasn't started; see sagas.ts.
-  { id: 'saga', label: 'Start a saga', description: 'Part 1 tonight, the rest another night', icon: 'Library', maxRuntime: null },
+  { id: SAGA_TIME, label: 'Start a saga', description: 'Part 1 tonight, the rest another night', icon: 'Library', maxRuntime: null },
 ];
 
 /** A shortcut on the first question that goes straight to a pick instead of asking the questions. */
@@ -490,6 +498,7 @@ export const RESTRICTION_CERTS: Record<'little_kid' | 'older_kid' | 'teen', stri
   teen: ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'U', '0', 'PG', 'TV-PG', '6', 'PG-13', 'TV-14', '12', '12A'],
 };
 
+/** The questions in the order they're asked. `WizardStep` is one of these. */
 export const STEP_ORDER = ['genre', 'theme', 'mood', 'time'] as const;
 
 /** An option is only offered when at least this many movies match it. */

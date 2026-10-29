@@ -1,4 +1,12 @@
-import { STEP_ORDER, genreById, type LikeSeed, type WizardOption, type WizardStep } from '@curatorr/shared';
+import {
+  NO_PREFERENCE,
+  SAGA_TIME,
+  STEP_ORDER,
+  genreById,
+  type LikeSeed,
+  type WizardOption,
+  type WizardStep,
+} from '@curatorr/shared';
 import clsx from 'clsx';
 import { Shuffle } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -51,7 +59,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   // first "no preference", under the thumb on phones, then the answers from the top.
   const urlFor = (value: string) => nextUrl(step, criteria, value);
   // "Surprise me" skips the rest of the questions, and the pick lands after a quick shuffle.
-  const anyUrl = step === 'genre' ? SURPRISE_URL : urlFor('any');
+  const anyUrl = step === 'genre' ? SURPRISE_URL : urlFor(NO_PREFERENCE);
   const shelfUrl = (shelf: string) => withQuery('/pick', { shelf });
   const destinations = data
     ? [
@@ -64,13 +72,13 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
 
   // Answers normally move past a question with no real choice before it shows; this covers opening one directly.
   useEffect(() => {
-    if (data?.skip) navigate(nextUrl(step, criteria, 'any'), { replace: true });
+    if (data?.skip) navigate(nextUrl(step, criteria, NO_PREFERENCE), { replace: true });
   }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const choose = (value: string) => go(value, urlFor(value));
   const touch = (value: string) => warm(urlFor(value));
-  const chooseAny = () => (step === 'genre' ? go('any', anyUrl, requestSurprise) : choose('any'));
-  const genreLabel = criteria.genre && criteria.genre !== 'any' ? genreById.get(criteria.genre)?.label : null;
+  const chooseAny = () => (step === 'genre' ? go(NO_PREFERENCE, anyUrl, requestSurprise) : choose(NO_PREFERENCE));
+  const genreLabel = criteria.genre && criteria.genre !== NO_PREFERENCE ? genreById.get(criteria.genre)?.label : null;
 
   if (error) {
     return (
@@ -111,7 +119,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     );
   }
 
-  const anyGoing = going?.id === 'any';
+  const anyGoing = going?.id === NO_PREFERENCE;
   const anyButton = (className?: string) => (
     <Button
       variant={step === 'genre' ? 'primary' : 'secondary'}
@@ -373,7 +381,7 @@ function TimeList({ options, going, onChoose, onTouch }: OptionsProps) {
               <span className="block font-display text-[28px]">{o.label}</span>
               <span className="block text-sm text-muted">{o.description}</span>
             </span>
-            <span className="text-sm text-muted tabular-nums">{plural(o.count, o.id === 'saga' ? 'saga' : 'movie')}</span>
+            <span className="text-sm text-muted tabular-nums">{plural(o.count, o.id === SAGA_TIME ? 'saga' : 'movie')}</span>
             {state === 'slow' && <Pending />}
           </button>
         );

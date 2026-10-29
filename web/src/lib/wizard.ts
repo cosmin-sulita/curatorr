@@ -1,4 +1,4 @@
-import { STEP_ORDER, type Criteria, type WizardStep } from '@curatorr/shared';
+import { NO_PREFERENCE, STEP_ORDER, type Criteria, type WizardStep } from '@curatorr/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useReducedMotionConfig } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
@@ -14,7 +14,7 @@ const MAX_WAIT = 1500;
 const AHEAD_AT_ONCE = 3;
 
 /** "Surprise me": no answers, straight to a pick. */
-export const SURPRISE_URL = withQuery('/pick', { genre: 'any', theme: 'any', mood: 'any', time: 'any' });
+export const SURPRISE_URL = withQuery('/pick', Object.fromEntries(STEP_ORDER.map((s) => [s, NO_PREFERENCE])));
 
 // Every wizard answer lives in the address, so the phone's back gesture steps back through the questions.
 
@@ -58,7 +58,7 @@ export async function prepare(qc: QueryClient, url: string, { ahead = false } = 
   if (pathname === '/pick') {
     const { picks } = await qc.fetchQuery(recommendationsQuery(criteriaFrom(searchParams), searchParams.get('like')));
     const first = picks[0]?.movie;
-    const surprise = STEP_ORDER.every((s) => searchParams.get(s) === 'any');
+    const surprise = STEP_ORDER.every((s) => searchParams.get(s) === NO_PREFERENCE);
     if (!ahead) warmImages([first?.posterUrl, first?.fanartUrl], 'high');
     else warmImages(surprise ? picks.map((p) => p.movie.posterUrl) : [first?.posterUrl], 'low');
     return url;
@@ -67,7 +67,7 @@ export async function prepare(qc: QueryClient, url: string, { ahead = false } = 
   if (!isStep(step)) return url;
   const answers = answersBefore(step, criteriaFrom(searchParams));
   const data = await qc.fetchQuery(wizardQuery(step, answers));
-  if (data.skip) return prepare(qc, nextUrl(step, answers, 'any'), { ahead });
+  if (data.skip) return prepare(qc, nextUrl(step, answers, NO_PREFERENCE), { ahead });
   if (!ahead) warmImages(firstPictures(data), 'high');
   return url;
 }
