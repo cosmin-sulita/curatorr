@@ -37,6 +37,9 @@ describe('API (demo data)', () => {
     expect(body.server).toBeNull();
     expect(body.library.movies).toBeGreaterThan(50);
     expect(body.profile).toBeNull();
+    // The next 4 am on the server's clock, which the app starts over at.
+    expect(body.turnover).toBeGreaterThan(Date.now());
+    expect(body.turnover - Date.now()).toBeLessThanOrEqual(25 * 60 * 60 * 1000);
   });
 
   it('requires a profile for the wizard', async () => {

@@ -5,7 +5,10 @@ export const DAY = 24 * 60 * 60 * 1000;
 /** The daily shuffle turns over at this hour, local time, so no evening spans two days. */
 const DAY_TURNS_AT_HOUR = 4;
 
-/** The evening `now` belongs to, as YYYY-MM-DD in the local time zone (the server's TZ). */
+/**
+ * The evening `now` belongs to, as YYYY-MM-DD in the time zone of whatever runs it: the server's (its TZ) for picks.
+ * The app goes by the turnover the server gives (`AppStatus.turnover`) instead of working it out on the phone.
+ */
 export function pickingDay(now: number) {
   const d = new Date(now - DAY_TURNS_AT_HOUR * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');

@@ -208,6 +208,11 @@ export interface AppStatus {
   /** Who is watching with `profile` tonight; empty when it's on its own. */
   together: Profile[];
   library: { movies: number; lastSync: number | null; syncing: boolean; lastError: string | null };
+  /**
+   * When tonight's picks end: the next 4 am turnover, by the server's clock and time zone, when picks reshuffle and
+   * groups end. The app goes by this rather than the phone's own 4 am, which may be in another time zone.
+   */
+  turnover: number;
 }
 
 // ---- What the API answers, besides the above. The server's handlers declare these, so a change on either side

@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import type { RouteModule } from '../context.js';
 import { syncServerState } from '../services/mediaServer.js';
 import { updateFor } from '../services/updates.js';
-import { currentGroup, isAdmin, profileFor } from '../session.js';
+import { currentGroup, isAdmin, profileFor, togetherUntil } from '../session.js';
 
 export const statusRoutes: RouteModule = (app, { store, library }) => {
   app.get('/api/health', async () => ({ ok: true }));
@@ -32,6 +32,7 @@ export const statusRoutes: RouteModule = (app, { store, library }) => {
       profile: profile ? profileFor(store, profile) : null,
       together: together.map((r) => profileFor(store, r)),
       library: { movies: store.movies().length, lastSync: sync.at, syncing: library.syncing, lastError },
+      turnover: togetherUntil(Date.now()),
     };
   });
 };

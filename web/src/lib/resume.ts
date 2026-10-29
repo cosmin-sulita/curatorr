@@ -1,6 +1,6 @@
-import { pickingDay } from '@curatorr/shared';
+import { pickingDay, type AppStatus } from '@curatorr/shared';
 import type { QueryClient } from '@tanstack/react-query';
-import { refreshPicking, refreshQuestions } from './api';
+import { keys, refreshPicking, refreshQuestions } from './api';
 import { navigate } from './router';
 
 /** Away from the app this long, what it shows is fetched again on coming back. */
@@ -18,19 +18,25 @@ const PICKING = /^\/(ask\/[a-z]+|pick|like)$/;
  * The status refreshes on coming back anyway (see useStatus), and with it who's watching.
  */
 export function refreshOnReturn(qc: QueryClient) {
-  let hiddenAt: number | null = null;
+  let hidden: { at: number; turnover: number | null } | null = null;
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      hiddenAt ??= Date.now();
+      // The server's turnover, as the app knew it when it went away.
+      hidden ??= { at: Date.now(), turnover: qc.getQueryData<AppStatus>(keys.status)?.turnover ?? null };
       return;
     }
-    if (hiddenAt === null) return;
-    const since = hiddenAt;
-    hiddenAt = null;
+    if (hidden === null) return;
+    const since = hidden;
+    hidden = null;
     const now = Date.now();
-    if (pickingDay(since) !== pickingDay(now)) startOver(qc);
-    else if (now - since >= LONG_BREAK_MS) refreshPicking(qc);
+    if (nightIsOver(since, now)) startOver(qc);
+    else if (now - since.at >= LONG_BREAK_MS) refreshPicking(qc);
   });
+}
+
+/** Whether the night the app went away in is over: past the server's turnover, or the phone's 4 am without one. */
+export function nightIsOver(since: { at: number; turnover: number | null }, now: number) {
+  return since.turnover != null ? now >= since.turnover : pickingDay(since.at) !== pickingDay(now);
 }
 
 function startOver(qc: QueryClient) {
