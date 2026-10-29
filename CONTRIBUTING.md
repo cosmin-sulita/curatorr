@@ -17,7 +17,7 @@ Docker runs Node 26, and CI tests on both 26 and 22.13. Newer npm versions skip 
 The demo library has about 95 movies and three profiles (Alex, Sam and Kids). In demo mode everyone counts as the admin and no profile has a PIN. `npm run dev` keeps its database in `config/`, which git ignores.
 
 ```sh
-npm test           # vitest, for shared/ and server/ (there's no web test suite)
+npm test           # vitest, for shared/, server/ and web's lib/ (not its screens)
 npm run typecheck  # tsc on shared, server, web and the tests
 npm run build      # web/dist, then server/dist
 npm run icons      # regenerates the committed icons from web/public/logo.svg and app-icon.svg

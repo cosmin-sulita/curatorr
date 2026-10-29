@@ -12,7 +12,7 @@ Requires Node 22.13+, for the built-in `node:sqlite`. Docker runs Node 26, and C
 npm install
 npm run dev:demo     # API on :7979 with a seeded demo library + Vite UI on :5173 (proxies /api)
 npm run dev          # same against real Radarr and Plex or Jellyfin; first start runs setup
-npm test             # vitest: shared/src/**/*.test.ts and server/src/**/*.test.ts only
+npm test             # vitest: shared/, server/, and the pure modules in web/src/lib/
 npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
 npm run typecheck    # tsc on shared, server and web in turn, then on the tests (tsconfig.test.json)
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
@@ -27,7 +27,7 @@ npm run icons        # regenerates the committed PWA icons from web/public/logo.
 - **Built app:** run `CURATORR_DEMO=1 CONFIG_DIR=<tmp dir> PORT=7979 node --disable-warning=ExperimentalWarning server/dist/index.js`. The server serves `web/dist` and falls back to `index.html` for SPA routes.
 - **Demo mode:** seeds `curatorr-demo.db` with about 95 movies and three profiles: Alex (owner, has started Back to the Future), Sam, and Kids (older_kid). A few files arrive days before each start (Alex's two requests reached Radarr a month earlier), and seeded watches are a week apart. In demo mode everyone counts as admin and no profile has a PIN.
 - **Install scripts:** npm skips dependencies' install scripts unless `allowScripts` in the root `package.json` allows them. esbuild's is denied on purpose (it works without it). Approve a new one only after reviewing it, with `npm install-scripts approve <pkg>`.
-- **Not configured:** there's no linter, no formatter and no web test suite. Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
+- **Not configured:** there's no linter, no formatter, and no tests of web's screens (only of the pure modules in `web/src/lib`: `criteria`, `format`, `marks`, `pictures`, `settings`, `url`, which must stay free of side effects at import). Match the surrounding style: 2-space indent, single quotes, lines up to about 120 characters, and sparse, explanatory comments.
 - **CI** (`.github/workflows/ci.yml`) runs on pushes to `main` and `develop` and on pull requests:
   - the typecheck, the tests and the build, on Node 26 and 22.13;
   - the changelog check, and on `main` the release (see below);
