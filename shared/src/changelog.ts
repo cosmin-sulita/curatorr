@@ -15,29 +15,43 @@ export interface ReleaseNote {
 // Only these commit types are worth telling people about; chore, ci, docs, refactor... stay in the changelog.
 const KINDS: Record<string, ReleaseNote['kind']> = { feat: 'new', fix: 'fix', perf: 'improved' };
 
-const SEMVER = /^\d+\.\d+\.\d+$/;
+/** A release's version, x.y.z. The app, the server's update check and the What's new popup all read it this way. */
+export const isVersion = (s: string) => /^\d+\.\d+\.\d+$/.test(s);
 
-/** Parses CHANGELOG.md into releases, newest first. Each bullet is a Conventional Commit subject. */
+/** A link to the commit after a bullet's subject: "([fd564ac](https://...))". */
+const COMMIT_LINK = /\s*\(\[[0-9a-f]+\]\([^)]*\)\)$/i;
+
+/**
+ * Parses CHANGELOG.md into releases, newest first. Each bullet is a Conventional Commit subject; text before the first
+ * bullet is the release's intro, and an indented line after one carries on that bullet. Any other `## ` heading ends
+ * the release above it.
+ */
 export function parseChangelog(md: string): Release[] {
   const releases: Release[] = [];
   let current: Release | null = null;
+  /** The bullet a wrapped line carries on: a note, or one of a kind that isn't shown. */
+  let bullet: ReleaseNote | 'hidden' | null = null;
 
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trim();
-    const heading = /^## (\d+\.\d+\.\d+)(?: \((.+)\))?/.exec(line);
-    if (heading) {
-      current = { version: heading[1]!, date: heading[2] ?? null, intro: '', notes: [] };
-      releases.push(current);
+    if (line.startsWith('## ')) {
+      const heading = /^## (\d+\.\d+\.\d+)(?: \((.+)\))?$/.exec(line);
+      current = heading ? { version: heading[1]!, date: heading[2] ?? null, intro: '', notes: [] } : null;
+      if (current) releases.push(current);
+      bullet = null;
       continue;
     }
     if (!current || !line || line.startsWith('#')) continue;
 
     if (line.startsWith('- ')) {
-      // "- fix(plex): open picks in the redesigned Plex apps ([fd564ac](https://...))"
-      const subject = line.slice(2).replace(/\s*\(\[[0-9a-f]+\]\([^)]*\)\)$/i, '');
+      const subject = line.slice(2).replace(COMMIT_LINK, '');
       const commit = /^(\w+)(?:\([^)]*\))?!?:\s*(.+)$/.exec(subject);
       const kind = commit && KINDS[commit[1]!.toLowerCase()];
-      if (kind) current.notes.push({ kind, text: commit[2]!.charAt(0).toUpperCase() + commit[2]!.slice(1) });
+      bullet = kind ? { kind, text: commit[2]!.charAt(0).toUpperCase() + commit[2]!.slice(1) } : 'hidden';
+      if (bullet !== 'hidden') current.notes.push(bullet);
+    } else if (bullet) {
+      // A long bullet wrapped onto the next line.
+      if (bullet !== 'hidden') bullet.text = `${bullet.text} ${line.replace(COMMIT_LINK, '')}`;
     } else {
       current.intro = current.intro ? `${current.intro} ${line}` : line;
     }
@@ -74,6 +88,6 @@ const RECENT = 3;
  */
 export function releasesSince(releases: Release[], lastSeen: string | null): Release[] {
   const withNews = releases.filter(hasNews);
-  if (!lastSeen || !SEMVER.test(lastSeen)) return withNews.slice(0, RECENT);
+  if (!lastSeen || !isVersion(lastSeen)) return withNews.slice(0, RECENT);
   return withNews.filter((r) => compareVersions(r.version, lastSeen) > 0);
 }

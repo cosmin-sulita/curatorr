@@ -1,4 +1,4 @@
-import { compareVersions, type AppStatus } from '@curatorr/shared';
+import { compareVersions, isVersion, type AppStatus } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { config } from '../config.js';
 import { requestJson } from '../http.js';
@@ -12,11 +12,10 @@ const REPO = 'cosmin-sulita/curatorr';
 const LATEST_RELEASE = `https://api.github.com/repos/${REPO}/releases/latest`;
 /** GitHub allows 60 requests an hour without a token: this is 4 a day. */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
-const RELEASE = /^\d+\.\d+\.\d+$/;
 
 /** The release to tell admins about: one newer than the running version. A build from source (`dev`) has none. */
 export function updateFor(running: string, latest: string | null): AppStatus['update'] {
-  if (!latest || !RELEASE.test(running) || compareVersions(latest, running) <= 0) return null;
+  if (!latest || !isVersion(running) || compareVersions(latest, running) <= 0) return null;
   return { version: latest, url: `https://github.com/${REPO}/releases/tag/v${latest}` };
 }
 
@@ -42,7 +41,7 @@ export async function checkForUpdates(store: Store, log: FastifyBaseLogger, url 
 
 /** Looks when Curatorr starts, then every 6 hours. The timer doesn't keep the process alive. */
 export function scheduleUpdateChecks(store: Store, log: FastifyBaseLogger) {
-  if (!RELEASE.test(config.version)) return () => {};
+  if (!isVersion(config.version)) return () => {};
   const check = () => void checkForUpdates(store, log);
   check();
   const timer = setInterval(check, CHECK_EVERY_MS);

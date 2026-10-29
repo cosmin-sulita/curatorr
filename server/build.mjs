@@ -4,10 +4,12 @@ import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const rootPkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-// A release is a new section at the top of CHANGELOG.md, so its first heading is the version being built.
+// A release is a new section at the top of CHANGELOG.md, so its first heading is the version being built (read as
+// isVersion in shared/src/changelog.ts does, and as CI checks it). Without one, the build stops: package.json's version
+// isn't the app's, and a wrong one would tell admins an update is waiting.
 const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
-const version = /^## (\d+\.\d+\.\d+)/m.exec(changelog)?.[1] ?? rootPkg.version;
+const version = /^## (\d+\.\d+\.\d+)/m.exec(changelog)?.[1];
+if (!version) throw new Error("CHANGELOG.md's first '## ' heading must be the version, as '## x.y.z (date)'");
 
 await build({
   entryPoints: ['src/index.ts'],

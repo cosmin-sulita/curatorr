@@ -53,6 +53,34 @@ describe('parseChangelog', () => {
     expect(releases[0]!.intro).toBe('Picks got smarter.');
   });
 
+  it('carries a wrapped bullet on, instead of taking it for an intro', () => {
+    const [release] = parseChangelog(`## 0.5.0 (2026-12-01)
+
+- fix(pick): keep the poster where it was while the next one
+  loads ([abc1238](https://github.com/x/curatorr/commit/abc1238))
+- chore(deps): update a long list of things that wraps onto
+  a second line
+`);
+    expect(release).toMatchObject({
+      intro: '',
+      notes: [{ kind: 'fix', text: 'Keep the poster where it was while the next one loads' }],
+    });
+    expect(hasHeadlineNews([release!])).toBe(false);
+  });
+
+  it('ends a release at any other heading, so its bullets stay out of it', () => {
+    const releases = parseChangelog(`## 0.5.0 (2026-12-01)
+
+- fix(pick): one
+
+## Unreleased
+
+- feat(pick): not out yet
+`);
+    expect(releases).toHaveLength(1);
+    expect(releases[0]!.notes).toEqual([{ kind: 'fix', text: 'One' }]);
+  });
+
   it("parses the repo's own CHANGELOG.md", () => {
     const real = parseChangelog(readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8'));
     expect(real[0]?.version).toMatch(/^\d+\.\d+\.\d+$/);
