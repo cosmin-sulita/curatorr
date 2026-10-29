@@ -3,8 +3,8 @@ import { tasteEvents, type Criteria, type TasteProfile } from '@curatorr/shared'
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ProfileRow, Store, StoredMovie } from '../store.js';
 import { listen, storedMovieMaker, tempStore as makeStore } from '../testing.js';
+import { ensurePlexIds } from './plexLibrary.js';
 import {
-  ensurePlexIds,
   likeSeeds,
   optionsFor,
   pickingFor,

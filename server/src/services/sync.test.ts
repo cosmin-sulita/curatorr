@@ -10,7 +10,8 @@ import type { SeerrRequest, SeerrUser } from '../integrations/seerr.js';
 import { Store } from '../store.js';
 import { LibrarySync } from './library.js';
 import { syncPlexState } from './profiles.js';
-import { ensurePlexIds, toDTO } from './recommend.js';
+import { ensurePlexIds } from './plexLibrary.js';
+import { toDTO } from './recommend.js';
 import { listen, silentLog, tempStore } from '../testing.js';
 
 const RADARR_KEY = 'radarr-key';

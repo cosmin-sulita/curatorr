@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { addToWatchlist, PlexServerClient, removeFromWatchlist } from '../integrations/plex.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 import type { ServerMark, ServerSyncResult } from './mediaServer.js';
-import { ensurePlexIds } from './recommend.js';
+import { ensurePlexIds } from './plexLibrary.js';
 
 /** "Seen it" marks the movie watched in Plex, "Watchlist" adds it to the Plex Watchlist (legacy agents have none). */
 export async function applyToPlex(
@@ -25,9 +25,9 @@ export async function applyToPlex(
 
     if (!profile.user_token) return 'skipped';
     if (store.watchlistIds(profile.id).has(movie.id)) return 'already';
-    await ensurePlexIds(store, [movie]);
-    if (!movie.plexGuid) return 'skipped'; // legacy agent: not on Plex Discover, so no Watchlist
-    await addToWatchlist(plex.clientId, profile.user_token, movie.plexGuid);
+    const guid = (await ensurePlexIds(store, [movie])).get(movie.id)?.plexGuid;
+    if (!guid) return 'skipped'; // legacy agent: not on Plex Discover, so no Watchlist
+    await addToWatchlist(plex.clientId, profile.user_token, guid);
     store.addToWatchlist(profile.id, movie.id);
     return 'synced';
   } catch (err) {
