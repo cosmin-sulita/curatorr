@@ -151,7 +151,7 @@ export function similarity(a: Signature, b: Signature, minNorm = 0): number {
 }
 
 /** `similarity` with both lengths known, as the library's index keeps them. */
-function cosine(a: Signature, aNorm: number, b: Signature, bNorm: number, minNorm: number): number {
+export function cosine(a: Signature, aNorm: number, b: Signature, bNorm: number, minNorm: number): number {
   const [small, large] = a.size <= b.size ? [a, b] : [b, a];
   let dot = 0;
   for (const [feature, w] of small) dot += w * (large.get(feature) ?? 0);

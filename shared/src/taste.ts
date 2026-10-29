@@ -1,5 +1,5 @@
 import { dayStart, type TasteProfile } from './scoring.js';
-import { libraryIndex, norm, type IndexEntry, type Signature } from './similar.js';
+import { cosine, libraryIndex, norm, type IndexEntry, type Signature } from './similar.js';
 import type { FeedbackEvent, Movie } from './types.js';
 
 /**
@@ -61,13 +61,6 @@ export function tasteEvents(
   return [...best.values()];
 }
 
-/** Cosine between an entry and a vector of known length. */
-function cosine(a: IndexEntry, b: Signature, bNorm: number) {
-  let dot = 0;
-  for (const [feature, w] of a.sig) dot += w * (b.get(feature) ?? 0);
-  return a.norm && bNorm ? dot / (a.norm * bNorm) : 0;
-}
-
 /**
  * The profile's taste at `now`, from `events` over `library` (every movie, for keyword rarity).
  * Tonight's watches only count from tomorrow, so the picks stay put all evening. `because` only names
@@ -96,8 +89,11 @@ export function tasteProfile(
   return {
     confidence: size ? watched.length / (watched.length + HALF_CONFIDENCE_WATCHES) : 0,
     affinity(m) {
+      // No floor on a short signature here, unlike "Something like…": counting such a movie as typically long
+      // (typicalNorm) measured no better in `npm run eval -- --compare` (2026-10-29: within noise for most questions,
+      // a little worse for some, e.g. MRR -0.014 on one profile's Surprise me), so taste compares plain cosines.
       const entry = index.get(m.id);
-      return entry ? cosine(entry, vector, size) : 0;
+      return entry ? cosine(entry.sig, entry.norm, vector, size, 0) : 0;
     },
     because(m) {
       // The taste vector is a sum over watched movies, so the biggest term of the likeness is the
@@ -108,7 +104,7 @@ export function tasteProfile(
       let most = 0;
       for (const w of watched) {
         if (w.entry.movie.id === m.id || !explainable(w.entry.movie)) continue;
-        const share = w.weight * cosine(entry, w.entry.sig, w.entry.norm);
+        const share = w.weight * cosine(entry.sig, entry.norm, w.entry.sig, w.entry.norm, 0);
         if (share > most) {
           most = share;
           best = w.entry.movie;
