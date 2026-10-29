@@ -269,7 +269,10 @@ export class PlexServerClient {
 
   async identity(timeoutMs = 5_000): Promise<{ machineId: string; version: string }> {
     const body = await this.get<any>('/identity', timeoutMs);
-    return { machineId: body.MediaContainer.machineIdentifier, version: body.MediaContainer.version };
+    // Another app on that address may answer too: a helpful error, not a TypeError that reads as Curatorr's own.
+    const id = body?.MediaContainer?.machineIdentifier;
+    if (!id) throw new UpstreamError(SERVICE, 'that address answered, but not as a Plex server');
+    return { machineId: String(id), version: String(body.MediaContainer.version ?? '') };
   }
 
   async movieLibraries(): Promise<PlexLibrary[]> {

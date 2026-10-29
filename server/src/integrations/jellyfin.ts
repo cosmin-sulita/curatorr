@@ -182,6 +182,8 @@ export class JellyfinClient {
         timeoutMs: 10_000,
       }),
     );
+    // Without a token there's nothing to keep: the string "undefined" would pass for one.
+    if (!body?.AccessToken || !body.User) throw new UpstreamError(SERVICE, 'the sign-in answered without a session');
     return { token: String(body.AccessToken), user: toJellyfinUser(body.User) };
   }
 

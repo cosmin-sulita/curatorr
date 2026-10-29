@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../config.js';
 import {
+  JellyfinClient,
   jellyfinAuthorization,
   jellyfinLink,
   jellyfinRestriction,
@@ -8,9 +9,10 @@ import {
   toJellyfinItem,
   toJellyfinUser,
 } from './jellyfin.js';
-import { connectionCandidates, parseGuids, plexDefaultAvatar, plexLinks, toPlexItem } from './plex.js';
+import { PlexServerClient, connectionCandidates, parseGuids, plexDefaultAvatar, plexLinks, toPlexItem } from './plex.js';
 import { assignSagas, fromRadarr, sagaTitle, tmdbSized } from './radarr.js';
 import { matchRequests, type SeerrRequest } from './seerr.js';
+import { fakeServer } from '../testing.js';
 
 describe('parseGuids', () => {
   it('reads the modern Plex agent', () => {
@@ -369,5 +371,20 @@ describe('matchRequests', () => {
     expect(matchRequests(profiles, movies, [{ id: 8, plexId: 5001 }], [request(2, 949, 8)])).toEqual([
       { profileId: 11, movieId: 2, requestedAt: null },
     ]);
+  });
+});
+
+describe('an address that answers, but not as the server asked for', () => {
+  it('says so, instead of failing on what it sent', async () => {
+    const other = await fakeServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+    try {
+      await expect(new PlexServerClient(other.base, 'client', 'token').identity()).rejects.toThrow(/not as a Plex server/);
+      await expect(new JellyfinClient(other.base, 'device').authenticate('Dad', 'pass')).rejects.toThrow(/without a session/);
+    } finally {
+      await other.close();
+    }
   });
 });
