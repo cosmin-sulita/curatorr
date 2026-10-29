@@ -12,6 +12,8 @@ import { syncRequests } from './requests.js';
 const WEBHOOK_SYNC_DELAY_MS = 2 * 60 * 1000;
 /** A movie that arrived this recently and isn't on the media server yet makes the scheduler sync again. */
 const AWAIT_SERVER_MS = 60 * 60 * 1000;
+/** How often the scheduler checks whether a sync is due. */
+const CHECK_EVERY_MS = 10 * 60 * 1000;
 
 export class LibrarySync {
   syncing = false;
@@ -161,7 +163,7 @@ export class LibrarySync {
       if (this.syncDue()) this.trigger();
     };
     tick();
-    this.timer = setInterval(tick, 10 * 60 * 1000);
+    this.timer = setInterval(tick, CHECK_EVERY_MS);
     this.timer.unref();
   }
 

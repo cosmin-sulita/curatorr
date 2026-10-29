@@ -45,12 +45,24 @@ function describeNetworkError(err: unknown): string {
   return String(err);
 }
 
+/** How long Curatorr waits for Radarr, Plex, plex.tv, Jellyfin or Seerr, by what it asks. */
+export const TIMEOUT = {
+  /** A mark, a sign-out, or a quick look at an address: someone is waiting on it. */
+  quick: 5_000,
+  /** One of a Plex server's addresses tried during setup, or a movie's Plex ids: several go at once. */
+  probe: 4_000,
+  /** An ordinary read. */
+  read: 15_000,
+  /** A whole library, which a big one takes a while to send. */
+  listing: 120_000,
+} as const;
+
 export async function request(
   service: string,
   url: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<Response> {
-  const { timeoutMs = 15_000, ...rest } = init;
+  const { timeoutMs = TIMEOUT.read, ...rest } = init;
   let res: Response;
   try {
     res = await fetch(url, { ...rest, signal: AbortSignal.timeout(timeoutMs) });

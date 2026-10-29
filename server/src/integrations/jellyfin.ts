@@ -1,6 +1,6 @@
 import type { RestrictionProfile } from '@curatorr/shared';
 import { config } from '../config.js';
-import { normalizeBaseUrl, request, requestJson, UpstreamError } from '../http.js';
+import { normalizeBaseUrl, request, requestJson, TIMEOUT, UpstreamError } from '../http.js';
 
 const SERVICE = 'Jellyfin';
 
@@ -159,12 +159,12 @@ export class JellyfinClient {
     };
   }
 
-  private get<T>(path: string, timeoutMs = 15_000) {
+  private get<T>(path: string, timeoutMs: number = TIMEOUT.read) {
     return requestJson<T>(SERVICE, `${this.baseUrl}${path}`, this.init({ timeoutMs }));
   }
 
   /** Answers without signing in, so it tells whether the address is Jellyfin, and which version. */
-  async publicInfo(timeoutMs = 5_000): Promise<{ id: string; name: string; version: string }> {
+  async publicInfo(timeoutMs: number = TIMEOUT.quick): Promise<{ id: string; name: string; version: string }> {
     const body = await this.get<any>('/System/Info/Public', timeoutMs);
     if (!body?.Id) throw new UpstreamError(SERVICE, 'that address answered, but not as Jellyfin');
     return { id: String(body.Id), name: body.ServerName || 'Jellyfin', version: String(body.Version ?? '') };
@@ -189,7 +189,7 @@ export class JellyfinClient {
 
   /** Ends this token's session, which also takes the device off Jellyfin's list. */
   async logout() {
-    await request(SERVICE, `${this.baseUrl}/Sessions/Logout`, this.init({ method: 'POST', timeoutMs: 5_000 }));
+    await request(SERVICE, `${this.baseUrl}/Sessions/Logout`, this.init({ method: 'POST', timeoutMs: TIMEOUT.quick }));
   }
 
   async users(): Promise<JellyfinUser[]> {
@@ -218,7 +218,7 @@ export class JellyfinClient {
     });
     if (libraryId) qs.set('parentId', libraryId);
     if (userId) qs.set('userId', userId);
-    const body = await this.get<{ Items?: unknown[] }>(`/Items?${qs}`, 120_000);
+    const body = await this.get<{ Items?: unknown[] }>(`/Items?${qs}`, TIMEOUT.listing);
     return (body.Items ?? []).map(toJellyfinItem);
   }
 
@@ -234,7 +234,7 @@ export class JellyfinClient {
 
   private async userData(route: string, userId: string, itemId: string, on: boolean) {
     const url = `${this.baseUrl}/${route}/${encodeURIComponent(itemId)}?userId=${encodeURIComponent(userId)}`;
-    await request(SERVICE, url, this.init({ method: on ? 'POST' : 'DELETE', timeoutMs: 5_000 }));
+    await request(SERVICE, url, this.init({ method: on ? 'POST' : 'DELETE', timeoutMs: TIMEOUT.quick }));
   }
 
   /** A user's picture, as Jellyfin serves it. */

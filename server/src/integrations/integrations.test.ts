@@ -9,7 +9,16 @@ import {
   toJellyfinItem,
   toJellyfinUser,
 } from './jellyfin.js';
-import { PlexServerClient, connectionCandidates, parseGuids, plexDefaultAvatar, plexLinks, toPlexItem } from './plex.js';
+import {
+  PLEX_HOSTS,
+  PlexServerClient,
+  connectionCandidates,
+  getWatchlist,
+  parseGuids,
+  plexDefaultAvatar,
+  plexLinks,
+  toPlexItem,
+} from './plex.js';
 import { assignSagas, fromRadarr, sagaTitle, tmdbSized } from './radarr.js';
 import { matchRequests, type SeerrRequest } from './seerr.js';
 import { fakeServer } from '../testing.js';
@@ -385,6 +394,27 @@ describe('an address that answers, but not as the server asked for', () => {
       await expect(new JellyfinClient(other.base, 'device').authenticate('Dad', 'pass')).rejects.toThrow(/without a session/);
     } finally {
       await other.close();
+    }
+  });
+});
+
+describe('reading a Plex Watchlist', () => {
+  it("fails rather than stopping short of the end, which would look like movies taken off it", async () => {
+    let reads = 0;
+    const discover = await fakeServer((_req, res) => {
+      reads++;
+      const Metadata = Array.from({ length: 100 }, (_, i) => ({ guid: `plex://movie/${reads}-${i}` }));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ MediaContainer: { totalSize: 20_000, Metadata } }));
+    });
+    const before = PLEX_HOSTS.discover;
+    PLEX_HOSTS.discover = discover.base;
+    try {
+      await expect(getWatchlist('client', 'token')).rejects.toThrow(/more than 10000 movies/);
+      expect(reads).toBe(100);
+    } finally {
+      PLEX_HOSTS.discover = before;
+      await discover.close();
     }
   });
 });

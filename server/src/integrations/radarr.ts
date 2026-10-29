@@ -1,5 +1,5 @@
 import { tagMovie } from '@curatorr/shared';
-import { normalizeBaseUrl, request, requestJson } from '../http.js';
+import { normalizeBaseUrl, request, requestJson, TIMEOUT } from '../http.js';
 import type { StoredMovie } from '../store.js';
 
 interface RadarrRating {
@@ -74,7 +74,7 @@ export class RadarrClient {
   movies() {
     return requestJson<RadarrMovie[]>(SERVICE, `${this.baseUrl}/api/v3/movie`, {
       headers: this.headers(),
-      timeoutMs: 120_000,
+      timeoutMs: TIMEOUT.listing,
     });
   }
 

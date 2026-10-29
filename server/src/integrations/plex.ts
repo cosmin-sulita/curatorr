@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { RestrictionProfile } from '@curatorr/shared';
 import { config } from '../config.js';
-import { normalizeBaseUrl, request, requestJson, UpstreamError } from '../http.js';
+import { normalizeBaseUrl, request, requestJson, TIMEOUT, UpstreamError } from '../http.js';
 
 /** Plex's cloud hosts. Exported so tests can point them at a fake server. */
 export const PLEX_HOSTS = {
@@ -187,11 +187,11 @@ export function plexDefaultAvatar(location: string): 'own' | 'default' | string 
 export async function ownAvatar(thumb: string | null): Promise<string | null> {
   if (!thumb) return null;
   try {
-    const res = await fetch(thumb, { redirect: 'manual', signal: AbortSignal.timeout(5_000) });
+    const res = await fetch(thumb, { redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT.quick) });
     const verdict = plexDefaultAvatar(res.headers.get('location') ?? '');
     if (verdict === 'default') return null;
     if (verdict === 'own') return thumb;
-    const gravatar = await fetch(verdict, { method: 'HEAD', signal: AbortSignal.timeout(5_000) });
+    const gravatar = await fetch(verdict, { method: 'HEAD', signal: AbortSignal.timeout(TIMEOUT.quick) });
     return gravatar.status === 404 ? null : thumb;
   } catch {
     return thumb;
@@ -260,14 +260,14 @@ export class PlexServerClient {
     this.baseUrl = normalizeBaseUrl(url);
   }
 
-  private get<T>(path: string, timeoutMs = 15_000) {
+  private get<T>(path: string, timeoutMs: number = TIMEOUT.read) {
     return requestJson<T>(SERVICE, `${this.baseUrl}${path}`, {
       headers: plexHeaders(this.clientId, this.token),
       timeoutMs,
     });
   }
 
-  async identity(timeoutMs = 5_000): Promise<{ machineId: string; version: string }> {
+  async identity(timeoutMs: number = TIMEOUT.quick): Promise<{ machineId: string; version: string }> {
     const body = await this.get<any>('/identity', timeoutMs);
     // Another app on that address may answer too: a helpful error, not a TypeError that reads as Curatorr's own.
     const id = body?.MediaContainer?.machineIdentifier;
@@ -283,7 +283,7 @@ export class PlexServerClient {
   }
 
   async movies(sectionKey: string): Promise<PlexItem[]> {
-    const body = await this.get<any>(`/library/sections/${sectionKey}/all?type=1&includeGuids=1`, 120_000);
+    const body = await this.get<any>(`/library/sections/${sectionKey}/all?type=1&includeGuids=1`, TIMEOUT.listing);
     return asArray<any>(body.MediaContainer?.Metadata).map(toPlexItem);
   }
 
@@ -291,7 +291,7 @@ export class PlexServerClient {
   async scrobble(ratingKey: string) {
     await request(SERVICE, `${this.baseUrl}/:/scrobble?${scrobbleQuery(ratingKey)}`, {
       headers: plexHeaders(this.clientId, this.token),
-      timeoutMs: 5_000,
+      timeoutMs: TIMEOUT.quick,
     });
   }
 
@@ -299,12 +299,12 @@ export class PlexServerClient {
   async unscrobble(ratingKey: string) {
     await request(SERVICE, `${this.baseUrl}/:/unscrobble?${scrobbleQuery(ratingKey)}`, {
       headers: plexHeaders(this.clientId, this.token),
-      timeoutMs: 5_000,
+      timeoutMs: TIMEOUT.quick,
     });
   }
 
   /** Full metadata for one item; includes the slug even when library listings leave it out. */
-  async item(ratingKey: string, timeoutMs = 4_000): Promise<PlexItem | null> {
+  async item(ratingKey: string, timeoutMs: number = TIMEOUT.probe): Promise<PlexItem | null> {
     const body = await this.get<any>(`/library/metadata/${encodeURIComponent(ratingKey)}`, timeoutMs);
     const m = asArray<any>(body.MediaContainer?.Metadata)[0];
     return m ? toPlexItem(m) : null;
@@ -340,11 +340,14 @@ export function toPlexItem(m: any): PlexItem {
 // ---------------------------------------------------------------------------
 
 const WATCHLIST_PAGE = 100;
+/** The longest Watchlist Curatorr reads. A longer one fails the read: cut short, it would look like removals. */
+const WATCHLIST_MAX = 10_000;
 
 /** The Plex guid ids of every movie on the user's Watchlist. */
 export async function getWatchlist(clientId: string, userToken: string): Promise<string[]> {
   const ids: string[] = [];
-  for (let start = 0; start < 10_000; start += WATCHLIST_PAGE) {
+  for (let start = 0; ; start += WATCHLIST_PAGE) {
+    if (start >= WATCHLIST_MAX) throw new UpstreamError(SERVICE, `the Watchlist holds more than ${WATCHLIST_MAX} movies`);
     const qs = new URLSearchParams({
       type: '1',
       'X-Plex-Container-Start': String(start),
@@ -380,7 +383,7 @@ async function watchlistAction(action: string, clientId: string, userToken: stri
   await request(SERVICE, `${PLEX_HOSTS.discover}/actions/${action}?ratingKey=${encodeURIComponent(plexGuid)}`, {
     method: 'PUT',
     headers: plexHeaders(clientId, userToken),
-    timeoutMs: 5_000,
+    timeoutMs: TIMEOUT.quick,
   });
 }
 

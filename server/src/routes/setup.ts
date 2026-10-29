@@ -1,7 +1,7 @@
 import type { ImportedProfile, PlexPinClaim, PlexPinStarted, PlexServerOption, ServerLibraries } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
-import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
+import { HttpError, normalizeBaseUrl, savedKeyFor, TIMEOUT } from '../http.js';
 import { RadarrClient } from '../integrations/radarr.js';
 import {
   authUrl,
@@ -105,7 +105,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
             const started = Date.now();
             try {
               const client = new PlexServerClient(c.url, plex.clientId, server.accessToken ?? plex.adminToken!);
-              await client.identity(4_000);
+              await client.identity(TIMEOUT.probe);
               return { ...c, ok: true, ms: Date.now() - started };
             } catch {
               return { ...c, ok: false, ms: null };
