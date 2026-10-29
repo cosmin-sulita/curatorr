@@ -42,8 +42,13 @@ export interface RankedMovie {
   /** 0 = matches everything, 1 = matches theme or mood, 2 = genre/time only. */
   tier: number;
   reasons: Reason[];
-  /** Where the score came from, so `npm run eval` can weigh each part. */
+  /** Where the score came from, so `npm run eval` can weigh each part. Set by `rankMovies`. */
   parts?: ScoreParts;
+  /**
+   * Set by `rankSimilar` instead: the likeness to the liked movie (`sim`), as a share of the closest match's
+   * (`share`), and what the profile's skips, wishes and sagas add (`personal`).
+   */
+  likeness?: { sim: number; share: number; personal: number };
 }
 
 export interface RankOptions {

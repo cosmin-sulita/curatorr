@@ -736,7 +736,7 @@ interface Ids {
 }
 
 /** A movie's TMDB and IMDb ids as keys of the `available` table. */
-const idKeys = (m: Ids) => [...(m.tmdbId != null ? [`tmdb:${m.tmdbId}`] : []), ...(m.imdbId ? [`imdb:${m.imdbId}`] : [])];
+export const idKeys = (m: Ids) => [...(m.tmdbId != null ? [`tmdb:${m.tmdbId}`] : []), ...(m.imdbId ? [`imdb:${m.imdbId}`] : [])];
 
 /** The whole library as stored, by title. Also used by the tagging report, which opens a copy read-only. */
 export function readMovies(db: DB): StoredMovie[] {

@@ -225,7 +225,15 @@ export function rankSimilar(
     // A shared genre or mood alone, or one small thing in common, makes only a loose match.
     const sharesTheme = Object.keys(m.themes).some((id) => (liked.themes[id] ?? 0) > 0);
     const strong = sim >= strongSim && (sharesTheme || countShared(likedEntry.keywords, entry.keywords) >= 2);
-    const r: RankedMovie = { movie: m, score: Math.round(score * 10) / 10, quality, tier: strong ? 0 : 1, reasons: [] };
+    const personal = adj.delta + (next ? NEXT_PART_BONUS : 0);
+    const r: RankedMovie = {
+      movie: m,
+      score: Math.round(score * 10) / 10,
+      quality,
+      tier: strong ? 0 : 1,
+      reasons: [],
+      likeness: { sim, share: sim / best, personal },
+    };
     details.set(r, { entry, adj, next });
     return r;
   });

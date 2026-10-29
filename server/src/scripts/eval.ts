@@ -34,24 +34,23 @@ import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import {
   JUST_ARRIVED,
-  NEXT_PART_BONUS,
+  MAX_RESULTS,
+  MIN_RESULTS,
   NO_PREFERENCE,
   SCORE_PARTS,
   allowedFor,
   arrivalTime,
+  fold,
   genreById,
   isSurprise,
   libraryIndex,
   matchesShelf,
   moodById,
-  personalAdjustment,
-  profileSignals,
   qualityScore,
   rankMovies,
   rankSimilar,
   seasonById,
   seenEchoes,
-  similarity,
   surpriseOrder,
   tagMovie,
   themeById,
@@ -60,16 +59,16 @@ import {
   type Criteria,
   type FeedbackEvent,
   type FeedbackKind,
+  type MediaServer,
   type Movie,
   type RankedMovie,
   type ScorePart,
   type ScoreParts,
   type Signature,
-  fold,
 } from '@curatorr/shared';
 import { config } from '../config.js';
 import { picking, type Picking, type ProfileData } from '../services/recommend.js';
-import { readMovies } from '../store.js';
+import { idKeys, readMovies } from '../store.js';
 
 const { values } = parseArgs({
   options: {
@@ -126,8 +125,14 @@ const db = new DatabaseSync(file, { readOnly: true });
 const all = <T>(sql: string) => db.prepare(sql).all() as unknown as T[];
 // Tagged by the working copy's vocabulary, as the server does at startup.
 const movies: Movie[] = readMovies(db).map((m) => ({ ...m, ...tagMovie(m) }));
-const profiles = all<{ id: number; name: string; restriction_profile: string | null }>(
-  'SELECT id, name, restriction_profile FROM profiles WHERE hidden = 0 ORDER BY is_admin DESC, sort_order, name',
+const profiles = all<{
+  id: number;
+  name: string;
+  restriction_profile: string | null;
+  jellyfin_user_id: string | null;
+  watched_synced_at: number | null;
+}>(
+  'SELECT id, name, restriction_profile, jellyfin_user_id, watched_synced_at FROM profiles WHERE hidden = 0 ORDER BY is_admin DESC, sort_order, name',
 );
 const watched = all<{ profile_id: number; movie_id: number; viewed_at: number | null }>(
   'SELECT profile_id, movie_id, viewed_at FROM watched',
@@ -138,7 +143,15 @@ const feedback = all<{ profile_id: number; movie_id: number; kind: FeedbackKind;
 const requests = all<{ profile_id: number; movie_id: number; requested_at: number | null }>(
   'SELECT profile_id, movie_id, requested_at FROM requests',
 );
-const watchlist = all<{ profile_id: number; movie_id: number }>('SELECT profile_id, movie_id FROM watchlist');
+/** A copy may come from an older version: what its tables hold. */
+const columns = (table: string) => new Set(all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name));
+const watchlist = all<{ profile_id: number; movie_id: number; added_at: number | null }>(
+  `SELECT profile_id, movie_id, ${columns('watchlist').has('added_at') ? 'added_at' : 'NULL AS added_at'} FROM watchlist`,
+);
+/** What each Jellyfin profile can open, as of the copy (no history is kept of it). */
+const available = columns('available').size
+  ? all<{ profile_id: number; key: string }>('SELECT profile_id, key FROM available')
+  : [];
 db.close();
 
 const movieById = new Map(movies.map((m) => [m.id, m]));
@@ -164,7 +177,25 @@ const nextEvening = (() => {
   return d.getTime() > copiedAt ? d.getTime() : d.getTime() + DAY;
 })();
 
-/** A profile as it stood at `at`; the Watchlist has no dates, so it only counts from the copy on. */
+/** The media server the copy was matched to, as the server reads it from its settings (which eval never reads). */
+const server: MediaServer | null = movies.some((m) => m.jellyfinId)
+  ? 'jellyfin'
+  : movies.some((m) => m.plexRatingKey)
+    ? 'plex'
+    : null;
+
+/** The movies a Jellyfin profile can open, as the server works them out (`availableMovies`); null for others. */
+function availableFor(profile: (typeof profiles)[number]): Set<number> | null {
+  if (profile.jellyfin_user_id == null) return null;
+  if (profile.watched_synced_at == null) return new Set();
+  const keys = new Set(available.filter((a) => a.profile_id === profile.id).map((a) => a.key));
+  return new Set(movies.flatMap((m) => (idKeys(m).some((k) => keys.has(k)) ? [m.id] : [])));
+}
+
+/**
+ * A profile as it stood at `at`. Watchlist entries count from when Curatorr first saw them there; ones from before it
+ * dated them, from the copy on. What a Jellyfin profile can open is as of the copy.
+ */
 function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = [], keep?: number): ProfileData {
   const profile = profiles.find((p) => p.id === profileId)!;
   return {
@@ -176,10 +207,12 @@ function dataAt(profileId: number, at: number, extraFeedback: FeedbackEvent[] = 
       .filter((w) => w.profile_id === profileId && (w.viewed_at ?? 0) < at)
       .map((w) => ({ movieId: w.movie_id, viewedAt: w.viewed_at })),
     feedback: [...feedback.filter((f) => f.profile_id === profileId && f.created_at < at).map(toEvent), ...extraFeedback],
-    watchlist: new Set(at >= copiedAt ? watchlist.filter((w) => w.profile_id === profileId).map((w) => w.movie_id) : []),
+    watchlist: new Set(
+      watchlist.filter((w) => w.profile_id === profileId && (w.added_at ?? copiedAt) <= at).map((w) => w.movie_id),
+    ),
     requested: new Set(requests.filter((r) => r.profile_id === profileId && (r.requested_at ?? 0) <= at).map((r) => r.movie_id)),
-    server: 'plex',
-    available: null,
+    server,
+    available: availableFor(profile),
     includeWatched: false,
     boostRequests: true,
   };
@@ -333,7 +366,7 @@ interface PartRecord {
 /** What each part of the score did on one question, `exact` being its matches in the order shown. */
 function partRecords(p: Picking, c: Criteria, exact: RankedMovie[], pos: number): PartRecord[] {
   const alone = (xs: number[]) => (pos < 0 || xs.length < 2 ? null : beats(xs, pos));
-  const top = new Set(exact.slice(0, 12).map((r) => r.movie.id));
+  const top = new Set(exact.slice(0, MAX_RESULTS).map((r) => r.movie.id));
   const scores = exact.map((r) => r.score);
   const out: PartRecord[] = [{ part: 'score', sd: sd(scores), alone: alone(scores) }];
   for (const part of SCORE_PARTS) {
@@ -345,7 +378,7 @@ function partRecords(p: Picking, c: Criteria, exact: RankedMovie[], pos: number)
       sd: sd(xs),
       alone: alone(xs),
       decides: without[0]!.movie.id !== exact[0]!.movie.id,
-      kept: without.slice(0, 12).filter((r) => top.has(r.movie.id)).length / Math.min(12, exact.length),
+      kept: without.slice(0, MAX_RESULTS).filter((r) => top.has(r.movie.id)).length / Math.min(MAX_RESULTS, exact.length),
     });
   }
   return out;
@@ -563,7 +596,7 @@ function tonight(profileId: number) {
     if (top.reasons.some((r: RankedMovie['reasons'][number]) => !['genre', 'theme', 'mood', 'time', 'rating'].includes(r.kind))) {
       personalChip += path.weight;
     }
-    if (ranked.filter((r) => r.tier === 0).length < 6) padded += path.weight;
+    if (ranked.filter((r) => r.tier === 0).length < MIN_RESULTS) padded += path.weight;
     if (qualityScore(top.movie.ratings) < 60) poor += path.weight;
     for (const s of path.skipped) skipped.set(s, (skipped.get(s) ?? 0) + path.weight);
     firstWeight.set(top.movie.id, (firstWeight.get(top.movie.id) ?? 0) + path.weight);
@@ -659,12 +692,8 @@ function explainLike(profileId: number, query: string) {
     return;
   }
   const p = picking(dataAt(profileId, nextEvening), nextEvening);
-  const { entries, typicalNorm } = libraryIndex(movies);
+  const { entries } = libraryIndex(movies);
   const likedSig = entries.get(liked.id)!.sig;
-  const likeness = (m: Movie) => similarity(likedSig, entries.get(m.id)!.sig, typicalNorm);
-  const others = p.eligible.filter((m) => m.id !== liked.id && !(liked.saga && m.saga?.id === liked.saga.id));
-  const best = Math.max(0, ...others.map(likeness));
-  const signals = profileSignals(p.ctx.feedback, p.opts);
   const ranked = rankSimilar(p.eligible, liked, movies, p.ctx.feedback, p.opts);
 
   const profile = profiles.find((x) => x.id === profileId)!;
@@ -674,15 +703,13 @@ function explainLike(profileId: number, query: string) {
       `${'rating'.padStart(8)}${'personal'.padStart(10)}`,
   );
   ranked.forEach((r, i) => {
-    const sim = likeness(r.movie);
-    const next = p.opts.sagas?.next.has(r.movie.id) && r.movie.saga ? NEXT_PART_BONUS : 0;
-    const personal = personalAdjustment(r.movie, signals, p.opts).delta + next;
+    const { sim, share, personal } = r.likeness!;
     const chips = r.reasons
       .filter((x) => ['requested', 'watchlist', 'added', 'saga'].includes(x.kind))
       .map((x) => x.label);
     console.log(
       `  ${String(i + 1).padStart(3)}  ${(r.tier ? 'loose' : 'strong').padEnd(6)}${r.score.toFixed(1).padStart(7)}` +
-        `${`${sim.toFixed(3)} ${pct(sim / best)}`.padStart(15)}${Math.round(r.quality).toString().padStart(8)}` +
+        `${`${sim.toFixed(3)} ${pct(share)}`.padStart(15)}${Math.round(r.quality).toString().padStart(8)}` +
         `${signed(personal, 1).padStart(10)}  ${[name(r.movie), ...chips].join(' · ')}`,
     );
     console.log(`  ${''.padStart(23)}shares ${sharedParts(likedSig, entries.get(r.movie.id)!.sig)}`);
@@ -703,8 +730,8 @@ function printParts(exact: RankedMovie[], pos: number) {
       `  ${i === pos ? '▸' : ' '}${String(i + 1).padStart(4)}${r.score.toFixed(1).padStart(8)}` +
         `${SCORE_PARTS.map((part) => cell(r.parts![part])).join('')}  ${name(r.movie)}`,
     );
-  exact.slice(0, 12).forEach(row);
-  if (pos >= 12) row(exact[pos]!, pos);
+  exact.slice(0, MAX_RESULTS).forEach(row);
+  if (pos >= MAX_RESULTS) row(exact[pos]!, pos);
 }
 
 /** `--watch`: each evening the profile watched a movie, replayed: its questions, where it ranked, and what ranked above it. */
@@ -724,7 +751,7 @@ function explainWatch(profileId: number, query: string) {
     const p = picking(dataAt(profileId, at, [], m.id), at, { taste: true });
     const fresh = arrivalTime(m) != null && w.viewed_at! - arrived(m) <= FRESH;
     heading(`${profile.name} watched ${name(m)} on ${day(w.viewed_at!)}${fresh ? ', a fresh arrival' : ''}:`);
-    if (!p.eligible.some((x) => x.id === m.id)) console.log('  not offerable that evening (saga order, not in Plex)');
+    if (!p.eligible.some((x) => x.id === m.id)) console.log('  not offerable that evening (saga order, not on the media server)');
     for (const { family, c } of questions(p, m)) {
       const exact = rank(p, c, Infinity).filter((r) => r.tier === 0);
       const pos = exact.findIndex((r) => r.movie.id === m.id);
@@ -819,7 +846,7 @@ if (values.like || values.watch) {
     const offered = ws.filter((w) => w.offered).length;
     heading(
       `${profile.name}: would the pick have been what they watched? ${ws.length} watches since ${day(libraryStart + SETTLING)}, ` +
-        `${ws.length - offered} of them not offerable that evening (saga order, not in Plex)`,
+        `${ws.length - offered} of them not offerable that evening (saga order, not on the media server)`,
     );
     if (values.split) {
       const split = Date.parse(values.split);
