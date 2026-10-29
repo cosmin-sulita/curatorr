@@ -1,4 +1,5 @@
-import { dayStart, type TasteProfile } from './scoring.js';
+import { DAY, dayStart } from './clock.js';
+import type { TasteProfile } from './tastePoints.js';
 import { cosine, libraryIndex, norm, type IndexEntry, type Signature } from './similar.js';
 import type { FeedbackEvent, Movie } from './types.js';
 
@@ -8,7 +9,6 @@ import type { FeedbackEvent, Movie } from './types.js';
  * count most. `npm run eval` measures how well it predicts what a profile goes on to watch.
  */
 
-const DAY = 24 * 60 * 60 * 1000;
 /** A watch counts half as much after this many days. */
 const HALF_LIFE_DAYS = 60;
 /** Watches with no date count as this old. */

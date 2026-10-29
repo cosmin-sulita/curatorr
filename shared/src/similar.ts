@@ -1,16 +1,7 @@
 import { emptySagaState } from './sagas.js';
-import {
-  NEXT_PART_BONUS,
-  addedReasons,
-  personalAdjustment,
-  profileSignals,
-  qualityScore,
-  tagStrength,
-  topRanked,
-  wantedReasons,
-  type RankOptions,
-  type RankedMovie,
-} from './scoring.js';
+import { addedReasons, personalAdjustment, profileSignals, wantedReasons } from './personal.js';
+import { qualityScore } from './quality.js';
+import { NEXT_PART_BONUS, tagStrength, topRanked, type RankOptions, type RankedMovie } from './ranking.js';
 import { keywordPhrases } from './tagger.js';
 import { moodById, themeById, type MoodDef, type ThemeDef } from './taxonomy.js';
 import type { FeedbackEvent, Movie, Reason } from './types.js';

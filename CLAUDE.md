@@ -46,7 +46,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
     - Weak terms only back up a strong term, an implying genre or the plot (for moods: a genre lean, a strong term or the runtime bonus). TMDB's tone words (amused, hopeful…) are weak for Light & Fun and Feel-Good because they're noisy.
     - Per-tag `exclude` lists stop idioms ("cat and mouse" isn't Animals), and `overviewExclude` does the same for the plot ("haunted by his past" isn't Supernatural); some themes need two signals (`threshold: 3`).
     - `tagger.fixtures.ts` holds real movies with clear-cut expected tags. Keep it passing and add a case when you fix a mis-tag.
-  - `scoring.ts`: `eligibleMovies`, `rankMovies` and `wizardOptions` (counts, images, and the `skip` rule for questions with no real choice or once the picks can show every movie left). `rankMovies` starts from the quality score and adds:
+  - `scoring.ts` gathers the picking modules: `clock.ts` (`pickingDay`, `dayStart`), `quality.ts`, `eligibility.ts` (`eligibleMovies`), `criteria.ts`, `shelves.ts` (shortcuts and seasons), `personal.ts` (skips, shown, wanted, arrivals, jitter), `tastePoints.ts`, `ranking.ts` (`rankMovies`) and `facets.ts` (`wizardOptions`: counts, images, and the `skip` rule for questions with no real choice or once the picks can show every movie left). `rankMovies` starts from the quality score and adds:
     - the theme/mood bonus, taste points (`tastePoints`) and the new-arrival bonus (`arrivalTime`: the file's `arrivedAt`, else `addedAt`);
     - skip and showing penalties, the watchlist and request bonuses and the next-saga bonus;
     - a jitter seeded per profile per day.
@@ -63,7 +63,7 @@ An npm workspace in three parts. `@curatorr/shared` is consumed as TypeScript so
       - **Sagas:** a new sequel still brings in its unwatched first part, as answers do. On a season, the first part must fit the season too.
   - `taste.ts`: a profile's taste vector, summed from the `similar.ts` signatures of what it watched (compared with the same `cosine`, but without its floor for short signatures, which measured no better): media server watches and `accepted` count fully, `seen` 0.3, with a 60-day half-life. Confidence grows with history and is 0 without any. Only events before the day's 4 am turnover (`dayStart`) count, so an evening's picks don't move. Its "Because … watched" (`because`) only names movies everyone picking may see (`explainable`, from `picking`'s limits).
     - "Seen it" marks the movie watched on the media server too, and the next sync reads that back as a watch. `seenEchoes` spots it (the mark changed the server, `serverSynced`, and the watch is dated within 10 minutes of it), and it counts as the mark. `npm run eval` doesn't replay it either.
-  - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `scoring.ts`, but not taste.
+  - `similar.ts`: "Something like…". `rankSimilar` ranks eligible movies by cosine similarity to a liked movie (keywords weighted by rarity, plus themes, moods and genres). It reuses `personalAdjustment` from `personal.ts`, but not taste.
     - TMDB's tone words (`TONE_KEYWORDS`: absurd, suspenseful…) don't count as keywords, here or in taste: contributors add them unevenly, and the moods cover them.
     - A signature shorter than a typical movie's (`typicalNorm`, the library's median) counts as that long in `similarity`, so movies with few keywords don't crowd every list.
     - Likeness is scored against the closest match (`SIMILARITY_POINTS * sim / best`), so the rating and `personalAdjustment` only reorder movies about as alike, except a pick passed over on several evenings, whose shown penalty keeps growing.
@@ -166,7 +166,7 @@ The feedback kinds are `shown`, `skipped`, `seen`, `never`, `accepted` and `late
   - **New arrivals:** a movie whose file arrived lately gets up to +18 in the wizard's picks (+12 in "Something like…"), fading over about three weeks, with an "Added … ago" chip for about two weeks (while the +12 version is worth 6 or more). It doesn't matter who requested the movie: replayed watches showed a household watching each other's requests (decided with the maintainer).
     - The date is Radarr's import date of the first file Curatorr saw (`arrived_at`), so an upgrade doesn't make a movie new again. Radarr's added date is when a request was made, often before release, and is only the fallback.
   - **Retention:** `shown` and `skipped` older than 90 days are pruned when the server starts; `accepted` is kept for taste.
-- **README:** "How picks work" quotes these numbers and the other constants in `scoring.ts`. Update it in the same commit when they change.
+- **README:** "How picks work" quotes these numbers and the other constants in `personal.ts`, `ranking.ts` and `tastePoints.ts`. Update it in the same commit when they change.
 
 ### Branches, commits and releases
 
