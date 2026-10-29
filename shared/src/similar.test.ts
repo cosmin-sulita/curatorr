@@ -1,21 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { emptySagaState, sagaState } from './sagas.js';
-import {
-  NEXT_PART_BONUS,
-  addedReasons,
-  personalAdjustment,
-  profileSignals,
-  qualityScore,
-  topRanked,
-  wantedReasons,
-  type RankOptions,
-  type RankedMovie,
-} from './scoring.js';
-import { libraryIndex, norm, rankSimilar, signature, type Signature } from './similar.js';
-import { keywordPhrases, tagMovie } from './tagger.js';
+import { sagaState } from './sagas.js';
+import type { RankOptions } from './scoring.js';
+import { libraryIndex, rankSimilar } from './similar.js';
+import { tagMovie } from './tagger.js';
 import { TAGGED_MOVIES } from './tagger.fixtures.js';
-import { moodById, themeById, type MoodDef, type ThemeDef } from './taxonomy.js';
-import type { FeedbackEvent, Movie, Reason } from './types.js';
+import type { FeedbackEvent, Movie } from './types.js';
 import { DAY, movieMaker } from './testing.js';
 
 const movie = movieMaker();
@@ -188,87 +177,6 @@ describe('rankSimilar', () => {
 });
 
 describe('"Something like…" over a whole library', () => {
-  /** Today's ranking, kept to prove the faster one gives the same lists: it works out every candidate's chips. */
-  function referenceRankSimilar(
-    eligible: Movie[],
-    liked: Movie,
-    library: Movie[],
-    feedback: FeedbackEvent[],
-    opts: RankOptions,
-  ) {
-    const { idf, entries, typicalNorm } = libraryIndex(library);
-    const signatureOf = (m: Movie) => entries.get(m.id)?.sig ?? signature(m, idf);
-    const usable = (m: Movie) =>
-      new Set([...signature(m, idf).keys()].filter((k) => k.startsWith('k:')).map((k) => k.slice(2)));
-    const similarityOf = (a: Signature, b: Signature) => {
-      const [small, large] = a.size <= b.size ? [a, b] : [b, a];
-      let dot = 0;
-      for (const [feature, w] of small) dot += w * (large.get(feature) ?? 0);
-      const n = Math.max(norm(a), typicalNorm) * Math.max(norm(b), typicalNorm);
-      return n ? dot / n : 0;
-    };
-    const sharedTags = (a: Record<string, number>, b: Record<string, number>) =>
-      Object.keys(b)
-        .filter((id) => (a[id] ?? 0) > 0)
-        .sort((x, y) => Math.min(a[y]!, b[y]!) - Math.min(a[x]!, b[x]!));
-    const termsOf = (def: ThemeDef | MoodDef | undefined) =>
-      [...(def?.strong ?? []), ...(def?.weak ?? [])].map((t) => t.toLowerCase());
-    const tagReasons = (shared: { themes: string[]; moods: string[]; keywords: string[] }): Reason[] => {
-      const covered = new Set([
-        ...shared.themes.flatMap((id) => termsOf(themeById.get(id))),
-        ...shared.moods.flatMap((id) => termsOf(moodById.get(id))),
-      ]);
-      const keywords = shared.keywords.filter((k) => ![...keywordPhrases(k)].some((p) => covered.has(p)));
-      return [
-        ...shared.themes.slice(0, 2).map((id): Reason => ({ kind: 'theme', label: themeById.get(id)?.label ?? id })),
-        ...keywords.slice(0, 2).map((k): Reason => ({ kind: 'keyword', label: k[0]!.toUpperCase() + k.slice(1) })),
-        ...shared.moods.slice(0, 1).map((id): Reason => ({ kind: 'mood', label: moodById.get(id)?.label ?? id })),
-      ].slice(0, 4);
-    };
-    const likedSig = signatureOf(liked);
-    const likedKeywords = usable(liked);
-    const signals = profileSignals(feedback, opts);
-    const sagas = opts.sagas ?? emptySagaState();
-    const candidates = eligible.flatMap((m) => {
-      if (m.id === liked.id || (liked.saga && m.saga?.id === liked.saga.id)) return [];
-      const sim = similarityOf(likedSig, signatureOf(m));
-      return sim > 0 ? [{ m, sim }] : [];
-    });
-    const best = Math.max(0, ...candidates.map((c) => c.sim));
-    const ranked = candidates.map(({ m, sim }): RankedMovie => {
-      const shared = {
-        themes: sharedTags(liked.themes, m.themes),
-        moods: sharedTags(liked.moods, m.moods),
-        keywords: [...usable(m)]
-          .filter((k) => likedKeywords.has(k))
-          .sort((x, y) => (idf.get(y) ?? 0) - (idf.get(x) ?? 0)),
-      };
-      const quality = qualityScore(m.ratings);
-      const adj = personalAdjustment(m, signals, opts);
-      let score = 100 * (sim / best) + 0.3 * quality + adj.delta;
-      const sagaReasons: Reason[] = [];
-      if (sagas.next.has(m.id) && m.saga) {
-        score += NEXT_PART_BONUS;
-        sagaReasons.push({ kind: 'saga', label: `Next in ${m.saga.title}` });
-      }
-      const strong = sim >= 0.4 * best && (shared.themes.length > 0 || shared.keywords.length >= 2);
-      return {
-        movie: m,
-        score: Math.round(score * 10) / 10,
-        quality,
-        tier: strong ? 0 : 1,
-        reasons: [
-          ...wantedReasons(adj, opts.wantedBy?.get(m.id)),
-          ...sagaReasons,
-          ...addedReasons(adj),
-          ...tagReasons(shared),
-        ],
-      };
-    });
-    return topRanked(ranked, opts.limit);
-  }
-
-  const DAY = 86_400_000;
   // The tagging fixtures as a library, with ratings, a saga, new arrivals and some history to rank by.
   const library = TAGGED_MOVIES.map((t, i) =>
     movie({
@@ -298,13 +206,59 @@ describe('"Something like…" over a whole library', () => {
     sagas: sagaState(library, new Set([library[0]!.id])),
   };
 
-  it('gives the same picks, scores, matches and chips as before, from every movie', () => {
-    for (const liked of library) {
-      for (const limit of [undefined, 1000]) {
-        const want = referenceRankSimilar(library, liked, library, feedback, { ...opts, limit });
-        expect(rankSimilar(library, liked, library, feedback, { ...opts, limit })).toEqual(want);
-      }
-    }
+  /** One line per pick: enough to show a change to the list, its order, scores, matches or chips. */
+  const lists = (liked: Movie) =>
+    rankSimilar(library, liked, library, feedback, opts).map(
+      (r) => `${r.movie.title} | ${r.tier ? 'loose' : 'strong'} | ${r.score} | ${r.reasons.map((x) => x.label).join(', ')}`,
+    );
+
+  // Tuning the ranking (its constants, matches or chips) shows here as a reviewed change to these lists.
+  it('keeps its picks, scores, matches and chips from a few movies', () => {
+    expect([0, 12, 25].map((i) => [library[i]!.title, ...lists(library[i]!)])).toMatchInlineSnapshot(`
+      [
+        [
+          "Jaws",
+          "The Revenant | strong | 120 | Animal attack, Based on novel or book, Edge of Your Seat",
+          "Luca | strong | 115 | On your watchlist, Added 10 days ago, Monsters & Creatures",
+          "The Lord of the Rings: The Return of the King | strong | 95.1 | Monsters & Creatures, Based on novel or book",
+          "Superman | strong | 92.4 | Monsters & Creatures",
+          "28 Weeks Later | loose | 123.3 | Edge of Your Seat",
+          "Finding Nemo | loose | 101.6 | Shark",
+          "Twisters | loose | 98.9 | Dying and death, Edge of Your Seat",
+          "Gone Girl | loose | 75.3 | Based on novel or book, Edge of Your Seat",
+          "True Grit | loose | 68.7 | Based on novel or book, Dark & Heavy",
+          "Split | loose | 65.9 | Edge of Your Seat",
+          "The Shawshank Redemption | loose | 65 | Based on novel or book, Dark & Heavy",
+          "Get Out | loose | 60.7 | Edge of Your Seat",
+        ],
+        [
+          "Ocean's Eleven",
+          "Heat | strong | 120.8 | Heists & Cons, Ex-con, Remake, Edge of Your Seat",
+          "True Grit | loose | 44.5 | Remake",
+          "Paddington 2 | loose | 40.9 | On your watchlist, Light & Fun",
+          "The Third Man | loose | 38.1 | Next in Saga, Edge of Your Seat",
+          "Luca | loose | 35.4 | On your watchlist, Added 10 days ago, Light & Fun",
+          "Oscar Shaw | loose | 35.3 | Edge of Your Seat",
+          "Gone Girl | loose | 35 | Edge of Your Seat",
+          "The Wild Robot | loose | 35 | Light & Fun",
+          "Snow White | loose | 34.3 | Remake",
+          "The Revenant | loose | 34.1 | Remake, Edge of Your Seat",
+          "Contagion | loose | 33.8 | Edge of Your Seat",
+          "John Wick | loose | 33.7 | Edge of Your Seat",
+        ],
+        [
+          "The Lord of the Rings: The Return of the King",
+          "The Prestige | strong | 121.7 | Magic & Wizards, Obsession, Based on novel or book",
+          "Gladiator II | strong | 119 | Myths & Dragons, Something Epic",
+          "Superman | strong | 114.5 | Monsters & Creatures, Something Epic",
+          "Heat | strong | 107 | Honor, Obsession, Something Epic",
+          "Paddington 2 | strong | 99.3 | On your watchlist, Live action and animation, Based on novel or book",
+          "Encanto | strong | 96 | Magic & Wizards",
+          "Luca | strong | 78.4 | On your watchlist, Added 10 days ago, Monsters & Creatures",
+          "Jaws | strong | 62.7 | Added today, Monsters & Creatures, Based on novel or book",
+        ],
+      ]
+    `);
   });
 
   it("ranks from what the library's index worked out, without reading each candidate's keywords again", () => {
