@@ -1,6 +1,6 @@
 import type { RestrictionProfile } from '@curatorr/shared';
 import { config } from '../config.js';
-import { normalizeBaseUrl, request, requestJson, TIMEOUT, UpstreamError } from '../http.js';
+import { normalizeBaseUrl, request, requestJson, requestOk, TIMEOUT, UpstreamError } from '../http.js';
 
 const SERVICE = 'Jellyfin';
 
@@ -189,7 +189,7 @@ export class JellyfinClient {
 
   /** Ends this token's session, which also takes the device off Jellyfin's list. */
   async logout() {
-    await request(SERVICE, `${this.baseUrl}/Sessions/Logout`, this.init({ method: 'POST', timeoutMs: TIMEOUT.quick }));
+    await requestOk(SERVICE, `${this.baseUrl}/Sessions/Logout`, this.init({ method: 'POST', timeoutMs: TIMEOUT.quick }));
   }
 
   async users(): Promise<JellyfinUser[]> {
@@ -234,7 +234,7 @@ export class JellyfinClient {
 
   private async userData(route: string, userId: string, itemId: string, on: boolean) {
     const url = `${this.baseUrl}/${route}/${encodeURIComponent(itemId)}?userId=${encodeURIComponent(userId)}`;
-    await request(SERVICE, url, this.init({ method: on ? 'POST' : 'DELETE', timeoutMs: TIMEOUT.quick }));
+    await requestOk(SERVICE, url, this.init({ method: on ? 'POST' : 'DELETE', timeoutMs: TIMEOUT.quick }));
   }
 
   /** A user's picture, as Jellyfin serves it. */

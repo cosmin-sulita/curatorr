@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { RestrictionProfile } from '@curatorr/shared';
 import { config } from '../config.js';
-import { normalizeBaseUrl, request, requestJson, TIMEOUT, UpstreamError } from '../http.js';
+import { normalizeBaseUrl, request, requestJson, requestOk, TIMEOUT, UpstreamError } from '../http.js';
 
 /** Plex's cloud hosts. Exported so tests can point them at a fake server. */
 export const PLEX_HOSTS = {
@@ -289,7 +289,7 @@ export class PlexServerClient {
 
   /** Marks an item watched for the user this client's token belongs to. */
   async scrobble(ratingKey: string) {
-    await request(SERVICE, `${this.baseUrl}/:/scrobble?${scrobbleQuery(ratingKey)}`, {
+    await requestOk(SERVICE, `${this.baseUrl}/:/scrobble?${scrobbleQuery(ratingKey)}`, {
       headers: plexHeaders(this.clientId, this.token),
       timeoutMs: TIMEOUT.quick,
     });
@@ -297,7 +297,7 @@ export class PlexServerClient {
 
   /** Marks an item unwatched for the user this client's token belongs to. */
   async unscrobble(ratingKey: string) {
-    await request(SERVICE, `${this.baseUrl}/:/unscrobble?${scrobbleQuery(ratingKey)}`, {
+    await requestOk(SERVICE, `${this.baseUrl}/:/unscrobble?${scrobbleQuery(ratingKey)}`, {
       headers: plexHeaders(this.clientId, this.token),
       timeoutMs: TIMEOUT.quick,
     });
@@ -380,7 +380,7 @@ export async function removeFromWatchlist(clientId: string, userToken: string, p
 }
 
 async function watchlistAction(action: string, clientId: string, userToken: string, plexGuid: string) {
-  await request(SERVICE, `${PLEX_HOSTS.discover}/actions/${action}?ratingKey=${encodeURIComponent(plexGuid)}`, {
+  await requestOk(SERVICE, `${PLEX_HOSTS.discover}/actions/${action}?ratingKey=${encodeURIComponent(plexGuid)}`, {
     method: 'PUT',
     headers: plexHeaders(clientId, userToken),
     timeoutMs: TIMEOUT.quick,

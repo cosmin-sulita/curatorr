@@ -77,6 +77,15 @@ export async function request(
   return res;
 }
 
+/**
+ * For a call whose answer says nothing beyond succeeding (a mark, a sign-out): its body is let go at once, rather than
+ * holding the connection until it's garbage-collected.
+ */
+export async function requestOk(service: string, url: string, init: RequestInit & { timeoutMs?: number } = {}) {
+  const res = await request(service, url, init);
+  await res.body?.cancel();
+}
+
 /** Pulls a readable message out of an error body; ignores empty JSON and HTML pages. */
 function errorDetail(body: string): string {
   const text = body.trim();
