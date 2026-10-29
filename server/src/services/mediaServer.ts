@@ -1,3 +1,4 @@
+import type { ServerSyncResult } from '@curatorr/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 import { applyToJellyfin, importJellyfinUsers, revertInJellyfin, syncJellyfinState } from './jellyfin.js';
@@ -11,7 +12,7 @@ import { importHomeUsers, syncPlexState } from './profiles.js';
  * - `skipped`: nothing to do (sync off, no media server, profile not linked, movie not there)
  * - `failed`: the server couldn't be reached; the mark is still saved in Curatorr
  */
-export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
+export type { ServerSyncResult };
 
 /** Marks that are mirrored to the media server: "Seen it" → watched, "Watchlist" → its watchlist. */
 export type ServerMark = 'seen' | 'later';

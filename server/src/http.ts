@@ -1,9 +1,11 @@
-/** An error that maps directly to an HTTP response. */
+import type { ErrorFlags } from '@curatorr/shared';
+
+/** An error that maps directly to an HTTP response, with flags the app acts on. */
 export class HttpError extends Error {
   constructor(
     readonly statusCode: number,
     message: string,
-    readonly details?: Record<string, unknown>,
+    readonly details?: ErrorFlags,
   ) {
     super(message);
   }

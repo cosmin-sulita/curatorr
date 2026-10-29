@@ -1,3 +1,4 @@
+import type { ImportedProfile, PlexPinClaim, PlexPinStarted, PlexServerOption, ServerLibraries } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
@@ -46,14 +47,14 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
 
   // ---- Plex sign-in (also used for admin login) ------------------------------
 
-  app.post('/api/plex/pin', async (req, reply) => {
+  app.post('/api/plex/pin', async (req, reply): Promise<PlexPinStarted> => {
     const { clientId } = store.get('plex');
     const pin = await createPin(clientId);
     rememberPlexPin(req, reply, pin.id);
     return { id: pin.id, code: pin.code, authUrl: authUrl(clientId, pin.code) };
   });
 
-  app.post('/api/plex/pin/:id/claim', async (req, reply) => {
+  app.post('/api/plex/pin/:id/claim', async (req, reply): Promise<PlexPinClaim> => {
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
     const { purpose } = parse(z.object({ purpose: z.enum(['setup', 'login']) }), req.body);
     if (!plexPinsHere(req).includes(id)) throw new HttpError(404, 'Start the Plex sign-in again');
@@ -91,7 +92,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
 
   // ---- Plex server & libraries ---------------------------------------------
 
-  app.get('/api/setup/plex/servers', async (req) => {
+  app.get('/api/setup/plex/servers', async (req): Promise<PlexServerOption[]> => {
     guard(req);
     const plex = store.get('plex');
     if (!plex.adminToken) throw new HttpError(400, 'Sign in with Plex first');
@@ -117,7 +118,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
     );
   });
 
-  app.post('/api/setup/plex/server', async (req) => {
+  app.post('/api/setup/plex/server', async (req): Promise<ServerLibraries> => {
     guard(req);
     const body = parse(z.object({ machineId: z.string().min(1), url: serviceUrl, name: z.string().optional() }), req.body);
     const plex = store.get('plex');
@@ -153,7 +154,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
     return { ok: true };
   });
 
-  app.post('/api/setup/plex/users', async (req) => {
+  app.post('/api/setup/plex/users', async (req): Promise<ImportedProfile[]> => {
     guard(req);
     const rows = await importHomeUsers(store, req.log);
     return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));

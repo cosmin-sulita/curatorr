@@ -1,4 +1,15 @@
-import { STEP_ORDER, allowedFor, dayStart, shelfById, type Criteria, type ListedMovie } from '@curatorr/shared';
+import {
+  STEP_ORDER,
+  allowedFor,
+  dayStart,
+  shelfById,
+  type Criteria,
+  type FeedbackResponse,
+  type HiddenMovie,
+  type ListedMovie,
+  type UndoResponse,
+  type WatchlistRemoval,
+} from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
@@ -90,7 +101,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
    * `profileIds` names among them (the device's profile when it's on its own). Every row is saved at the
    * same moment, so ranking for the group counts a shared one once.
    */
-  app.post('/api/feedback', async (req) => {
+  app.post('/api/feedback', async (req): Promise<FeedbackResponse> => {
     const group = requireGroup(req, store);
     const body = parse(
       z.object({
@@ -111,7 +122,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (body.kind === 'accepted' && group.length > 1) store.recordTogether(movie.id, targets.map((r) => r.id), at);
 
     // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for each of them.
-    if (!isServerMark(body.kind)) return { id: ids[0], ids };
+    if (!isServerMark(body.kind)) return { id: ids[0]!, ids };
     const kind = body.kind;
     const results = await Promise.all(
       targets.map(async (row, i) => {
@@ -120,11 +131,11 @@ export const pickRoutes: RouteModule = (app, { store }) => {
         return result;
       }),
     );
-    return { id: ids[0], ids, server: overall(results) };
+    return { id: ids[0]!, ids, server: overall(results) };
   });
 
   /** Undo / restore. The media server is only changed back when Curatorr changed it in the first place. */
-  app.delete('/api/feedback/:id', async (req) => {
+  app.delete('/api/feedback/:id', async (req): Promise<UndoResponse> => {
     // Undo after a mark made for someone else in the group, too.
     const group = requireGroup(req, store);
     const { id } = parse(z.object({ id: z.coerce.number().int() }), req.params);
@@ -153,7 +164,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
    * an entry made in Plex or Jellyfin only while the owner lets marks update the server. Answers who among those
    * watching still has it there, e.g. when the server couldn't be reached.
    */
-  app.delete('/api/watchlist/:movieId', async (req) => {
+  app.delete('/api/watchlist/:movieId', async (req): Promise<WatchlistRemoval> => {
     const group = requireGroup(req, store);
     const { movieId } = parse(z.object({ movieId: z.coerce.number().int() }), req.params);
     const body = parse(z.object({ profileIds: z.array(z.number().int()).max(20).optional() }), req.body ?? {});
@@ -177,7 +188,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
    * what it saved with "Watchlist" in Curatorr plus what's on its media server's (the Plex Watchlist, Jellyfin
    * favourites), as for picks. A movie only the server has on it has no mark, so no `id`.
    */
-  app.get('/api/hidden', async (req) => {
+  app.get('/api/hidden', async (req): Promise<HiddenMovie[]> => {
     const profile = requireProfile(req, store);
     const marks = store.markedMovies(profile.id);
     const saved = new Set(marks.flatMap((m) => (m.kind === 'later' ? [m.movieId] : [])));
@@ -189,12 +200,12 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const newestFirst = [...marks, ...onServer].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
     // Not what the profile's limits keep from it, also when it was listed before they applied.
     const limits = limitsFor(store, [profile]);
-    return newestFirst.flatMap((h) => {
-      const movie = store.movie(h.movieId);
+    return newestFirst.flatMap(({ movieId, ...entry }): HiddenMovie[] => {
+      const movie = store.movie(movieId);
       if (!movie || !allowedFor(movie, limits)) return [];
       // Only what the lists show: a long watchlist is hundreds of movies.
       const listed: ListedMovie = { id: movie.id, title: movie.title, year: movie.year, posterUrl: movie.posterUrl };
-      return [{ id: h.id, kind: h.kind, createdAt: h.createdAt, movie: listed }];
+      return [{ ...entry, movie: listed }];
     });
   });
 };

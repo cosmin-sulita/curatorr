@@ -1,3 +1,4 @@
+import type { SettingsResponse } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
@@ -15,7 +16,7 @@ import {
 import { toProfile } from '../store.js';
 
 export const settingsRoutes: RouteModule = (app, { store, library }) => {
-  app.get('/api/settings', async (req) => {
+  app.get('/api/settings', async (req): Promise<SettingsResponse> => {
     requireAdmin(req, store);
     const radarr = store.get('radarr');
     const plex = store.get('plex');

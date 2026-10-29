@@ -1,4 +1,4 @@
-import type { AppStatus, MediaServer } from '@curatorr/shared';
+import type { AppStatus, MediaServer, SettingsProfile } from '@curatorr/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { ChevronDown, CircleFadingArrowUp, Copy, ExternalLink, LogOut, MonitorSmartphone, RefreshCw } from 'lucide-react';
@@ -109,8 +109,6 @@ export function SettingsScreen() {
     </>
   );
 }
-
-type SettingsProfile = SettingsResponse['profiles'][number];
 
 /**
  * Gives a Jellyfin profile a PIN Curatorr keeps, or a new one: four digits, then the same once more, so a slip of

@@ -200,3 +200,133 @@ export interface AppStatus {
   together: Profile[];
   library: { movies: number; lastSync: number | null; syncing: boolean; lastError: string | null };
 }
+
+// ---- What the API answers, besides the above. The server's handlers declare these, so a change on either side
+// fails the typecheck instead of the app.
+
+/**
+ * What a mark did on the media server: changed it, it already matched, nothing to do (no media server, syncing off),
+ * or the server couldn't be reached.
+ */
+export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
+
+/** POST /api/feedback: the rows saved, one per person (`id` is the first), and what the media server did. */
+export interface FeedbackResponse {
+  id: number;
+  ids: number[];
+  server?: ServerSyncResult;
+}
+
+/** DELETE /api/feedback/:id. `server` only for a mark, when the media server had to be changed back. */
+export interface UndoResponse {
+  ok: true;
+  server?: ServerSyncResult;
+}
+
+/** DELETE /api/watchlist/:movieId: what the media server did, and who among those watching still has it there. */
+export interface WatchlistRemoval {
+  server: ServerSyncResult;
+  onWatchlistOf: number[];
+}
+
+/**
+ * GET /api/hidden: a movie on one of the profile's lists. `id` is its mark's, for Restore. A movie that's only on the
+ * media server's watchlist has no mark, so no `id`; its `createdAt` is when Curatorr first saw it there, if it knows.
+ */
+export type HiddenMovie =
+  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: ListedMovie }
+  | { id: null; kind: 'later'; createdAt: number | null; movie: ListedMovie };
+
+/** GET /api/profiles. `locked`: the profile has a PIN this device hasn't entered yet. */
+export interface ProfileChoice extends Profile {
+  locked: boolean;
+}
+
+/** Profiles as Settings and the user import list them. `serverUser`: it stands for a user on the media server. */
+export interface ImportedProfile extends Profile {
+  hidden: boolean;
+}
+export interface SettingsProfile extends ImportedProfile {
+  serverUser: boolean;
+}
+
+/** GET /api/settings: everything Settings shows an administrator, and never a token or API key. */
+export interface SettingsResponse {
+  /** The media server Curatorr uses, or is being set up with. */
+  server: MediaServer | null;
+  radarr: { url: string; hasApiKey: boolean } | null;
+  /** The last read of Seerr: requested movies in the library, for how many profiles. */
+  seerr: {
+    url: string;
+    hasApiKey: boolean;
+    at: number | null;
+    requests: number;
+    profiles: number;
+    error: string | null;
+  } | null;
+  plex: {
+    signedIn: boolean;
+    ownerName: string | null;
+    serverName: string | null;
+    serverUrl: string | null;
+    machineId: string | null;
+    sectionIds: string[];
+  };
+  jellyfin: {
+    url: string;
+    /** Where Watch on Jellyfin goes, when that's another address. */
+    publicUrl: string | null;
+    serverName: string;
+    ownerName: string;
+    libraryIds: string[];
+  } | null;
+  app: { includeWatched: boolean; syncIntervalHours: number; syncToServer: boolean; boostRequests: boolean };
+  sync: { at: number | null; movies: number; matched: number; error: string | null; syncing: boolean };
+  /** Radarr's webhook: the secret in its address, and when Radarr last called, with what. */
+  webhook: { token: string; at: number | null; event: string | null; title: string | null };
+  profiles: SettingsProfile[];
+}
+
+/** A Plex or Jellyfin library that can hold movies. */
+export interface ServerLibrary {
+  key: string;
+  title: string;
+}
+
+/** Setting up Plex or Jellyfin: the libraries found on the server just chosen. */
+export interface ServerLibraries {
+  ok: true;
+  libraries: ServerLibrary[];
+}
+
+/** GET /api/setup/plex/servers: a Plex server the owner can use, and how each of its addresses answered. */
+export interface PlexServerOption {
+  name: string;
+  machineId: string;
+  connections: { url: string; local: boolean; relay: boolean; ok: boolean; ms: number | null }[];
+}
+
+/** POST /api/plex/pin: a Plex sign-in started on this device. */
+export interface PlexPinStarted {
+  id: number;
+  code: string;
+  authUrl: string;
+}
+
+/** POST /api/plex/pin/:id/claim: still waiting for plex.tv, or signed in, and as whom. */
+export interface PlexPinClaim {
+  status: 'pending' | 'ok';
+  account?: { name: string; thumb: string | null };
+}
+
+/** What an error answer can carry besides its message, which the app acts on. */
+export interface ErrorFlags {
+  /** The profile (`profileId`, when watching together) asks for its PIN. */
+  needPin?: boolean;
+  profileId?: number;
+  /** Pick a profile first: the device has none, or it's gone. */
+  needProfile?: boolean;
+  needSetup?: boolean;
+  /** Only an administrator signed in on this device may do this. */
+  needAdmin?: boolean;
+}

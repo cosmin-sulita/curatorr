@@ -1,7 +1,7 @@
 // The changes Settings, setup and the connect screens make, one typed call each. What a change refreshes is up to the
 // screen that knows what's on it (see the refreshes in api.ts).
-import type { MediaServer, Profile } from '@curatorr/shared';
-import { api, type PlexServerOption, type ServerLibrary, type SettingsResponse } from './api';
+import type { ImportedProfile, MediaServer, PlexServerOption, ServerLibraries, SettingsResponse } from '@curatorr/shared';
+import { api } from './api';
 
 /** Settings → Library and Picks. */
 export const saveAppSettings = (patch: Partial<SettingsResponse['app']>) =>
@@ -27,7 +27,7 @@ export const setProfilePin = (id: number, pin: string | null) =>
 
 /** Turns the media server's users into profiles: who became one. */
 export const importUsers = (server: MediaServer) =>
-  api<(Profile & { hidden: boolean })[]>(`/api/setup/${server}/users`, { json: {} });
+  api<ImportedProfile[]>(`/api/setup/${server}/users`, { json: {} });
 
 export const skipServer = () => api('/api/setup/server/skip', { json: {} });
 export const completeSetup = () => api('/api/setup/complete', { json: {} });
@@ -39,12 +39,12 @@ export const signOutEverywhere = () => api('/api/settings/sign-out-everywhere', 
 /** The Plex servers the signed-in owner can use. Trying each of their addresses takes a while. */
 export const plexServers = () => api<PlexServerOption[]>('/api/setup/plex/servers', { timeout: 60_000 });
 export const choosePlexServer = (server: { machineId: string; url: string; name: string }) =>
-  api<{ libraries: ServerLibrary[] }>('/api/setup/plex/server', { json: server });
+  api<ServerLibraries>('/api/setup/plex/server', { json: server });
 export const savePlexLibraries = (sectionIds: string[]) => api('/api/setup/plex/libraries', { json: { sectionIds } });
 
 /** Connects Jellyfin as an administrator: no password keeps the sign-in made at the same address. */
 export const connectJellyfin = (form: { url: string; username: string; password?: string; publicUrl: string }) =>
-  api<{ libraries: ServerLibrary[] }>('/api/setup/jellyfin', { json: form });
+  api<ServerLibraries>('/api/setup/jellyfin', { json: form });
 export const saveJellyfinLibraries = (libraryIds: string[]) =>
   api('/api/setup/jellyfin/libraries', { json: { libraryIds } });
 

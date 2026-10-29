@@ -9,23 +9,32 @@ import {
 import type {
   AppStatus,
   Criteria,
+  ErrorFlags,
   FeedbackKind,
+  FeedbackResponse,
+  HiddenMovie,
   LikeSeed,
-  ListedMovie,
-  MediaServer,
   Profile,
+  ProfileChoice,
   RecommendationsResponse,
+  ServerSyncResult,
+  SettingsResponse,
+  UndoResponse,
+  WatchlistRemoval,
   WizardOptionsResponse,
   WizardStep,
 } from '@curatorr/shared';
 import { PICTURE, sized, warmImages } from '../components/ui';
+
+export type { HiddenMovie, PlexServerOption, ServerLibrary, ServerSyncResult, SettingsResponse } from '@curatorr/shared';
 import { withQuery } from './router';
 
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
-    readonly data: Record<string, unknown> = {},
+    /** The answer's flags, which the app acts on (needPin, needProfile…). */
+    readonly data: ErrorFlags & { error?: string } = {},
   ) {
     super(message);
   }
@@ -182,10 +191,9 @@ export function useStatus() {
   });
 }
 
-/** `locked`: the profile's Plex PIN hasn't been entered on this device yet. */
 export const profilesQuery = queryOptions({
   queryKey: keys.profiles,
-  queryFn: () => api<(Profile & { locked: boolean })[]>('/api/profiles'),
+  queryFn: () => api<ProfileChoice[]>('/api/profiles'),
 });
 
 export function useProfiles() {
@@ -267,25 +275,19 @@ export function useLikeSeeds(q: string, enabled = true) {
 }
 
 /**
- * What happened on the media server for "Seen it" / "Watchlist": changed it, it already matched,
- * nothing to do (no media server, sync off), or the server couldn't be reached.
- */
-export type ServerSyncResult = 'synced' | 'already' | 'skipped' | 'failed';
-
-/**
  * `keepalive` lets the request finish while the page is being left (e.g. opening the media server).
  * Watching together, `profileIds` says who Seen it, Never or Watchlist is for; other marks are for everyone.
  * `ids` are the rows saved, one per person.
  */
 export function sendFeedback(movieId: number, kind: FeedbackKind, opts: { keepalive?: boolean; profileIds?: number[] } = {}) {
-  return api<{ id: number; ids: number[]; server?: ServerSyncResult }>('/api/feedback', {
+  return api<FeedbackResponse>('/api/feedback', {
     json: opts.profileIds ? { movieId, kind, profileIds: opts.profileIds } : { movieId, kind },
     keepalive: opts.keepalive,
   });
 }
 
 export function undoFeedback(id: number) {
-  return api<{ ok: true; server?: ServerSyncResult }>('/api/feedback/' + id, { method: 'DELETE' });
+  return api<UndoResponse>('/api/feedback/' + id, { method: 'DELETE' });
 }
 
 /**
@@ -308,19 +310,11 @@ export async function undoAll(ids: number[]): Promise<{ server?: ServerSyncResul
  * `profileIds` names. `onWatchlistOf` says who among those watching still has it there.
  */
 export function removeFromWatchlist(movieId: number, profileIds?: number[]) {
-  return api<{ server: ServerSyncResult; onWatchlistOf: number[] }>(`/api/watchlist/${movieId}`, {
+  return api<WatchlistRemoval>(`/api/watchlist/${movieId}`, {
     method: 'DELETE',
     json: profileIds ? { profileIds } : undefined,
   });
 }
-
-/**
- * A movie on one of the profile's lists. `id` is its mark's, for Restore. A movie that's only on the media server's
- * watchlist has no mark, so no `id`; its `createdAt` is when Curatorr first saw it there, if it knows.
- */
-export type HiddenMovie =
-  | { id: number; kind: 'seen' | 'never' | 'later'; createdAt: number; movie: ListedMovie }
-  | { id: null; kind: 'later'; createdAt: number | null; movie: ListedMovie };
 
 export function useHidden() {
   return useQuery({ queryKey: keys.hidden, queryFn: () => api<HiddenMovie[]>('/api/hidden') });
@@ -385,43 +379,6 @@ export function useSelectTogether() {
 // Settings
 // ---------------------------------------------------------------------------
 
-export interface SettingsResponse {
-  /** The media server Curatorr uses, or is being set up with. */
-  server: MediaServer | null;
-  radarr: { url: string; hasApiKey: boolean } | null;
-  /** The last read of Seerr: requested movies in the library, for how many profiles. */
-  seerr: {
-    url: string;
-    hasApiKey: boolean;
-    at: number | null;
-    requests: number;
-    profiles: number;
-    error: string | null;
-  } | null;
-  plex: {
-    signedIn: boolean;
-    ownerName: string | null;
-    serverName: string | null;
-    serverUrl: string | null;
-    machineId: string | null;
-    sectionIds: string[];
-  };
-  jellyfin: {
-    url: string;
-    /** Where Watch on Jellyfin goes, when that's another address. */
-    publicUrl: string | null;
-    serverName: string;
-    ownerName: string;
-    libraryIds: string[];
-  } | null;
-  app: { includeWatched: boolean; syncIntervalHours: number; syncToServer: boolean; boostRequests: boolean };
-  sync: { at: number | null; movies: number; matched: number; error: string | null; syncing: boolean };
-  /** Radarr's webhook: the secret in its address, and when Radarr last called, with what. */
-  webhook: { token: string; at: number | null; event: string | null; title: string | null };
-  /** `serverUser`: the profile stands for a user on the media server. */
-  profiles: (Profile & { hidden: boolean; serverUser: boolean })[];
-}
-
 export function useSettings(enabled: boolean) {
   return useQuery({
     queryKey: keys.settings,
@@ -433,14 +390,3 @@ export function useSettings(enabled: boolean) {
   });
 }
 
-export interface PlexServerOption {
-  name: string;
-  machineId: string;
-  connections: { url: string; local: boolean; relay: boolean; ok: boolean; ms: number | null }[];
-}
-
-/** A Plex or Jellyfin library that can hold movies. */
-export interface ServerLibrary {
-  key: string;
-  title: string;
-}

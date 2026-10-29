@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ImportedProfile, ServerLibraries } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
 import { Guesses } from '../guesses.js';
@@ -52,7 +53,7 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
    * Connects Jellyfin as one of its administrators, or changes the connection. Curatorr keeps that
    * token to read and mark every user's movies, and lets Plex go: it uses one media server.
    */
-  app.post('/api/setup/jellyfin', async (req, reply) => {
+  app.post('/api/setup/jellyfin', async (req, reply): Promise<ServerLibraries> => {
     guard(req);
     const body = parse(
       z.object({
@@ -124,7 +125,7 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     return { ok: true };
   });
 
-  app.post('/api/setup/jellyfin/users', async (req) => {
+  app.post('/api/setup/jellyfin/users', async (req): Promise<ImportedProfile[]> => {
     guard(req);
     const rows = await importJellyfinUsers(store);
     return rows.map((r) => ({ ...toProfile(r), hidden: Boolean(r.hidden) }));

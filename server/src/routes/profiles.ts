@@ -1,3 +1,4 @@
+import type { ProfileChoice } from '@curatorr/shared';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parse, within, type RouteModule } from '../context.js';
@@ -62,7 +63,7 @@ export const profileRoutes: RouteModule = (app, { store }) => {
     return { row, pinEntered };
   }
 
-  app.get('/api/profiles', async (req) =>
+  app.get('/api/profiles', async (req): Promise<ProfileChoice[]> =>
     store.profileRows().map((r) => ({ ...toProfile(r), locked: pinNeededHere(req, store, r) })),
   );
 

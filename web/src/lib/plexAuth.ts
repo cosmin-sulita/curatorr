@@ -1,16 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import type { PlexPinClaim, PlexPinStarted } from '@curatorr/shared';
 import { api, errorMessage } from './api';
-
-interface PinResponse {
-  id: number;
-  code: string;
-  authUrl: string;
-}
-
-interface ClaimResponse {
-  status: 'pending' | 'ok';
-  account?: { name: string; thumb: string | null };
-}
 
 const POLL_MS = 1500;
 const TIMEOUT_MS = 5 * 60 * 1000;
@@ -21,7 +11,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * The popup is opened synchronously on click so browsers don't block it. Closing it tells Curatorr nothing, so
  * `cancel` stops waiting; otherwise a window closed without signing in holds the button until the timeout.
  */
-export function usePlexSignIn(purpose: 'setup' | 'login', onDone: (account: ClaimResponse['account']) => void) {
+export function usePlexSignIn(purpose: 'setup' | 'login', onDone: (account: PlexPinClaim['account']) => void) {
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState<string | null>(null);
@@ -47,7 +37,7 @@ export function usePlexSignIn(purpose: 'setup' | 'login', onDone: (account: Clai
     setError(null);
     setManualUrl(null);
     try {
-      const pin = await api<PinResponse>('/api/plex/pin', { json: {} });
+      const pin = await api<PlexPinStarted>('/api/plex/pin', { json: {} });
       if (!current()) return;
       if (win && !win.closed) win.location.href = pin.authUrl;
       else setManualUrl(pin.authUrl);
@@ -56,7 +46,7 @@ export function usePlexSignIn(purpose: 'setup' | 'login', onDone: (account: Clai
       while (Date.now() < deadline) {
         await sleep(POLL_MS);
         if (!current()) return;
-        const res = await api<ClaimResponse>(`/api/plex/pin/${pin.id}/claim`, { json: { purpose } });
+        const res = await api<PlexPinClaim>(`/api/plex/pin/${pin.id}/claim`, { json: { purpose } });
         if (!current()) return;
         if (res.status === 'ok') {
           win?.close();
