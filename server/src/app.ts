@@ -39,7 +39,15 @@ const CONTENT_SECURITY_POLICY = [
   "form-action 'self'",
 ].join('; ');
 
-export async function buildApp(opts: { configDir?: string; demo?: boolean; logger?: boolean } = {}) {
+export async function buildApp(
+  opts: {
+    configDir?: string;
+    demo?: boolean;
+    logger?: boolean;
+    /** Told of each route as it's added: the access test checks every one is classified. */
+    onRoute?: (method: string, url: string) => void;
+  } = {},
+) {
   const demo = opts.demo ?? config.demo;
   const db = openDb(opts.configDir ?? config.configDir, demo ? 'curatorr-demo.db' : 'curatorr.db');
   const store = new Store(db, demo);
@@ -50,6 +58,12 @@ export async function buildApp(opts: { configDir?: string; demo?: boolean; logge
     logController: new LogController({ disableRequestLogging: true }),
     trustProxy: true,
   });
+  const { onRoute } = opts;
+  if (onRoute) {
+    app.addHook('onRoute', (route) => {
+      for (const method of [route.method].flat()) onRoute(method, route.url);
+    });
+  }
   // JSON bodies only. Any web page can post a form as text/plain, and one on a sibling subdomain would
   // send Curatorr's cookies with it.
   app.removeContentTypeParser('text/plain');

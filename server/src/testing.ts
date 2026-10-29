@@ -34,9 +34,9 @@ export function tempDir(name: string) {
 }
 
 /** An app on a temporary folder: the demo unless `demo: false`. `close` stops it and removes the folder. */
-export async function tempApp(name: string, opts: { demo?: boolean } = {}) {
+export async function tempApp(name: string, opts: { demo?: boolean; onRoute?: (method: string, url: string) => void } = {}) {
   const { dir, remove } = tempDir(name);
-  const built = await buildApp({ configDir: dir, demo: opts.demo ?? true, logger: false });
+  const built = await buildApp({ configDir: dir, demo: opts.demo ?? true, logger: false, onRoute: opts.onRoute });
   return {
     ...built,
     dir,

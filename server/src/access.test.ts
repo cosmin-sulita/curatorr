@@ -15,6 +15,7 @@ const ADMIN_ROUTES: [Method, string][] = [
   ['POST', '/api/settings/webhook'],
   ['POST', '/api/settings/sign-out-everywhere'],
   ['PATCH', '/api/profiles/1'],
+  ['PUT', '/api/profiles/1/pin'],
   ['POST', '/api/setup/radarr/test'],
   ['POST', '/api/setup/radarr'],
   ['GET', '/api/setup/plex/servers'],
@@ -36,6 +37,7 @@ const PROFILE_ROUTES: [Method, string][] = [
   ['GET', '/api/like'],
   ['POST', '/api/feedback'],
   ['DELETE', '/api/feedback/1'],
+  ['DELETE', '/api/watchlist/1'],
   ['GET', '/api/hidden'],
   ['GET', '/api/image/1/poster'],
 ];
@@ -46,16 +48,35 @@ const PUBLIC_ROUTES: [Method, string][] = [
   ['GET', '/api/status'],
   ['GET', '/api/profiles'],
   ['POST', '/api/profiles/logout'],
+  ['POST', '/api/profiles/1/select'],
   ['POST', '/api/profiles/together'],
   ['POST', '/api/admin/logout'],
   ['GET', '/api/avatar/x'],
   ['POST', '/api/jellyfin/login'],
+  ['POST', '/api/plex/pin/1/claim'],
+];
+
+/** Routes guarded some other way, each tested where it says. */
+const OTHER_ROUTES: [Method, string][] = [
+  // Its token stands in for a sign-in (below).
+  ['POST', '/api/radarr/webhook'],
+  // Open to anyone, but it asks plex.tv for a PIN, which tests never reach (routes/setup.test.ts).
+  ['POST', '/api/plex/pin'],
 ];
 
 const cleanups: (() => Promise<void>)[] = [];
+/** Every route the app adds, as `METHOD /url` with its parameters. */
+const registered: string[] = [];
 
 async function freshApp() {
-  const { app, ctx, close } = await tempApp('access', { demo: false });
+  registered.length = 0;
+  const { app, ctx, close } = await tempApp('access', {
+    demo: false,
+    onRoute: (method, url) => {
+      // HEAD routes come with GET ones; the SPA's own pages aren't the API.
+      if (method !== 'HEAD' && url.startsWith('/api/')) registered.push(`${method} ${url}`);
+    },
+  });
   cleanups.push(close);
   return { app, store: ctx.store };
 }
@@ -93,6 +114,22 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
 
   afterAll(async () => {
     for (const cleanup of cleanups.splice(0)) await cleanup();
+  });
+
+  it('lists every route in exactly one of the lists above, so a new one has to say who may call it', () => {
+    const listed = [...ADMIN_ROUTES, ...PROFILE_ROUTES, ...PUBLIC_ROUTES, ...OTHER_ROUTES];
+    const pattern = (route: string) => {
+      const [method, url] = route.split(' ') as [string, string];
+      const path = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:\w+/g, '[^/]+');
+      return (m: string, u: string) => m === method && new RegExp(`^${path}$`).test(u.split('?')[0]!);
+    };
+    expect(registered.length).toBeGreaterThan(30);
+    for (const route of registered) {
+      const matches = pattern(route);
+      expect(listed.filter(([m, u]) => matches(m, u)).length, route).toBe(1);
+    }
+    // And nothing listed is gone.
+    for (const [m, u] of listed) expect(registered.some((r) => pattern(r)(m, u)), `${m} ${u}`).toBe(true);
   });
 
   it.each(ADMIN_ROUTES)('%s %s needs the owner', async (method, url) => {
