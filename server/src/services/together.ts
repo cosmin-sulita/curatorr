@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { Store } from '../store.js';
-import { applyMark, syncServerState } from './mediaServer.js';
+import { saveFeedback } from './marks.js';
+import { syncServerState } from './mediaServer.js';
 
 /** A movie played together counts as watched by everyone once one account shows it within this long. */
 const SETTLE_WINDOW_MS = 12 * 60 * 60 * 1000;
@@ -30,8 +31,7 @@ export async function settleTogether(store: Store, log: FastifyBaseLogger, now =
     for (const m of members) {
       const markedSeen = store.feedback(m.id).some((e) => e.kind === 'seen' && e.movieId === movie.id);
       if (watchedAt(m.id) != null || markedSeen) continue;
-      const id = store.addFeedback(m.id, movie.id, 'seen', now);
-      if ((await applyMark(store, m, movie, 'seen', log)) === 'synced') store.setFeedbackSynced(id);
+      await saveFeedback(store, [m], movie, 'seen', log, now);
       marked.push(m.name);
     }
     store.closeTogether(pending.id, now);

@@ -190,14 +190,25 @@ function migrate(db: DB) {
   }
 }
 
+/** How deep each database is in `transaction` calls: only the outermost begins and ends one. */
+const transactionDepth = new WeakMap<DB, number>();
+
+/** Runs `fn` in one transaction. Called inside another, it joins that one, which commits or rolls back for both. */
 export function transaction<T>(db: DB, fn: () => T): T {
-  db.exec('BEGIN');
+  const depth = transactionDepth.get(db) ?? 0;
+  transactionDepth.set(db, depth + 1);
   try {
-    const result = fn();
-    db.exec('COMMIT');
-    return result;
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
+    if (depth) return fn();
+    db.exec('BEGIN');
+    try {
+      const result = fn();
+      db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } finally {
+    transactionDepth.set(db, depth);
   }
 }

@@ -20,7 +20,7 @@ import {
 import { z } from 'zod';
 import { parse, type RouteModule } from '../context.js';
 import { HttpError } from '../http.js';
-import { applyMark, isServerMark, revertMark, type ServerSyncResult } from '../services/mediaServer.js';
+import { overall, saveFeedback, takeOffWatchlist, undoFeedback } from '../services/marks.js';
 import {
   likeSeeds,
   limitsFor,
@@ -54,12 +54,6 @@ const criteriaSchema = z.object({
   time: answer(timeById, 'time'),
   shelf,
 });
-
-/** What happened on the media server for a mark made for several people: the worst news first. */
-function overall(results: ServerSyncResult[]): ServerSyncResult {
-  for (const r of ['failed', 'synced', 'already'] as const) if (results.includes(r)) return r;
-  return 'skipped';
-}
 
 /** Whom a personal mark is for: those `profileIds` names among the people watching, or the device's profile. */
 function markedFor(group: ProfileRow[], profileIds?: number[]): ProfileRow[] {
@@ -133,21 +127,10 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const targets = personal ? markedFor(group, body.profileIds) : group;
     allowedForEach(store, movie, targets);
     const at = Date.now();
-    const ids = targets.map((row) => store.addFeedback(row.id, movie.id, body.kind, at));
     // Played on one account, so the others get it marked watched once that account shows it (together.ts).
     if (body.kind === 'accepted' && group.length > 1) store.recordTogether(movie.id, targets.map((r) => r.id), at);
-
-    // "Seen it" → watched on the media server, "Watchlist" → its watchlist, for each of them.
-    if (!isServerMark(body.kind)) return { id: ids[0]!, ids };
-    const kind = body.kind;
-    const results = await Promise.all(
-      targets.map(async (row, i) => {
-        const result = await applyMark(store, row, movie, kind, req.log);
-        if (result === 'synced') store.setFeedbackSynced(ids[i]!);
-        return result;
-      }),
-    );
-    return { id: ids[0]!, ids, server: overall(results) };
+    const { ids, server } = await saveFeedback(store, targets, movie, body.kind, req.log, at);
+    return { id: ids[0]!, ids, ...(server && { server }) };
   });
 
   /** Undo / restore. The media server is only changed back when Curatorr changed it in the first place. */
@@ -160,18 +143,8 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     const othersOlder = entry && entry.profileId !== group[0]!.id && entry.createdAt < dayStart(Date.now());
     if (!entry || othersOlder) throw new HttpError(404, 'Not found');
     const profile = group.find((r) => r.id === entry.profileId)!;
-
-    if (!isMark(entry.kind)) {
-      store.deleteFeedback(profile.id, id);
-      return { ok: true };
-    }
-    const { serverSynced } = store.deleteMarks(profile.id, entry.movieId, entry.kind);
-    const movie = store.movie(entry.movieId);
-    const server =
-      serverSynced && movie && isServerMark(entry.kind)
-        ? await revertMark(store, profile, movie, entry.kind, req.log)
-        : 'skipped';
-    return { ok: true, server };
+    const server = await undoFeedback(store, profile, entry, req.log);
+    return { ok: true, ...(server && { server }) };
   });
 
   /**
@@ -188,14 +161,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     if (!movie) throw new HttpError(404, 'Movie not found');
     const targets = markedFor(group, body.profileIds);
     allowedForEach(store, movie, targets);
-    const results = await Promise.all(
-      targets.map(async (row): Promise<ServerSyncResult> => {
-        const { serverSynced } = store.deleteMarks(row.id, movie.id, 'later');
-        const onServer = store.watchlistIds(row.id).has(movie.id);
-        if (!onServer || !(serverSynced || store.get('app').syncToServer)) return 'skipped';
-        return revertMark(store, row, movie, 'later', req.log);
-      }),
-    );
+    const results = await Promise.all(targets.map((row) => takeOffWatchlist(store, row, movie, req.log)));
     return { server: overall(results), onWatchlistOf: onWatchlistOf(store, group, movie.id) };
   });
 
