@@ -567,7 +567,9 @@ export class Store {
     if (!this.get('app').syncToServer) return [];
     const still = new Set(after);
     const removed = [...before].filter((id) => !still.has(id) && this.movie(id));
-    for (const id of removed) this.deleteMarks(profileId, id, 'later');
+    transaction(this.db, () => {
+      for (const id of removed) this.deleteMarks(profileId, id, 'later');
+    });
     return removed;
   }
 

@@ -1,6 +1,7 @@
 import { SYNC_INTERVAL_HOURS, type SettingsResponse } from '@curatorr/shared';
 import { z } from 'zod';
 import { parse, serviceUrl, type RouteModule } from '../context.js';
+import { transaction } from '../db.js';
 import { HttpError, normalizeBaseUrl, savedKeyFor } from '../http.js';
 import { SeerrClient } from '../integrations/seerr.js';
 import { syncRequests } from '../services/requests.js';
@@ -88,9 +89,11 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
 
   app.delete('/api/settings/seerr', async (req) => {
     requireAdmin(req, store);
-    store.set('seerr', null);
-    store.replaceRequests([]);
-    store.set('seerrSync', { at: null, requests: 0, profiles: 0, error: null });
+    transaction(store.db, () => {
+      store.set('seerr', null);
+      store.replaceRequests([]);
+      store.set('seerrSync', { at: null, requests: 0, profiles: 0, error: null });
+    });
     return { ok: true };
   });
 
