@@ -8,6 +8,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const THIRTY_DAYS = 60 * 60 * 24 * 30;
 const LICENSES = 'licenses.md';
+/** The background, as the theme has it (`--color-ink`), for the manifest and the page before its styles load. */
+const INK = /--color-ink:\s*(#[0-9a-f]{6});/i.exec(readFileSync(new URL('src/styles.css', import.meta.url), 'utf8'))?.[1];
+if (!INK) throw new Error('No --color-ink in src/styles.css');
+
+/** Puts the theme's background into index.html, where it stands as __INK__. */
+function ink(): Plugin {
+  return { name: 'curatorr:ink', transformIndexHtml: (html) => html.replaceAll('__INK__', INK!) };
+}
 
 /**
  * build.license only covers what the JavaScript imports. The Archivo font comes in through CSS, and the
@@ -71,6 +79,7 @@ export default defineConfig({
     tailwindcss(),
     moreLicenses(),
     precompress(),
+    ink(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
@@ -78,8 +87,8 @@ export default defineConfig({
         name: 'Curatorr',
         short_name: 'Curatorr',
         description: "Pick tonight's movie from your own library.",
-        theme_color: '#0c0f1e',
-        background_color: '#0c0f1e',
+        theme_color: INK,
+        background_color: INK,
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

@@ -19,6 +19,7 @@ import {
 } from '../lib/api';
 import { serverName, watchLink } from '../lib/format';
 import { useLongPress } from '../lib/longPress';
+import { readStored, writeStored } from '../lib/storage';
 import { withQuery } from '../lib/router';
 import { clearSurprise, surprisePending } from '../lib/surprise';
 import { criteriaFrom, useAdvance } from '../lib/wizard';
@@ -41,21 +42,9 @@ function shelfCopy(shelf: string | null | undefined): { pick: string; more: stri
 // Once someone has swiped a pick away, the hint under the poster has done its job.
 const SWIPED_KEY = 'curatorr:swiped';
 
-function hasSwiped() {
-  try {
-    return localStorage.getItem(SWIPED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function rememberSwipe() {
-  try {
-    localStorage.setItem(SWIPED_KEY, '1');
-  } catch {
-    // Storage blocked: the hint keeps showing, which is harmless.
-  }
-}
+const hasSwiped = () => readStored(SWIPED_KEY) === '1';
+/** Where storage is blocked, the hint keeps showing, which is harmless. */
+const rememberSwipe = () => writeStored(SWIPED_KEY, '1');
 
 export function PickScreen({ search }: { search: URLSearchParams }) {
   const criteria = criteriaFrom(search);

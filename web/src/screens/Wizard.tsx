@@ -22,6 +22,7 @@ import { Link, navigate, withQuery } from '../lib/router';
 import { requestSurprise } from '../lib/surprise';
 import {
   ENTERED,
+  ENTRANCE_SPRING,
   SURPRISE_URL,
   answersBefore,
   criteriaFrom,
@@ -124,7 +125,8 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
     <Button
       variant={step === 'genre' ? 'primary' : 'secondary'}
       size="lg"
-      className={clsx(className, anyGoing && 'scale-[0.97]')}
+      className={className}
+      data-held={anyGoing || undefined}
       loading={anyGoing && going.slow}
       onPointerDown={() => warm(anyUrl)}
       onClick={chooseAny}
@@ -156,7 +158,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
             key={step + JSON.stringify(criteria)}
             initial={entrance}
             animate={ENTERED}
-            transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+            transition={ENTRANCE_SPRING}
             className="pt-6"
           >
             <h1 className="font-display text-[44px] sm:text-6xl">{COPY[step].title}</h1>
@@ -253,10 +255,8 @@ function GenreTile({
     <button
       onPointerDown={onTouch}
       onClick={onClick}
-      className={clsx(
-        'group press relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition',
-        state && 'scale-[0.97]',
-      )}
+      data-held={state || undefined}
+      className="group press relative aspect-[16/10] overflow-hidden rounded-2xl text-left ring-1 ring-line transition"
     >
       <Img
         src={questionPicture('genre', o.images[0])}
@@ -304,10 +304,8 @@ function ThemeList({ options, going, onChoose, onTouch }: OptionsProps) {
             key={o.id}
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
-            className={clsx(
-              'press-row relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised',
-              state && 'scale-[0.985]',
-            )}
+            data-held={state || undefined}
+            className="press-row relative flex items-center gap-4 rounded-2xl bg-surface py-3 pr-5 pl-4 text-left ring-1 ring-line transition hover:bg-raised"
           >
             <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
               <TagIcon name={o.icon} className="size-5" />
@@ -335,10 +333,8 @@ function MoodGrid({ options, going, onChoose, onTouch }: OptionsProps) {
             key={o.id}
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
-            className={clsx(
-              'group press-row relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition',
-              state && 'scale-[0.985]',
-            )}
+            data-held={state || undefined}
+            className="group press-row relative flex min-h-32 items-end overflow-hidden rounded-2xl p-4 text-left ring-1 ring-line transition"
           >
             <Img src={o.images[0]} className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
             <span className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/20" />
@@ -369,10 +365,8 @@ function TimeList({ options, going, onChoose, onTouch }: OptionsProps) {
             key={o.id}
             onPointerDown={() => onTouch(o.id)}
             onClick={() => onChoose(o.id)}
-            className={clsx(
-              'press-row relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised',
-              state && 'scale-[0.985]',
-            )}
+            data-held={state || undefined}
+            className="press-row relative flex items-center gap-4 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition hover:bg-raised"
           >
             <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-raised text-indigo-300">
               <TagIcon name={o.icon} className="size-6" />

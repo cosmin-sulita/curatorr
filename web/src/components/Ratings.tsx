@@ -6,7 +6,7 @@ function TomatoMark({ fresh, className }: { fresh: boolean; className?: string }
   if (fresh) {
     return (
       <svg viewBox="0 0 24 24" className={className} aria-hidden>
-        <path fill="#fa320a" d="M12 7c5 0 9 3.2 9 7.6S17 22 12 22s-9-2.9-9-7.4S7 7 12 7z" />
+        <path className="fill-fresh" d="M12 7c5 0 9 3.2 9 7.6S17 22 12 22s-9-2.9-9-7.4S7 7 12 7z" />
         <path fill="#00912d" d="M12 8.6c-1.4-1.7-3.6-2-5-1.3 1.3-.1 2.4.4 3 1.2C8.6 8.5 7 9.4 6.4 10.6 8 9.7 10 9.5 12 10c2-.5 4-.3 5.6.6-.6-1.2-2.2-2.1-3.6-2.1.6-.8 1.7-1.3 3-1.2-1.4-.7-3.6-.4-5 1.3z" />
         <path fill="#00912d" d="M11.3 8.4c.1-1.6.6-3 1.6-4.2l.8.5c-.8 1-1.3 2.3-1.4 3.8z" />
       </svg>
@@ -15,7 +15,7 @@ function TomatoMark({ fresh, className }: { fresh: boolean; className?: string }
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
       <path
-        fill="#3bb33b"
+        className="fill-rotten"
         d="M12 3.5l1.6 4 3.6-2.2-.9 4.2 4.3.3-3.3 2.8 3.4 2.6-4.3.5 1.2 4.1-3.7-2.1-1.4 4.1-1.7-4-3.6 2.3.8-4.2-4.3-.2 3.2-2.9L3.5 9.8l4.3-.6L6.5 5l3.7 2z"
       />
     </svg>

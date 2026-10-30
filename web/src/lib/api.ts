@@ -25,6 +25,7 @@ import type {
   WizardStep,
 } from '@curatorr/shared';
 import { PICTURE, sized, warmImages } from './pictures';
+import { readStored, writeStored } from './storage';
 
 export type { HiddenMovie, PlexServerOption, ServerLibrary, ServerSyncResult, SettingsResponse } from '@curatorr/shared';
 import { withQuery } from './url';
@@ -116,12 +117,9 @@ const STATUS_TIMEOUT_MS = 6_000;
 /** Whether this device had a profile when the app last asked: what the next launch loads first (loadFirstScreen). */
 const HAD_PROFILE = 'curatorr:hadProfile';
 
+/** Where storage is blocked, the next launch loads its first screen after the status, as it would anyway. */
 function rememberProfile(status: AppStatus) {
-  try {
-    localStorage.setItem(HAD_PROFILE, status.profile ? '1' : '0');
-  } catch {
-    // Storage blocked: the next launch loads its first screen after the status, as it would anyway.
-  }
+  writeStored(HAD_PROFILE, status.profile ? '1' : '0');
 }
 
 /**
@@ -346,12 +344,7 @@ function loadFirstQuestion(qc: QueryClient) {
  * a profile last time, "Who's watching?" otherwise. A guess that's wrong (the profile is gone) only costs a request.
  */
 export function loadFirstScreen(qc: QueryClient) {
-  let had: string | null = null;
-  try {
-    had = localStorage.getItem(HAD_PROFILE);
-  } catch {
-    // Storage blocked: the first screen loads after the status.
-  }
+  const had = readStored(HAD_PROFILE);
   if (had === '1') void loadFirstQuestion(qc);
   else if (had === '0') void qc.prefetchQuery(profilesQuery);
 }

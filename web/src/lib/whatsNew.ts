@@ -1,5 +1,6 @@
 import { parseChangelog, releasesSince } from '@curatorr/shared';
 import changelog from '../../../CHANGELOG.md?raw';
+import { readStored, writeStored } from './storage';
 
 // Bundled with the app, so the notes always describe the code that's running.
 export const releases = parseChangelog(changelog);
@@ -9,21 +10,8 @@ export const recentReleases = releasesSince(releases, null);
 
 const KEY = 'curatorr:lastSeenVersion';
 
-function lastSeen() {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
-}
-
 /** Releases this device hasn't been told about yet. */
-export const unseenReleases = () => releasesSince(releases, lastSeen());
+export const unseenReleases = () => releasesSince(releases, readStored(KEY));
 
-export function markSeen() {
-  try {
-    localStorage.setItem(KEY, appVersion);
-  } catch {
-    // Storage blocked: the popup may show again next time, which is harmless.
-  }
-}
+/** Where storage is blocked, the popup may show again next time, which is harmless. */
+export const markSeen = () => writeStored(KEY, appVersion);

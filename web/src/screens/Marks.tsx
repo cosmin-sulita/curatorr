@@ -1,11 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { fold } from '@curatorr/shared';
-import { Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
 import { useToast } from '../components/Toast';
-import { Button, Img, Notice, PICTURE, plainField, sized, Spinner } from '../components/ui';
+import { Button, Img, Notice, PICTURE, SearchField, sized, Spinner } from '../components/ui';
 import {
   errorMessage,
   refreshQuestions,
@@ -18,7 +17,7 @@ import {
 } from '../lib/api';
 import { plural, serverName } from '../lib/format';
 import { MARK_LISTS, unwatchlistMessage, type MarkListId } from '../lib/marks';
-import { ENTERED, useEntrance } from '../lib/wizard';
+import { ENTERED, ENTRANCE_SPRING, useEntrance } from '../lib/wizard';
 
 /** Posters shown at a time: each one is fetched as soon as it's on the page, and a list can grow to hundreds. */
 const PAGE = 30;
@@ -34,7 +33,6 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
   const marked = useHidden();
   const qc = useQueryClient();
   const toast = useToast();
-  const input = useRef<HTMLInputElement>(null);
   // Movies restored here: off the page at once, and kept off while the list reloads, so a reload that started
   // before a second Restore went through can't bring that movie back for a moment.
   const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
@@ -105,11 +103,6 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
     refresh();
   };
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    input.current?.blur(); // Puts the keyboard away so the results show.
-  };
-
   return (
     <Shell>
       <div className="flex h-11 items-center">
@@ -119,7 +112,7 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
       <motion.section
         initial={entrance}
         animate={ENTERED}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+        transition={ENTRANCE_SPRING}
         className="pt-6 pb-10"
       >
         <h1 className="font-display text-[44px] sm:text-6xl">{list.title}</h1>
@@ -130,22 +123,13 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
         )}
 
         {(all.length > SEARCH_FROM || query) && (
-          <form role="search" onSubmit={submit} className="relative mt-6">
-            <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-faint" aria-hidden />
-            {/* 16px text, or iOS zooms in on focus. */}
-            <input
-              ref={input}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search ${plural(all.length, 'movie')}`}
-              aria-label="Search this list"
-              enterKeyHint="search"
-              autoComplete="off"
-              {...plainField}
-              className="h-12 w-full rounded-xl bg-surface pr-3.5 pl-11 text-base text-fg ring-1 ring-line placeholder:text-faint focus:ring-2 focus:ring-accent focus:outline-none"
-            />
-          </form>
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            label="Search this list"
+            placeholder={`Search ${plural(all.length, 'movie')}`}
+            className="mt-6"
+          />
         )}
 
         {marked.isLoading && (

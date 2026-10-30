@@ -87,6 +87,9 @@ export function useEntrance() {
  */
 export const ENTERED = { opacity: 1, transform: 'none', transitionEnd: { transform: 'none' } };
 
+/** How a screen moves to `ENTERED`. */
+export const ENTRANCE_SPRING = { type: 'spring', stiffness: 380, damping: 34 } as const;
+
 /** The answer that was tapped, while its screen loads; `slow` once that takes a moment. */
 export interface Going {
   id: string;

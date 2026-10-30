@@ -92,17 +92,20 @@
 /*
  * Press feedback, as on iPhone controls: down the moment a finger lands, eased back on release (the element's own
  * `transition` times the release). `press` for buttons, tiles, posters and avatars, `press-row` for rows and cards as
- * wide as the screen, `press-dim` for bare icons and text links.
+ * wide as the screen, `press-dim` for bare icons and text links. `data-held` keeps one down after the finger has gone,
+ * while what it opens loads (`Going` in lib/wizard.ts).
  */
 @utility press {
-  &:active {
+  &:active,
+  &[data-held] {
     scale: 0.97;
     transition-duration: 0s;
   }
 }
 
 @utility press-row {
-  &:active {
+  &:active,
+  &[data-held] {
     scale: 0.985;
     transition-duration: 0s;
   }

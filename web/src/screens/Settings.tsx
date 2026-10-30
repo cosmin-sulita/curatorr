@@ -34,7 +34,7 @@ import {
   syncNow,
 } from '../lib/settings';
 import { recentReleases } from '../lib/whatsNew';
-import { ENTERED, useEntrance } from '../lib/wizard';
+import { ENTERED, ENTRANCE_SPRING, useEntrance } from '../lib/wizard';
 import { JellyfinConnect, JellyfinSignIn } from './JellyfinConnect';
 import { MARK_LISTS } from '../lib/marks';
 import { OwnerSignIn, PlexConnect } from './PlexConnect';
@@ -73,7 +73,7 @@ export function SettingsScreen() {
         <motion.section
           initial={entrance}
           animate={ENTERED}
-          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          transition={ENTRANCE_SPRING}
           className="pt-6"
         >
           <h1 className="font-display text-[44px] sm:text-6xl">Settings</h1>

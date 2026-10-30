@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { isIOS, isMobileDevice } from './format';
+import { readStored, writeStored } from './storage';
 
 /**
  * The "Add to Home Screen" tip on phones. A browser tab can't tell whether Curatorr is already on the home screen
@@ -18,15 +19,7 @@ export type InstallHint = 'share' | 'prompt' | null;
 
 const KEY = 'curatorr:installHint';
 
-function wasDismissed() {
-  try {
-    return localStorage.getItem(KEY) === 'dismissed';
-  } catch {
-    return false;
-  }
-}
-
-let dismissed = wasDismissed();
+let dismissed = readStored(KEY) === 'dismissed';
 let offer: InstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
@@ -58,11 +51,8 @@ export function listenForInstallPrompt() {
 
 export function dismissInstallHint() {
   dismissed = true;
-  try {
-    localStorage.setItem(KEY, 'dismissed');
-  } catch {
-    // Storage blocked: the tip comes back next time, which is harmless.
-  }
+  // Where storage is blocked, the tip comes back next time, which is harmless.
+  writeStored(KEY, 'dismissed');
   notify();
 }
 

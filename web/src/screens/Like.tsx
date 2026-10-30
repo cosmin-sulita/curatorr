@@ -1,14 +1,13 @@
 import type { LikeSeed } from '@curatorr/shared';
 import clsx from 'clsx';
-import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { Button, Img, Notice, Pending, PICTURE, plainField, sized, Spinner } from '../components/ui';
+import { Button, Img, Notice, Pending, PICTURE, SearchField, sized, Spinner } from '../components/ui';
 import { errorMessage, useLikeSeeds, useStatus } from '../lib/api';
 import { serverName } from '../lib/format';
 import { navigate, withQuery } from '../lib/router';
-import { ENTERED, tapped, useAdvance, useEntrance, useLookAhead } from '../lib/wizard';
+import { ENTERED, ENTRANCE_SPRING, tapped, useAdvance, useEntrance, useLookAhead } from '../lib/wizard';
 
 /** How long a poster stays on screen before its pick loads ahead. On arrival, taps wait out 300 ms anyway. */
 const SETTLE_MS = 150;
@@ -56,7 +55,6 @@ function usePostersOnScreen(list: RefObject<HTMLUListElement | null>, seeds: Lik
 export function LikeScreen({ search }: { search: URLSearchParams }) {
   const query = search.get('q') ?? '';
   const [text, setText] = useState(query);
-  const input = useRef<HTMLInputElement>(null);
   const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useLikeSeeds(query);
   const { data: status } = useStatus();
   const searching = query !== '';
@@ -69,11 +67,6 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
     return () => clearTimeout(timer);
   }, [text, query]); // Not `commit`, a new function on every render that only reads its argument
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    commit(text);
-    input.current?.blur(); // Puts the keyboard away so the results show.
-  };
   // The pick opens once it has loaded. The picks of the posters on screen load ahead, so a tap moves on at once; any
   // other starts loading as a finger lands on it, and its poster stays pressed until then.
   const { go, going, warm } = useAdvance();
@@ -93,29 +86,20 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
       <motion.section
         initial={entrance}
         animate={ENTERED}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+        transition={ENTRANCE_SPRING}
         className="pt-6 pb-10"
       >
         <h1 className="font-display text-[44px] sm:text-6xl">Which movie did you love?</h1>
         <p className="mt-3 text-muted">Curatorr finds movies you haven't seen that share its themes and keywords.</p>
 
-        <form role="search" onSubmit={submit} className="relative mt-6">
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-faint" aria-hidden />
-          {/* 16px text, or iOS zooms in on focus. */}
-          <input
-            ref={input}
-            type="search"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Search your library"
-            aria-label="Search your library"
-            enterKeyHint="search"
-            autoComplete="off"
-            // Titles are names: no correcting them into other words.
-            {...plainField}
-            className="h-12 w-full rounded-xl bg-surface pr-3.5 pl-11 text-base text-fg ring-1 ring-line placeholder:text-faint focus:ring-2 focus:ring-accent focus:outline-none"
-          />
-        </form>
+        <SearchField
+          value={text}
+          onChange={setText}
+          onSearch={() => commit(text)}
+          label="Search your library"
+          placeholder="Search your library"
+          className="mt-6"
+        />
 
         <h2 className="mt-8 text-sm font-semibold text-muted">{searching ? 'In your library' : 'Recently watched'}</h2>
 
@@ -155,7 +139,8 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
                   <button
                     onPointerDown={() => warm(pickUrl(m.id))}
                     onClick={() => choose(m.id)}
-                    className={clsx('group press w-full text-left transition', state && 'scale-[0.97]')}
+                    className="group press w-full text-left transition"
+                    data-held={state || undefined}
                   >
                     <span className="relative block">
                       <Img

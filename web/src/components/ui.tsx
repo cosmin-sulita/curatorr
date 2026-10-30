@@ -1,11 +1,13 @@
 import type { BlobatarOptions } from 'blobatar';
 import { blobatarUri } from 'blobatar/uri';
 import clsx from 'clsx';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, Search } from 'lucide-react';
 import {
   useEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
+  type FormEvent,
   type ImgHTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
@@ -192,6 +194,50 @@ export function nextFieldOnEnter(e: KeyboardEvent<HTMLInputElement>) {
 /** 16px text: iOS zooms the page in on a field with smaller text. */
 export const inputClass =
   'h-11 w-full rounded-xl bg-ink px-3.5 text-base text-fg ring-1 ring-line placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent';
+
+/** A search box for titles. Search on the keyboard puts it away, so the results show. */
+export function SearchField({
+  value,
+  onChange,
+  onSearch,
+  label,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** Called on the keyboard's Search key, before the keyboard goes. */
+  onSearch?: () => void;
+  label: string;
+  placeholder: string;
+  className?: string;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    onSearch?.();
+    input.current?.blur();
+  };
+  return (
+    <form role="search" onSubmit={submit} className={clsx('relative', className)}>
+      <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-faint" aria-hidden />
+      {/* 16px text, or iOS zooms in on focus. */}
+      <input
+        ref={input}
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        enterKeyHint="search"
+        autoComplete="off"
+        // Titles are names: no correcting them into other words.
+        {...plainField}
+        className="h-12 w-full rounded-xl bg-surface pr-3.5 pl-11 text-base text-fg ring-1 ring-line placeholder:text-faint focus:ring-2 focus:ring-accent focus:outline-none"
+      />
+    </form>
+  );
+}
 
 export function Notice({ tone = 'error', children }: { tone?: 'error' | 'info'; children: ReactNode }) {
   return (

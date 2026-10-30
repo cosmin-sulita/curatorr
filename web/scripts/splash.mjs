@@ -11,7 +11,9 @@ import { createRequire } from 'node:module';
 // sharp comes with @vite-pwa/assets-generator, which makes the other icons.
 const sharp = createRequire(import.meta.url)('sharp');
 
-const INK = '#0c0f1e';
+/** The background, as the theme has it. */
+const INK = /--color-ink:\s*(#[0-9a-f]{6});/i.exec(readFileSync('src/styles.css', 'utf8'))?.[1];
+if (!INK) throw new Error('No --color-ink in src/styles.css');
 /** The logo's size in points, as Launch draws it. */
 const LOGO = 96;
 const OUT = 'public/splash';

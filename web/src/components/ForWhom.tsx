@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { useDialogFocus } from '../lib/dialogFocus';
 import { useScrollLock } from '../lib/scrollLock';
+import { ENTRANCE_SPRING } from '../lib/wizard';
 import { Avatar, Button } from './ui';
 
 export type PersonalMark = 'seen' | 'later' | 'never';
@@ -61,7 +62,7 @@ export function ForWhom({
         initial={{ y: 40 }}
         animate={{ y: 0 }}
         exit={{ y: 40 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+        transition={ENTRANCE_SPRING}
       >
         <h2 id="for-whom-title" className="font-display text-3xl">
           {COPY[kind].title}
