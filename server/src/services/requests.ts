@@ -12,7 +12,7 @@ export async function syncRequests(store: Store, log: FastifyBaseLogger) {
   try {
     const client = new SeerrClient(seerr.url, seerr.apiKey);
     const [users, requests] = await Promise.all([client.users(), client.movieRequests()]);
-    const entries = matchRequests(store.profileRows(true), store.movies(), users, requests);
+    const entries = matchRequests(store.profileRows({ includeHidden: true }), store.movies(), users, requests);
     store.replaceRequests(entries);
     const profiles = new Set(entries.map((e) => e.profileId)).size;
     store.set('seerrSync', { at: Date.now(), requests: entries.length, profiles, error: null });

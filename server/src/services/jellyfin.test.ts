@@ -277,7 +277,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
     for (const name of Object.keys(profiles)) delete profiles[name];
   });
 
-  const profileId = (name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
+  const profileId = (name: string) => store.profileRows({ includeHidden: true }).find((p) => p.name === name)!.id;
   const select = async (name: string) => {
     const res = await post(app, `/api/profiles/${profileId(name)}/select`, {});
     expect(res.statusCode).toBe(200);
@@ -475,7 +475,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
     it('takes a movie off the watchlist in Curatorr once it is no longer a favourite in Jellyfin', async () => {
       expect((await mark('Dad', 6, 'later')).server).toBe('synced'); // Finding Nemo, a favourite in Jellyfin too
       fake.state.userData[DAD]!['jf-nemo']!.IsFavorite = false; // no longer one, in a Jellyfin app
-      await syncServerState(store, store.profileRow(profileId('Dad'))!, silentLog, true);
+      await syncServerState(store, store.profileRow(profileId('Dad'))!, silentLog, { force: true });
       const res = await app.inject({ method: 'GET', url: '/api/hidden', headers: { cookie: profiles.Dad! } });
       expect((res.json() as { movie: { id: number } }[]).map((h) => h.movie.id)).not.toContain(6);
     });
@@ -512,18 +512,18 @@ describe('Curatorr with Jellyfin, over the API', () => {
 
     fake.state.users = [DAD_USER, RETIRED_USER];
     expect((await refresh()).statusCode).toBe(200);
-    expect(store.profileRows(true).map((p) => p.name)).toEqual(['Dad']);
+    expect(store.profileRows({ includeHidden: true }).map((p) => p.name)).toEqual(['Dad']);
     fake.state.users = [DAD_USER, KID_USER, RETIRED_USER];
     await refresh();
   });
 
   it("changes nobody's profile when Jellyfin can't list its users", async () => {
     await imported();
-    const before = store.profileRows(true);
+    const before = store.profileRows({ includeHidden: true });
     fake.state.usersStatus = 503;
     const res = await post(app, '/api/setup/jellyfin/users', {}, admin);
     expect(res.statusCode).toBe(502);
-    expect(store.profileRows(true)).toEqual(before);
+    expect(store.profileRows({ includeHidden: true })).toEqual(before);
     fake.state.usersStatus = 200;
   });
 
@@ -540,7 +540,7 @@ describe('Curatorr with Jellyfin, over the API', () => {
     expect((await settings(signedIn)).statusCode).toBe(403);
     fake.state.users = [DAD_USER, KID_USER, RETIRED_USER];
     await library.run();
-    expect(store.profileRows(true).map((p) => p.name)).toEqual(['Dad', 'Kid']);
+    expect(store.profileRows({ includeHidden: true }).map((p) => p.name)).toEqual(['Dad', 'Kid']);
   });
 
   it("lets any Jellyfin administrator sign in to settings, without replacing Curatorr's own sign-in", async () => {
@@ -750,7 +750,7 @@ describe('a PIN Curatorr keeps for a Jellyfin profile', () => {
     const { app, ctx } = await freshInstall();
     const admin = cookiesOf(await connect(app, { url: base, username: 'Dad', password: 'dad-pass' }));
     expect((await post(app, '/api/setup/jellyfin/users', {}, admin)).statusCode).toBe(200);
-    const id = (name: string) => ctx.store.profileRows(true).find((p) => p.name === name)!.id;
+    const id = (name: string) => ctx.store.profileRows({ includeHidden: true }).find((p) => p.name === name)!.id;
     return { app, store: ctx.store, admin, id };
   }
   const setPin = (app: App, id: number, pin: string | null, cookie: string) =>

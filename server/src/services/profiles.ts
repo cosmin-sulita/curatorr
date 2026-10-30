@@ -22,7 +22,7 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
     users = await getHomeUsers(plex.clientId, plex.adminToken);
   } catch (err) {
     // A refresh that can't read Plex Home must not change anyone's profile, let alone delete it.
-    if (store.profileRows(true).some((p) => p.plex_user_id != null)) throw err;
+    if (store.profileRows({ includeHidden: true }).some((p) => p.plex_user_id != null)) throw err;
     log.warn({ err }, 'could not list Plex Home users; falling back to the owner only');
     users = [];
   }
@@ -66,7 +66,7 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
     }
   }
   store.removeProfilesNotIn(real.map((u) => u.id));
-  return store.profileRows(true);
+  return store.profileRows({ includeHidden: true });
 }
 
 /** Switches to the profile's Plex Home user; plex.tv checks the PIN of a protected one. */

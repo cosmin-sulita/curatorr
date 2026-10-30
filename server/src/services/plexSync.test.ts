@@ -122,10 +122,10 @@ describe('two-way Plex sync over the API', () => {
     store.update('app', { syncToServer: true });
   });
 
-  const profileId = (name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
+  const profileId = (name: string) => store.profileRows({ includeHidden: true }).find((p) => p.name === name)!.id;
   /** A profile signed in to its own Plex account, picked on a device of its own. */
   async function newProfile(name: string, token: string, admin = false) {
-    const id = store.createLocalProfile(name, admin);
+    const id = store.createLocalProfile(name, { admin });
     store.setProfileTokens(id, token, token);
     const res = await app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, payload: {} });
     cookies[name] = cookieOf(res);
@@ -289,7 +289,7 @@ describe('two-way Plex sync over the API', () => {
     const id = await newProfile('Unlisted', 'unlisted-token');
     expect((await mark('Unlisted', 2, 'later')).server).toBe('synced'); // Heat, on the Plex Watchlist too
     watchlists.set('unlisted-token', []); // taken off in a Plex app
-    await syncServerState(store, store.profileRow(id)!, silentLog, true);
+    await syncServerState(store, store.profileRow(id)!, silentLog, { force: true });
     expect(await watchlisted('Unlisted')).toEqual([]);
     expect((await picks('Unlisted')).picks.find((p) => p.movie.id === 2)!.onWatchlistOf).toEqual([]);
   });
@@ -299,7 +299,7 @@ describe('two-way Plex sync over the API', () => {
     expect((await mark('Kept', 2, 'later')).server).toBe('synced');
     store.update('app', { syncToServer: false });
     watchlists.set('kept-token', []);
-    await syncServerState(store, store.profileRow(id)!, silentLog, true);
+    await syncServerState(store, store.profileRow(id)!, silentLog, { force: true });
     expect((await watchlisted('Kept')).map((w) => w.movieId)).toEqual([2]);
   });
 
@@ -310,7 +310,7 @@ describe('two-way Plex sync over the API', () => {
       watchlistHeld = { asked: resolve, release: new Promise<void>((r) => (release = r)) };
     });
     try {
-      const read = syncServerState(store, store.profileRow(id)!, silentLog, true);
+      const read = syncServerState(store, store.profileRow(id)!, silentLog, { force: true });
       await asked; // Plex has answered "nothing on it", but the answer is still on its way
       expect((await mark('Racing', 2, 'later')).server).toBe('synced');
       release();
@@ -327,7 +327,7 @@ describe('two-way Plex sync over the API', () => {
     const library = store.movies();
     store.replaceMovies(library.filter((m) => m.id !== 2), Date.now()); // Heat's file is being replaced, say
     try {
-      await syncServerState(store, store.profileRow(id)!, silentLog, true);
+      await syncServerState(store, store.profileRow(id)!, silentLog, { force: true });
     } finally {
       store.replaceMovies(library, Date.now());
     }
@@ -339,7 +339,7 @@ describe('two-way Plex sync over the API', () => {
     watchlists.set('long-token', [...Array.from({ length: 150 }, (_, i) => `zz${i}`), 'aaa111']);
     watchlistSizeUnknown = true;
     try {
-      await syncServerState(store, store.profileRow(id)!, silentLog, true);
+      await syncServerState(store, store.profileRow(id)!, silentLog, { force: true });
     } finally {
       watchlistSizeUnknown = false;
     }

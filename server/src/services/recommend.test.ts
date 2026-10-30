@@ -33,7 +33,7 @@ describe('picks for a restricted profile', () => {
       [dieHard(1, 'Die Hard', 'R'), dieHard(4, 'Live Free or Die Hard', 'PG-13'), movie(), movie(), movie()],
       Date.now(),
     );
-    const teen = store.profileRow(store.createLocalProfile('Teen', false, 'teen'))!;
+    const teen = store.profileRow(store.createLocalProfile('Teen', { restriction: 'teen' }))!;
     const titles = (await recommendFor(store, [teen], {})).picks.map((p) => p.movie.title);
     expect(titles).toContain('Live Free or Die Hard');
     expect(titles).not.toContain('Die Hard');
@@ -48,7 +48,7 @@ describe('a saga with a part marked Never', () => {
       movie({ title: `Part ${i + 1}`, saga: { id: 7, title: 'Saga', part: i + 1, parts: n } }),
     );
     store.replaceMovies([...parts, movie({ title: 'Other' })], Date.now());
-    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const alex = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
     const watch = (...seen: StoredMovie[]) =>
       store.replaceWatched(alex.id, seen.map((m) => ({ movieId: m.id, viewedAt: Date.now() - 86_400_000 })), Date.now());
     return { store, parts, alex, watch };
@@ -145,7 +145,7 @@ describe('Surprise me', () => {
       movie({ ratings: { rt: 99 - i * 5, imdb: 7.95 - i / 4, tmdb: null, metacritic: null } }),
     );
     store.replaceMovies(movies, Date.now());
-    const row = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const row = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
     const ids = async (c: Criteria) => (await recommendFor(store, [row], c)).picks.map((p) => p.movie.id);
     const best = movies.map((m) => m.id);
 
@@ -169,7 +169,7 @@ describe('Just arrived', () => {
     );
     const old = movie({ arrivedAt: ago(90), ratings: { rt: 100, imdb: 8, tmdb: null, metacritic: null } });
     store.replaceMovies([...fresh, old], Date.now());
-    const row = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const row = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
     const { picks } = await recommendFor(store, [row], { shelf: 'new' });
     expect(picks.map((p) => p.movie.id)).toEqual(fresh.map((m) => m.id));
   });
@@ -180,7 +180,7 @@ describe('taste', () => {
     const store = tempStore();
     const film = movie();
     store.replaceMovies([film], Date.now());
-    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
+    const alex = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
     const at = Date.now();
     store.setFeedbackSynced(store.addFeedback(alex.id, film.id, 'seen', at));
     // The next sync reads the mark back from Plex, which dated the watch the same second.
@@ -233,8 +233,8 @@ describe('picking for a whole screen of answers', () => {
     const store = tempStore();
     const films = Array.from({ length: 4 }, (_, i) => movie({ title: `Film ${i + 1}` }));
     store.replaceMovies(films, Date.now());
-    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
-    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
+    const alex = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam'))!;
     // The first read of the Plex settings saves their defaults, a write of its own.
     store.get('plex');
     return { store, films, alex, sam };
@@ -300,7 +300,7 @@ describe('picking for a whole screen of answers', () => {
 
   it('keeps four groups at most, dropping the one asked for longest ago', () => {
     const { store } = home();
-    const people = ['A', 'B', 'C', 'D', 'E'].map((name) => store.profileRow(store.createLocalProfile(name, false))!);
+    const people = ['A', 'B', 'C', 'D', 'E'].map((name) => store.profileRow(store.createLocalProfile(name))!);
     const now = Date.now();
     const first = people.map((p) => pickingFor(store, fresh(store, p), now).picking.eligible);
     expect(pickingFor(store, fresh(store, people[4]!), now).picking.eligible).toBe(first[4]);
@@ -322,9 +322,9 @@ describe('watching together', () => {
       alien: named('Alien', { certification: 'R' }),
     };
     store.replaceMovies(Object.values(library), Date.now());
-    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
-    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
-    const kids = store.profileRow(store.createLocalProfile('Kids', false, 'older_kid'))!;
+    const alex = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam'))!;
+    const kids = store.profileRow(store.createLocalProfile('Kids', { restriction: 'older_kid' }))!;
     return { store, library, alex, sam, kids };
   }
 
@@ -348,8 +348,8 @@ describe('watching together', () => {
     const part = (n: number) => movie({ title: `Saga ${n}`, saga: { id: 9, title: 'Saga', part: n, parts: 3 } });
     const parts = [part(1), part(2), part(3)];
     store.replaceMovies([...parts, movie({ title: 'Other' })], Date.now());
-    const alex = store.profileRow(store.createLocalProfile('Alex', true))!;
-    const sam = store.profileRow(store.createLocalProfile('Sam', false))!;
+    const alex = store.profileRow(store.createLocalProfile('Alex', { admin: true }))!;
+    const sam = store.profileRow(store.createLocalProfile('Sam'))!;
     const watch = (row: ProfileRow, ...seen: StoredMovie[]) =>
       store.replaceWatched(row.id, seen.map((m) => ({ movieId: m.id, viewedAt: Date.now() - 86_400_000 })), Date.now());
     watch(alex, parts[0]!);

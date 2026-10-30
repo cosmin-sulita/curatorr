@@ -47,7 +47,7 @@ export const settingsRoutes: RouteModule = (app, { store, library }) => {
       sync: { ...store.get('sync'), syncing: library.syncing },
       // The secret in the address Radarr calls; only the owner sees it.
       webhook: store.get('radarrWebhook'),
-      profiles: store.profileRows(true).map((r) => ({
+      profiles: store.profileRows({ includeHidden: true }).map((r) => ({
         ...profileFor(store, r),
         hidden: Boolean(r.hidden),
         serverUser: r.plex_user_id != null || r.jellyfin_user_id != null,

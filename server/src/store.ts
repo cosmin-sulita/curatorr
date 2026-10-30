@@ -214,7 +214,8 @@ export class Store {
 
   // ---- profiles -----------------------------------------------------------
 
-  profileRows(includeHidden = false): ProfileRow[] {
+  /** The profiles shown on "Who's watching?", or every one with `includeHidden`. */
+  profileRows({ includeHidden = false }: { includeHidden?: boolean } = {}): ProfileRow[] {
     const sql = `SELECT * FROM profiles ${includeHidden ? '' : 'WHERE hidden = 0'} ORDER BY is_admin DESC, sort_order, name`;
     return this.db.prepare(sql).all() as unknown as ProfileRow[];
   }
@@ -279,10 +280,13 @@ export class Store {
     return Boolean(this.db.prepare('SELECT 1 FROM profiles WHERE jellyfin_user_id = ? AND is_admin = 1').get(userId));
   }
 
-  createLocalProfile(name: string, isAdmin: boolean, restriction: RestrictionProfile = null): number {
+  createLocalProfile(
+    name: string,
+    { admin = false, restriction = null }: { admin?: boolean; restriction?: RestrictionProfile } = {},
+  ): number {
     const row = this.db
       .prepare('INSERT INTO profiles (name, is_admin, restriction_profile) VALUES (?, ?, ?) RETURNING id')
-      .get(name, isAdmin ? 1 : 0, restriction) as { id: number };
+      .get(name, admin ? 1 : 0, restriction) as { id: number };
     return row.id;
   }
 

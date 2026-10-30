@@ -131,7 +131,9 @@ export const jellyfinRoutes: RouteModule = (app, { store, library }) => {
     // wrong ones would only count toward Jellyfin locking their account. Someone made an administrator
     // lately is one here after the next library sync, or a refresh of the profiles.
     const name = body.username.toLowerCase();
-    const known = store.profileRows(true).find((p) => p.jellyfin_user_id != null && p.name.toLowerCase() === name);
+    const known = store
+      .profileRows({ includeHidden: true })
+      .find((p) => p.jellyfin_user_id != null && p.name.toLowerCase() === name);
     if (!known?.is_admin) throw new HttpError(403, `${body.username} isn't a Jellyfin administrator`);
     const userId = known.jellyfin_user_id!;
 

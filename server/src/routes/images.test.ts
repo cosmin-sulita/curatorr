@@ -34,8 +34,8 @@ describe("Radarr's images, through Curatorr", () => {
     ctx.store.set('radarr', { url: base, apiKey: 'radarr-key' });
     ctx.store.replaceMovies([movie(1), movie(2), movie(3, 'R')], Date.now());
     const picked = (id: number) => `curatorr_profile=${encodeURIComponent(app.signCookie(String(id)))}`;
-    viewer = picked(ctx.store.createLocalProfile('Viewer', false));
-    kid = picked(ctx.store.createLocalProfile('Kid', false, 'little_kid'));
+    viewer = picked(ctx.store.createLocalProfile('Viewer'));
+    kid = picked(ctx.store.createLocalProfile('Kid', { restriction: 'little_kid' }));
   });
 
   afterAll(async () => {

@@ -166,7 +166,7 @@ export const setupRoutes: RouteModule = (app, { store, library }) => {
     if (store.get('setupComplete')) throw new HttpError(409, 'Curatorr is already set up');
     store.resetPlex();
     store.set('jellyfin', null);
-    if (store.profileRows(true).length === 0) store.createLocalProfile('Me', true);
+    if (store.profileRows({ includeHidden: true }).length === 0) store.createLocalProfile('Me', { admin: true });
     return { ok: true };
   });
 

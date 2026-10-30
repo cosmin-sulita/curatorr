@@ -24,7 +24,7 @@ export async function importJellyfinUsers(store: Store) {
   const users = (await JellyfinClient.connected(jellyfin).users()).filter((u) => !u.disabled);
   for (const user of users) saveJellyfinProfile(store, user);
   store.keepOnlyJellyfinProfiles(users.map((u) => u.id));
-  return store.profileRows(true);
+  return store.profileRows({ includeHidden: true });
 }
 
 /**

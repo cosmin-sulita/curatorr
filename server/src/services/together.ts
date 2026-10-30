@@ -30,7 +30,7 @@ export async function settleTogether(store: Store, log: FastifyBaseLogger, now =
       continue;
     }
     // Fresh histories, not the ten-minute-old ones the app would make do with.
-    await Promise.all(members.map((m) => syncServerState(store, m, log, true).catch(() => {})));
+    await Promise.all(members.map((m) => syncServerState(store, m, log, { force: true }).catch(() => {})));
     const watchedAt = (profileId: number) => store.watchHistory(profileId).find((w) => w.movieId === movie.id)?.viewedAt;
     if (!members.some((m) => (watchedAt(m.id) ?? 0) >= pending.startedAt)) continue;
 

@@ -78,7 +78,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
     const matrix = { ...fromRadarr({ id: 1, title: 'The Matrix', tmdbId: 603, hasFile: true }), plexRatingKey: '101', plexGuid: 'g' };
     store.replaceMovies([matrix], Date.now());
     const [alex, sam] = ['Alex', 'Sam'].map((name) => {
-      const id = store.createLocalProfile(name, false);
+      const id = store.createLocalProfile(name);
       store.setProfileTokens(id, `${name.toLowerCase()}-user`, `${name.toLowerCase()}-token`);
       return id;
     }) as [number, number];

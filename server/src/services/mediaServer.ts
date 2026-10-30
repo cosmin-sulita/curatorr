@@ -39,7 +39,12 @@ export async function refreshProfiles(store: Store, log: FastifyBaseLogger) {
  * Jellyfin each read and store their own; what's common happens here: freshness, one read at a time per profile, and
  * following movies taken off the server's watchlist while marks update it (`syncToServer`).
  */
-export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
+export async function syncServerState(
+  store: Store,
+  row: ProfileRow,
+  log: FastifyBaseLogger,
+  { force = false }: { force?: boolean } = {},
+) {
   // Before the first library sync there's nothing to match them with, and an empty read would pass for fresh for
   // ten minutes. The status calls made while that sync runs read them once the library is in.
   if (!store.movies().length) return;

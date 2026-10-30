@@ -267,8 +267,8 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
   it('reads each profile’s own watch history', async () => {
     await sync();
-    const owner = store.profileRow(store.createLocalProfile('Owner', true))!;
-    const member = store.profileRow(store.createLocalProfile('Member', false))!;
+    const owner = store.profileRow(store.createLocalProfile('Owner', { admin: true }))!;
+    const member = store.profileRow(store.createLocalProfile('Member'))!;
     store.setProfileTokens(owner.id, OWNER_TOKEN, OWNER_TOKEN);
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
 
@@ -281,7 +281,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
   it('reads a member’s history from the libraries shared with them', async () => {
     await sync();
-    const member = store.profileRow(store.createLocalProfile('Not shared', false))!;
+    const member = store.profileRow(store.createLocalProfile('Not shared'))!;
     store.setProfileTokens(member.id, MEMBER_TOKEN, MEMBER_TOKEN);
     store.update('plex', { sectionIds: ['1', '2'] });
     await syncServerState(store, store.profileRow(member.id)!, silentLog);
@@ -293,7 +293,7 @@ describe('library sync against fake Radarr and Plex servers', () => {
 
   it('shares one Plex fetch between overlapping syncs, then waits until the history is stale', async () => {
     await sync();
-    const id = store.createLocalProfile('Overlap', false);
+    const id = store.createLocalProfile('Overlap');
     store.setProfileTokens(id, MEMBER_TOKEN, MEMBER_TOKEN);
     const row = store.profileRow(id)!;
     const before = libraryFetches;

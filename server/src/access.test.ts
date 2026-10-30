@@ -279,7 +279,7 @@ describe('a Curatorr set up without Plex', () => {
 
   it('has no owner to sign in, so its settings are open to anyone', async () => {
     const { app, store } = await freshApp();
-    store.createLocalProfile('Me', true);
+    store.createLocalProfile('Me', { admin: true });
     store.set('setupComplete', true);
     expect((await call(app, 'GET', '/api/settings')).statusCode).toBe(200);
   });

@@ -121,8 +121,9 @@ describe('Plex Home profiles', () => {
     return { app, store, library: ctx.library };
   }
 
-  const names = (store: Store) => store.profileRows(true).map((p) => p.name);
-  const idOf = (store: Store, name: string) => store.profileRows(true).find((p) => p.name === name)!.id;
+  const names = (store: Store) => store.profileRows({ includeHidden: true }).map((p) => p.name);
+  const idOf = (store: Store, name: string) =>
+    store.profileRows({ includeHidden: true }).find((p) => p.name === name)!.id;
   const select = (app: App, id: number, { pin, cookie = '' }: { pin?: string; cookie?: string } = {}) =>
     app.inject({ method: 'POST', url: `/api/profiles/${id}/select`, headers: { cookie }, payload: pin ? { pin } : {} });
   const signedInAsOwner = (app: App) => adminCookie(app, OWNER);
@@ -130,7 +131,7 @@ describe('Plex Home profiles', () => {
   it('imports the owner and the Home users, linking the ones without a PIN', async () => {
     const { store } = await plexInstance();
     await importHomeUsers(store, silentLog);
-    expect(store.profileRows(true).map((p) => [p.name, Boolean(p.server_token)])).toEqual([
+    expect(store.profileRows({ includeHidden: true }).map((p) => [p.name, Boolean(p.server_token)])).toEqual([
       ['Owner', true],
       ['Kid', true],
       ['Member', false],
@@ -168,7 +169,7 @@ describe('Plex Home profiles', () => {
     // before the library has movies.)
     store.replaceMovies([storedMovieMaker()({ plexRatingKey: '1' })], Date.now());
     revoked.add(store.profileRow(kid)!.server_token!);
-    await syncServerState(store, store.profileRow(kid)!, silentLog, true);
+    await syncServerState(store, store.profileRow(kid)!, silentLog, { force: true });
     expect(store.profileRow(kid)!.server_token).toBeNull();
     expect((await status()).profile).toBeNull();
     const wizard = await app.inject({ method: 'GET', url: '/api/wizard/genre', headers: { cookie } });

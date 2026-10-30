@@ -16,8 +16,8 @@ describe('marks, without a media server', () => {
   beforeEach(() => {
     ({ store, close } = tempStore('marks'));
     store.replaceMovies([up], Date.now());
-    a = store.profileRow(store.createLocalProfile('A', true))!;
-    b = store.profileRow(store.createLocalProfile('B', false))!;
+    a = store.profileRow(store.createLocalProfile('A', { admin: true }))!;
+    b = store.profileRow(store.createLocalProfile('B'))!;
   });
 
   afterEach(() => close());
