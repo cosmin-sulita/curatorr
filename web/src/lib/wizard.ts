@@ -64,7 +64,7 @@ export function useLookAhead(urls: string[], key: string | null) {
     return () => {
       stopped = true;
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key]); // `key` stands for `urls`, a new array on every render
 }
 
 /**

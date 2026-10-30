@@ -47,7 +47,7 @@ function usePostersOnScreen(list: RefObject<HTMLUListElement | null>, seeds: Lik
       window.clearTimeout(settle);
       observer.disconnect();
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key]); // `key` stands for `ids`, a new array on every render
   // New results show before the observer has looked at them: none of the old ones load meanwhile.
   return onScreen.filter((id) => ids.includes(id));
 }
@@ -67,7 +67,7 @@ export function LikeScreen({ search }: { search: URLSearchParams }) {
     if (text.trim() === query) return;
     const timer = setTimeout(() => commit(text), 200);
     return () => clearTimeout(timer);
-  }, [text, query]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, query]); // Not `commit`, a new function on every render that only reads its argument
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

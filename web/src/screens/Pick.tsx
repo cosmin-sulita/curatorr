@@ -106,7 +106,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
       sendFeedback(current.movie.id, 'shown').catch(() => {});
     }
     warmImages(rest.slice(0, 3).flatMap((p) => [p.movie.posterUrl, p.movie.fanartUrl]), 'low');
-  }, [current?.movie.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [current?.movie.id]); // Only a new pick, as said above: `rest` changes with every mark
 
   // Each new pick starts at the top. Passing on one or choosing from "Other good picks" often
   // happens scrolled down, which would leave the next poster and title out of view.
@@ -121,7 +121,7 @@ export function PickScreen({ search }: { search: URLSearchParams }) {
     if (!queue.restored.current) return;
     queue.restored.current = false;
     rail.current?.scrollTo({ left: 0 });
-  }, [current?.movie.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [current?.movie.id]); // `queue.restored` is a ref, read whenever the pick changes
 
   // "Surprise me" deals a few of the other candidates' posters before the pick lands.
   const reduceMotion = useReducedMotionConfig();

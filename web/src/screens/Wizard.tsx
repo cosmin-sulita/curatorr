@@ -73,7 +73,7 @@ export function WizardScreen({ step, search }: { step: WizardStep; search: URLSe
   // Answers normally move past a question with no real choice before it shows; this covers opening one directly.
   useEffect(() => {
     if (data?.skip) navigate(nextUrl(step, criteria, NO_PREFERENCE), { replace: true });
-  }, [data?.skip, step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data?.skip, step]); // Not `criteria`, a new object on every render
 
   const choose = (value: string) => go(value, urlFor(value));
   const touch = (value: string) => warm(urlFor(value));
