@@ -7,7 +7,7 @@ import { openDb } from '../db.js';
 import { fromRadarr } from '../integrations/radarr.js';
 import { PLEX_HOSTS } from '../integrations/plex.js';
 import { Store } from '../store.js';
-import { settleTogether } from './together.js';
+import { settleTogether, startedTogether } from './together.js';
 import { listen, silentLog } from '../testing.js';
 
 const HOUR = 60 * 60 * 1000;
@@ -83,7 +83,7 @@ describe('marking a movie watched for everyone who watched it together', () => {
       return id;
     }) as [number, number];
     const startedAt = Date.now() - 3 * HOUR;
-    store.recordTogether(matrix.id, [alex, sam], startedAt);
+    startedTogether(store, matrix.id, [alex, sam], startedAt);
     const seenBy = (id: number) => store.feedback(id).filter((e) => e.kind === 'seen').map((e) => e.movieId);
     return { store, alex, sam, startedAt, seenBy };
   }

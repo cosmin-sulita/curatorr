@@ -5,6 +5,14 @@ import { transaction } from '../db.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 import { applyMark, isServerMark, revertMark } from './mediaServer.js';
 
+/** How long shown picks and skips count. */
+const FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Shows and skips only matter for a while. Plays started from Curatorr are kept: they're part of a profile's taste. */
+export function pruneFeedback(store: Store, now = Date.now()) {
+  store.pruneFeedback(now - FEEDBACK_RETENTION_MS);
+}
+
 /** What the media server did for a change made for several people: the worst news first. */
 export function overall(results: ServerSyncResult[]): ServerSyncResult {
   for (const r of ['failed', 'synced', 'already'] as const) if (results.includes(r)) return r;

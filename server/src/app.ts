@@ -18,6 +18,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { setupRoutes } from './routes/setup.js';
 import { statusRoutes } from './routes/status.js';
 import { LibrarySync } from './services/library.js';
+import { pruneFeedback } from './services/marks.js';
 import { scheduleTogether } from './services/together.js';
 import { scheduleUpdateChecks } from './services/updates.js';
 import { Store } from './store.js';
@@ -58,6 +59,7 @@ export async function buildApp(
   const demo = opts.demo ?? config.demo;
   const db = openDb(opts.configDir ?? config.configDir, demo ? 'curatorr-demo.db' : 'curatorr.db');
   const store = new Store(db, demo);
+  pruneFeedback(store);
   if (demo) seedDemo(store);
 
   const app = Fastify({

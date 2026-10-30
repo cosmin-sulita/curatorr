@@ -1,144 +1,7 @@
-import { randomBytes, randomUUID } from 'node:crypto';
 import { MARK_KINDS } from '@curatorr/shared';
 import type { FeedbackEvent, FeedbackKind, MarkKind, MediaServer, Movie, Profile, RestrictionProfile } from '@curatorr/shared';
 import { transaction, type DB } from './db.js';
-
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
-export interface RadarrSettings {
-  url: string;
-  apiKey: string;
-}
-
-export interface PlexSettings {
-  clientId: string;
-  adminToken: string | null;
-  ownerId: number | null;
-  ownerName: string | null;
-  machineId: string | null;
-  serverName: string | null;
-  serverUrl: string | null;
-  sectionIds: string[];
-}
-
-export interface JellyfinSettings {
-  /** Where Curatorr reaches Jellyfin. */
-  url: string;
-  /** Where people open Jellyfin, for Watch on Jellyfin, when that's another address. */
-  publicUrl: string | null;
-  serverId: string;
-  serverName: string;
-  /** Curatorr's device in Jellyfin, which keeps one token per device and user. */
-  deviceId: string;
-  /** The token of the administrator who connected Curatorr; it reads and marks every user's movies. */
-  token: string;
-  /** That administrator, who owns Curatorr's settings as the Plex owner does. */
-  ownerId: string;
-  ownerName: string;
-  /** The libraries that hold the Radarr movies. */
-  libraryIds: string[];
-}
-
-export interface SeerrSettings {
-  url: string;
-  apiKey: string;
-}
-
-export interface AppSettings {
-  includeWatched: boolean;
-  syncIntervalHours: number;
-  /** "Seen it" marks the movie watched on the media server; "Watchlist" adds it to the server's watchlist. */
-  syncToServer: boolean;
-  /** Unwatched Seerr requests rank higher for whoever made them. */
-  boostRequests: boolean;
-}
-
-export interface SyncInfo {
-  at: number | null;
-  movies: number;
-  /** Library movies found on the media server. */
-  matched: number;
-  error: string | null;
-}
-
-/** The last read of Seerr: requested movies found in the library, and for how many profiles. */
-export interface RequestSyncInfo {
-  at: number | null;
-  requests: number;
-  profiles: number;
-  error: string | null;
-}
-
-/** Radarr's webhook: the secret in its address, and when Radarr last called, with what. */
-export interface RadarrWebhookInfo {
-  token: string;
-  at: number | null;
-  event: string | null;
-  /** The movie the last call named. */
-  title: string | null;
-}
-
-
-interface SettingsShape {
-  setupComplete: boolean;
-  cookieSecret: string;
-  radarr: RadarrSettings | null;
-  plex: PlexSettings;
-  jellyfin: JellyfinSettings | null;
-  app: AppSettings;
-  sync: SyncInfo;
-  seerr: SeerrSettings | null;
-  seerrSync: RequestSyncInfo;
-  radarrWebhook: RadarrWebhookInfo;
-  /** The newest release on GitHub when Curatorr last looked (services/updates.ts). */
-  latestVersion: string | null;
-  /** Wrong passwords given for each Jellyfin administrator in Settings sign-in (services/jellyfinSignIn.ts), by user id. */
-  jellyfinMisses: Record<string, JellyfinMisses>;
-  /** Sign-ins to settings and PINs entered only hold for this epoch; "Sign out all other devices" sets a new one. */
-  sessionEpoch: string | null;
-}
-
-/**
- * Settings sign-ins Curatorr counted as wrong for a Jellyfin administrator: how many, the last one's time, and
- * when Jellyfin last saw them sign in as the count began (null when it didn't say).
- */
-export interface JellyfinMisses {
-  count: number;
-  at: number;
-  lastLoginAt: number | null;
-}
-
-/**
- * Each setting's value before anything is saved, made when asked for, so a read only makes its own: a fresh object
- * every time, and the secrets (the cookie secret, Plex's client id, the webhook's token) only where they're needed.
- */
-const DEFAULTS: { [K in keyof SettingsShape]: () => SettingsShape[K] } = {
-  setupComplete: () => false,
-  cookieSecret: () => randomBytes(32).toString('hex'),
-  radarr: () => null,
-  plex: () => ({
-    clientId: randomUUID(),
-    adminToken: null,
-    ownerId: null,
-    ownerName: null,
-    machineId: null,
-    serverName: null,
-    serverUrl: null,
-    sectionIds: [],
-  }),
-  jellyfin: () => null,
-  app: () => ({ includeWatched: false, syncIntervalHours: 6, syncToServer: true, boostRequests: true }),
-  sync: () => ({ at: null, movies: 0, matched: 0, error: null }),
-  seerr: () => null,
-  seerrSync: () => ({ at: null, requests: 0, profiles: 0, error: null }),
-  // The secret in the address Radarr calls.
-  radarrWebhook: () => ({ token: randomBytes(24).toString('base64url'), at: null, event: null, title: null }),
-  latestVersion: () => null,
-  jellyfinMisses: () => ({}),
-  sessionEpoch: () => null,
-};
+import { DEFAULTS, GENERATED, withDefaults, type PlexSettings, type SettingKey, type Settings } from './settings.js';
 
 // ---------------------------------------------------------------------------
 // Row types
@@ -204,10 +67,6 @@ export interface StoredMovie extends Movie {
   fanartPath: string | null;
 }
 
-const FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-/** Watch tapped again on the same movie, by the same group, this soon is the same evening's play. */
-const TOGETHER_AGAIN_MS = 6 * 60 * 60 * 1000;
-
 export class Store {
   private movieCache: StoredMovie[] | null = null;
 
@@ -215,9 +74,7 @@ export class Store {
     readonly db: DB,
     /** Demo mode: fixture library, no Radarr/Plex, everyone is admin. */
     readonly demo = false,
-  ) {
-    this.pruneFeedback();
-  }
+  ) {}
 
   /**
    * Moves with every row inserted, updated or deleted through this connection, Curatorr's only one, so what's worked
@@ -229,33 +86,27 @@ export class Store {
 
   // ---- settings -----------------------------------------------------------
 
-  get<K extends keyof SettingsShape>(key: K): SettingsShape[K] {
+  /** A setting (settings.ts), as saved or as it starts out. */
+  get<K extends SettingKey>(key: K): Settings[K] {
     const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    if (row) return withDefaults(key, JSON.parse(row.value) as Settings[K]);
     const fallback = DEFAULTS[key]();
-    if (row) {
-      const stored = JSON.parse(row.value) as SettingsShape[K];
-      // Settings saved by an older version lack newer keys: fill them from the defaults.
-      return isPlainObject(stored) && isPlainObject(fallback)
-        ? (Object.assign({}, fallback, stored) as SettingsShape[K])
-        : stored;
-    }
-    // Persist generated defaults (secrets, client id) so they stay stable.
-    if (key === 'cookieSecret' || key === 'plex' || key === 'radarrWebhook') this.set(key, fallback);
+    if (GENERATED.has(key)) this.set(key, fallback);
     return fallback;
   }
 
   /** Puts a setting back as it starts out: a new webhook address, Seerr's requests forgotten. */
-  reset(key: keyof SettingsShape) {
+  reset(key: SettingKey) {
     this.set(key, DEFAULTS[key]());
   }
 
-  set<K extends keyof SettingsShape>(key: K, value: SettingsShape[K]) {
+  set<K extends SettingKey>(key: K, value: Settings[K]) {
     this.db
       .prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value')
       .run(key, JSON.stringify(value));
   }
 
-  update<K extends 'plex' | 'app' | 'sync' | 'seerrSync' | 'radarrWebhook'>(key: K, patch: Partial<SettingsShape[K]>) {
+  update<K extends 'plex' | 'app' | 'sync' | 'seerrSync' | 'radarrWebhook'>(key: K, patch: Partial<Settings[K]>) {
     this.set(key, { ...this.get(key), ...patch });
   }
 
@@ -573,13 +424,11 @@ export class Store {
   }
 
   /**
-   * While marks update the media server (`syncToServer`), its watchlist and Curatorr's are one. So a movie that was on
-   * the server's when a read began (`before`) and isn't on it now (`after`) was taken off there, and loses its
-   * Watchlist marks here too. Only movies still in the library count: one Curatorr can't match any more hasn't left.
-   * Returns the movies taken off.
+   * Drops the Watchlist marks of movies that were on the server's watchlist when a read began (`before`) and aren't on
+   * it now (`after`). Only movies still in the library count: one Curatorr can't match any more hasn't left.
+   * Returns the movies taken off. (Only while marks update the server: see `syncServerState`.)
    */
   followWatchlistRemovals(profileId: number, before: Set<number>, after: number[]): number[] {
-    if (!this.get('app').syncToServer) return [];
     const still = new Set(after);
     const removed = [...before].filter((id) => !still.has(id) && this.movie(id));
     transaction(this.db, () => {
@@ -698,14 +547,14 @@ export class Store {
   // ---- watching together --------------------------------------------------
 
   /**
-   * Remembers that these profiles started playing a movie together. Tapping Watch again on it within a
-   * few hours, for the same people, is the same evening.
+   * Remembers that these profiles started playing a movie together at `at`, unless they already did since `since`
+   * (still open), which then stands for both.
    */
-  recordTogether(movieId: number, profileIds: number[], at = Date.now()) {
+  recordTogether(movieId: number, profileIds: number[], at: number, since: number) {
     const members = JSON.stringify([...profileIds].sort((a, b) => a - b));
     const again = this.db
       .prepare('SELECT id FROM together WHERE movie_id = ? AND profile_ids = ? AND done_at IS NULL AND started_at > ?')
-      .get(movieId, members, at - TOGETHER_AGAIN_MS);
+      .get(movieId, members, since);
     if (!again) {
       this.db.prepare('INSERT INTO together (movie_id, profile_ids, started_at) VALUES (?, ?, ?)').run(movieId, members, at);
     }
@@ -728,16 +577,12 @@ export class Store {
     this.db.prepare('UPDATE together SET done_at = ? WHERE id = ?').run(at, id);
   }
 
-  /** Shows and skips only matter for a while. Plays started from Curatorr are kept: they're part of a profile's taste. */
-  private pruneFeedback() {
-    this.db
-      .prepare("DELETE FROM feedback WHERE kind IN ('shown', 'skipped') AND created_at < ?")
-      .run(Date.now() - FEEDBACK_RETENTION_MS);
+  /** Deletes the shown picks and skips from before `before`. */
+  pruneFeedback(before: number) {
+    this.db.prepare("DELETE FROM feedback WHERE kind IN ('shown', 'skipped') AND created_at < ?").run(before);
   }
 }
 
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === 'object' && !Array.isArray(v);
 
 interface Ids {
   tmdbId: number | null;

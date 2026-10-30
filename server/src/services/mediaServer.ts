@@ -37,7 +37,7 @@ export async function refreshProfiles(store: Store, log: FastifyBaseLogger) {
 /**
  * Refreshes a profile's watch history and watchlist from the media server, if they are stale (or `force`). Plex and
  * Jellyfin each read and store their own; what's common happens here: freshness, one read at a time per profile, and
- * following movies taken off the server's watchlist.
+ * following movies taken off the server's watchlist while marks update it (`syncToServer`).
  */
 export async function syncServerState(store: Store, row: ProfileRow, log: FastifyBaseLogger, force = false) {
   // Before the first library sync there's nothing to match them with, and an empty read would pass for fresh for
@@ -68,7 +68,8 @@ async function readAndFollow(
   // Before the server is asked: a movie Curatorr adds while the answer is on its way wasn't taken off there.
   const before = store.watchlistIds(row.id);
   const watchlist = await read();
-  if (!watchlist) return;
+  // While marks update the server, its watchlist and Curatorr's are one, so what was taken off there goes here too.
+  if (!watchlist || !store.get('app').syncToServer) return;
   const removed = store.followWatchlistRemovals(row.id, before, watchlist);
   if (removed.length) log.info({ profile: row.name, removed: removed.length }, 'taken off the media server watchlist');
 }

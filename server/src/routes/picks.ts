@@ -29,6 +29,7 @@ import {
   recommendFor,
   similarFor,
 } from '../services/recommend.js';
+import { startedTogether } from '../services/together.js';
 import { requireGroup, requireProfile } from '../session.js';
 import type { ProfileRow, StoredMovie, Store } from '../store.js';
 
@@ -128,7 +129,7 @@ export const pickRoutes: RouteModule = (app, { store }) => {
     allowedForEach(store, movie, targets);
     const at = Date.now();
     // Played on one account, so the others get it marked watched once that account shows it (together.ts).
-    if (body.kind === 'accepted' && group.length > 1) store.recordTogether(movie.id, targets.map((r) => r.id), at);
+    if (body.kind === 'accepted' && group.length > 1) startedTogether(store, movie.id, targets.map((r) => r.id), at);
     const { ids, server } = await saveFeedback(store, targets, movie, body.kind, req.log, at);
     return { id: ids[0]!, ids, ...(server && { server }) };
   });

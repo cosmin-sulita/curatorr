@@ -7,6 +7,13 @@ import { syncServerState } from './mediaServer.js';
 const SETTLE_WINDOW_MS = 12 * 60 * 60 * 1000;
 /** How often the pending ones are checked. */
 const CHECK_EVERY_MS = 10 * 60 * 1000;
+/** Watch tapped again on the same movie, by the same group, this soon is the same evening's play. */
+const TOGETHER_AGAIN_MS = 6 * 60 * 60 * 1000;
+
+/** Remembers that a group started playing a movie at `at`, once per evening, for `settleTogether`. */
+export function startedTogether(store: Store, movieId: number, profileIds: number[], at = Date.now()) {
+  store.recordTogether(movieId, profileIds, at, at - TOGETHER_AGAIN_MS);
+}
 
 /**
  * A group plays a movie on one account, so the others' profiles would keep suggesting it. For each movie a

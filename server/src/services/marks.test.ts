@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { transaction } from '../db.js';
 import type { ProfileRow, Store } from '../store.js';
 import { silentLog, storedMovieMaker, tempStore } from '../testing.js';
-import { overall, saveFeedback, takeOffWatchlist, undoFeedback } from './marks.js';
+import { overall, pruneFeedback, saveFeedback, takeOffWatchlist, undoFeedback } from './marks.js';
 
 const movie = storedMovieMaker();
 
@@ -73,5 +73,17 @@ describe('marks, without a media server', () => {
       }),
     ).toThrow('nope');
     expect([...store.feedback(a.id), ...store.feedback(b.id)]).toEqual([]);
+  });
+
+  it("forgets shown picks and skips after 90 days, and keeps plays and marks for taste", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = 200 * day;
+    for (const kind of ['shown', 'skipped', 'accepted', 'seen'] as const) {
+      store.addFeedback(a.id, up.id, kind, now - 91 * day);
+      store.addFeedback(a.id, up.id, kind, now - 89 * day);
+    }
+    pruneFeedback(store, now);
+    const left = store.feedback(a.id).map((e) => `${e.kind} ${(now - e.createdAt) / day}`);
+    expect(left.sort()).toEqual(['accepted 89', 'accepted 91', 'seen 89', 'seen 91', 'shown 89', 'skipped 89']);
   });
 });
