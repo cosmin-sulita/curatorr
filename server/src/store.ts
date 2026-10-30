@@ -94,7 +94,7 @@ interface SettingsShape {
   radarrWebhook: RadarrWebhookInfo;
   /** The newest release on GitHub when Curatorr last looked (services/updates.ts). */
   latestVersion: string | null;
-  /** Wrong passwords given for each Jellyfin administrator in Settings sign-in (routes/jellyfin.ts), by user id. */
+  /** Wrong passwords given for each Jellyfin administrator in Settings sign-in (services/jellyfinSignIn.ts), by user id. */
   jellyfinMisses: Record<string, JellyfinMisses>;
   /** Sign-ins to settings and PINs entered only hold for this epoch; "Sign out all other devices" sets a new one. */
   sessionEpoch: string | null;
