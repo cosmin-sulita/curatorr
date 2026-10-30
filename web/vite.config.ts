@@ -52,7 +52,8 @@ function precompress(): Plugin {
       handler(_, bundle) {
         for (const file of Object.values(bundle)) {
           if (!/\.(js|css|html|svg|md)$/.test(file.fileName)) continue;
-          const source = Buffer.from(file.type === 'chunk' ? file.code : file.source);
+          const content = file.type === 'chunk' ? file.code : file.source;
+          const source = typeof content === 'string' ? Buffer.from(content) : Buffer.from(content);
           // Too small to gain from it.
           if (source.length < 1024) continue;
           const br = brotliCompressSync(source, { params: { [zlib.BROTLI_PARAM_QUALITY]: zlib.BROTLI_MAX_QUALITY } });

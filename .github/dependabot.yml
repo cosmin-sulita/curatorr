@@ -17,6 +17,10 @@ updates:
       npm:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      # Node's types stay at the oldest Node Curatorr runs on (engines), so the typecheck turns down newer APIs.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major, version-update:semver-minor]
 
   - package-ecosystem: github-actions
     directory: /
@@ -38,6 +42,8 @@ updates:
     target-branch: develop
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       include: scope

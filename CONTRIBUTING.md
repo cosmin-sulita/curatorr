@@ -18,7 +18,7 @@ The demo library has about 95 movies and three profiles (Alex, Sam and Kids). In
 
 ```sh
 npm test           # vitest, for shared/, server/ and web's lib/ (not its screens)
-npm run typecheck  # tsc on shared, server, web and the tests
+npm run typecheck  # tsc on shared, server, web, web's config files and the tests
 npm run build      # web/dist, then server/dist
 npm run icons      # regenerates the committed icons from web/public/logo.svg and app-icon.svg
 ```

@@ -6,7 +6,7 @@ Curatorr is a self-hosted PWA that answers "what should we watch tonight?" from 
 
 ## Commands
 
-Requires Node 22.13+, for the built-in `node:sqlite`. Docker runs Node 26, and CI tests on both 26 and 22.13. Keep `engines`, esbuild's `node22` target and the docs at 22.13 unless the floor is raised on purpose.
+Requires Node 22.13+, for the built-in `node:sqlite`. Docker runs Node 26, and CI tests on both 26 and 22.13. Keep `engines`, esbuild's `node22` target, `@types/node` (`~22.13`, so the typecheck turns down newer APIs) and the docs at 22.13 unless the floor is raised on purpose.
 
 ```sh
 npm install
@@ -14,7 +14,7 @@ npm run dev:demo     # API on :7979 with a seeded demo library + Vite UI on :517
 npm run dev          # same against real Radarr and Plex or Jellyfin; first start runs setup
 npm test             # vitest: shared/, server/, and the pure modules in web/src/lib/
 npx vitest run shared/src/scoring.test.ts -t "penalises movies skipped"   # one file / one test
-npm run typecheck    # tsc on shared, server and web in turn, then on the tests (tsconfig.test.json)
+npm run typecheck    # tsc on shared, server, web and web's Node config files in turn, then on the tests (tsconfig.test.json)
 npm run build        # web/dist (Vite + PWA) then server/dist (esbuild bundle)
 npm run tags         # tagging report on config/curatorr.db; -- --movie <title> explains one, -- --tag <id> lists a tag
 npm run eval         # ranking report on config/curatorr.db; -- --save <file> then -- --compare <file> measures a change
