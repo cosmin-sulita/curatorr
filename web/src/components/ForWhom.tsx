@@ -2,10 +2,9 @@ import type { Profile } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Check } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useRef, useState } from 'react';
-import { useDialogFocus } from '../lib/dialogFocus';
-import { useScrollLock } from '../lib/scrollLock';
+import { useState } from 'react';
 import { ENTRANCE_SPRING } from '../lib/wizard';
+import { Dialog } from './Dialog';
 import { Avatar, Button } from './ui';
 
 export type PersonalMark = 'seen' | 'later' | 'never';
@@ -39,23 +38,14 @@ export function ForWhom({
   const [ticked, setTicked] = useState<number[]>(() =>
     kind === 'seen' || kind === 'unwatchlist' ? [] : people.map((p) => p.id),
   );
-  const dialog = useRef<HTMLDivElement>(null);
-  useScrollLock();
-  useDialogFocus(dialog);
   const toggle = (id: number) => setTicked((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   return (
-    <motion.div
-      ref={dialog}
-      className="fixed inset-0 z-40 flex items-end justify-center bg-ink/70 backdrop-blur-sm md:items-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="for-whom-title"
-      onKeyDown={(e) => e.key === 'Escape' && onCancel()}
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    <Dialog
+      labelledBy="for-whom-title"
+      onClose={onCancel}
+      closeOnBackdrop
+      className="flex items-end justify-center bg-ink/70 backdrop-blur-sm md:items-center"
     >
       <motion.div
         className="w-full max-w-md rounded-t-3xl bg-surface px-5 pt-6 pb-safe ring-1 ring-line md:rounded-3xl md:pb-6"
@@ -106,6 +96,6 @@ export function ForWhom({
           </Button>
         </div>
       </motion.div>
-    </motion.div>
+    </Dialog>
   );
 }

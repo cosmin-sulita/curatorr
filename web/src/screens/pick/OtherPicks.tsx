@@ -46,8 +46,9 @@ export function OtherPicks({
         {picks.map((p) => (
           <li key={p.movie.id} className="relative w-28 shrink-0 snap-start sm:w-36">
             <button
-              // Held down, it opens a menu of its own (PosterMenu).
+              // Held down, or with a right click or the menu key, it opens a menu of its own (PosterMenu).
               {...hold((el) => onMenu(p, el))}
+              aria-haspopup="menu"
               onClick={() => onChoose(p)}
               className="group press w-full text-left transition"
             >

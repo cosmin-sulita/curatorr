@@ -1,12 +1,36 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Keeps keyboard focus inside a dialog while it's mounted, and gives it back to whatever had it
- * before (the button that opened the dialog) once it's gone.
+ * What every dialog and menu over the screen does while it's mounted: the page behind doesn't scroll, keyboard focus
+ * stays inside `root` and goes back to whatever had it (the button that opened it) once it's gone, and Escape closes
+ * it wherever focus is (a right click leaves focus on the poster).
  */
-export function useDialogFocus(dialog: RefObject<HTMLElement | null>) {
+export function useModal(root: RefObject<HTMLElement | null>, onClose: () => void) {
+  useScrollLock();
+  useFocusTrap(root);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close.current();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+}
+
+function useScrollLock() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, []);
+}
+
+function useFocusTrap(dialog: RefObject<HTMLElement | null>) {
   // Read while rendering, before the dialog's autoFocus moves focus into it.
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
 

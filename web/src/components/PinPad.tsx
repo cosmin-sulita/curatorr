@@ -1,10 +1,8 @@
 import type { Profile } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Delete } from 'lucide-react';
-import { motion } from 'motion/react';
-import { useRef, useState, type ReactNode } from 'react';
-import { useDialogFocus } from '../lib/dialogFocus';
-import { useScrollLock } from '../lib/scrollLock';
+import { useState, type ReactNode } from 'react';
+import { Dialog } from './Dialog';
 import { Avatar, Button, Spinner } from './ui';
 
 /**
@@ -32,9 +30,6 @@ export function PinPad({
   onCancel: () => void;
 }) {
   const [pin, setPin] = useState('');
-  const dialog = useRef<HTMLDivElement>(null);
-  useScrollLock();
-  useDialogFocus(dialog);
 
   const press = (digit: string) => {
     if (busy) return;
@@ -47,25 +42,23 @@ export function PinPad({
   };
 
   return (
-    <motion.div
-      ref={dialog}
-      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 backdrop-blur-md"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
+    <Dialog
+      label={title}
+      onClose={onCancel}
+      className="grid touch-none place-items-center bg-ink/85 px-4 backdrop-blur-md"
       onKeyDown={(e) => {
         if (/^\d$/.test(e.key)) press(e.key);
         if (e.key === 'Backspace') setPin((p) => p.slice(0, -1));
-        if (e.key === 'Escape') onCancel();
       }}
     >
       <div className="flex w-full max-w-xs flex-col items-center">
         <Avatar name={profile.name} src={profile.avatarUrl} className="size-20" />
         <h2 className="mt-4 text-center text-lg font-semibold">{title}</h2>
         <p className="mt-1 text-center text-sm text-muted">{subtitle}</p>
+        {/* The dots for the eye, and the count in words for screen readers. */}
+        <p className="sr-only" aria-live="polite">
+          {pin.length ? `${pin.length} of 4 digits entered` : ''}
+        </p>
         <div className="mt-6 flex gap-3" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <span key={i} className={clsx('size-3.5 rounded-full transition', i < pin.length ? 'bg-fg' : 'bg-raised ring-1 ring-line')} />
@@ -95,7 +88,7 @@ export function PinPad({
         </div>
         {footer && <div className="mt-4">{footer}</div>}
       </div>
-    </motion.div>
+    </Dialog>
   );
 }
 

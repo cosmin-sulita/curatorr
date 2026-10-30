@@ -1,10 +1,9 @@
 import clsx from 'clsx';
 import type { LucideIcon } from 'lucide-react';
 import { motion, useReducedMotionConfig } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { useDialogFocus } from '../lib/dialogFocus';
-import { useScrollLock } from '../lib/scrollLock';
+import { useModal } from '../lib/modal';
 import { Img } from './ui';
 
 export interface MenuAction {
@@ -59,21 +58,24 @@ export function PosterMenu({
   onClose: () => void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
-  useScrollLock();
-  useDialogFocus(menu);
+  useModal(menu, onClose);
   const reduce = useReducedMotionConfig();
   // The finger that held the poster is still down as the menu opens: lifting it mustn't close the menu.
   const [armed, setArmed] = useState(false);
-  // Escape closes it wherever focus is: a right click leaves focus on the poster.
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    // The menu itself takes focus, so no item wears a keyboard ring; Tab goes on to the items.
-    menu.current?.focus({ preventScroll: true });
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close.current();
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  // The menu itself takes focus, so no item wears a keyboard ring; Tab or an arrow key goes on to the items.
+  useEffect(() => menu.current?.focus({ preventScroll: true }), []);
+
+  /** The arrow keys, Home and End move between the items, as in any menu. */
+  const moveFocus = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    // -1 while the menu itself has focus: down goes to the first item, up to the last.
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const moves: Record<string, number> = { ArrowDown: at + 1, ArrowUp: Math.max(at, 0) - 1, Home: 0, End: -1 };
+    const to = moves[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    items.at(to % items.length)?.focus();
+  };
 
   // Where everything goes: the poster moves fully into view (it may sit behind the bottom bar, or past an edge), and
   // the menu opens under it, or over it, or the poster moves up until both fit, as an iPhone does.
@@ -137,6 +139,7 @@ export function PosterMenu({
         exit={{ opacity: 0, scale: reduce ? 1 : 0.8, transition: leave }}
         transition={spring}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={moveFocus}
       >
         <p className="flex h-10 items-center truncate px-4 text-[13px] text-muted">{title}</p>
         <div className="divide-y divide-line border-t border-line">

@@ -2,10 +2,9 @@ import { hasHeadlineNews, type Release, type ReleaseNote } from '@curatorr/share
 import { useIsFetching } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
-import { useDialogFocus } from '../lib/dialogFocus';
-import { useScrollLock } from '../lib/scrollLock';
+import { useEffect, useState } from 'react';
 import { appVersion, markSeen, unseenReleases } from '../lib/whatsNew';
+import { Dialog } from './Dialog';
 import { Button } from './ui';
 
 const GROUPS: { kind: ReleaseNote['kind']; title: string }[] = [
@@ -54,26 +53,15 @@ export function WhatsNew({ setupComplete }: { setupComplete: boolean }) {
 
 export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onClose: () => void }) {
   const several = releases.length > 1;
-  const dialog = useRef<HTMLDivElement>(null);
-  useScrollLock();
-  useDialogFocus(dialog);
-  // Focus goes to the dialog rather than its button: it often opens on its own as the app starts, and a focused
-  // button would wear its keyboard ring before anyone has touched the app. Tab still leads to the button.
-  useEffect(() => dialog.current?.focus({ preventScroll: true }), []);
 
   return (
-    <motion.div
-      ref={dialog}
-      tabIndex={-1}
-      className="fixed inset-0 z-40 grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md focus:outline-none"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="whats-new-title"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    // It often opens on its own as the app starts, so it takes focus itself (see focusSelf).
+    <Dialog
+      labelledBy="whats-new-title"
+      onClose={onClose}
+      closeOnBackdrop
+      focusSelf
+      className="grid touch-none place-items-center bg-ink/85 px-4 pt-safe pb-safe backdrop-blur-md"
     >
       <motion.div
         className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-3xl bg-surface p-6 shadow-2xl shadow-black/50 ring-1 ring-line"
@@ -131,6 +119,6 @@ export function WhatsNewDialog({ releases, onClose }: { releases: Release[]; onC
           Got it
         </Button>
       </motion.div>
-    </motion.div>
+    </Dialog>
   );
 }
