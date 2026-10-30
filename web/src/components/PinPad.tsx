@@ -86,7 +86,7 @@ export function PinPad({
           </Button>
           <PadKey onClick={() => press('0')}>0</PadKey>
           <button
-            className="grid h-16 place-items-center rounded-2xl text-muted hover:bg-white/5"
+            className="grid h-16 place-items-center rounded-2xl text-muted transition hover:bg-white/5 press"
             onClick={() => setPin((p) => p.slice(0, -1))}
             aria-label="Delete digit"
           >
@@ -104,7 +104,7 @@ function PadKey({ children, onClick, autoFocus }: { children: string; onClick: (
     <button
       autoFocus={autoFocus}
       onClick={onClick}
-      className="grid h-16 w-20 place-items-center rounded-2xl bg-surface text-2xl font-semibold tabular-nums ring-1 ring-line transition hover:bg-raised active:scale-95"
+      className="grid h-16 w-20 place-items-center rounded-2xl bg-surface text-2xl font-semibold tabular-nums ring-1 ring-line transition hover:bg-raised press"
     >
       {children}
     </button>

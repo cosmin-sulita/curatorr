@@ -122,7 +122,7 @@ export function ProfilesScreen() {
                     onClick={() => (picked ? toggle(p.id) : choose(p))}
                     aria-disabled={pending}
                     aria-pressed={picked ? ticked : undefined}
-                    className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center aria-disabled:cursor-wait"
+                    className="group flex w-32 flex-col items-center gap-3 rounded-2xl p-2 text-center transition press aria-disabled:cursor-wait"
                   >
                     <span className="relative">
                       <Avatar
