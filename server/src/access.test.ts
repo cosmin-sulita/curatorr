@@ -100,7 +100,6 @@ describe('who can call each route, once the Plex owner has set Curatorr up', () 
     store.set('setupComplete', true);
     const member = store.upsertPlexProfile({
       plexUserId: OWNER + 1,
-      plexUuid: null,
       name: 'Member',
       avatarUrl: null,
       isAdmin: false,

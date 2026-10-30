@@ -1,6 +1,5 @@
 {
   "name": "curatorr",
-  "version": "0.1.0",
   "private": true,
   "description": "Pick tonight's movie from your Radarr library.",
   "license": "MIT",

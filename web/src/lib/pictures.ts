@@ -37,7 +37,7 @@ export function retryWithoutCors(img: HTMLImageElement) {
 }
 
 /** Every picture loads through here, the way the screens load it, so what's loaded ahead is what they show. */
-export function loadImage(src: string, priority?: Priority) {
+function loadImage(src: string, priority?: Priority) {
   const img = new Image();
   img.crossOrigin = CROSS_ORIGIN;
   if (priority) img.fetchPriority = priority;

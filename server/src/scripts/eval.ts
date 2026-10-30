@@ -133,7 +133,7 @@ const profiles = all<{
   jellyfin_user_id: string | null;
   watched_synced_at: number | null;
 }>(
-  'SELECT id, name, restriction_profile, jellyfin_user_id, watched_synced_at FROM profiles WHERE hidden = 0 ORDER BY is_admin DESC, sort_order, name',
+  'SELECT id, name, restriction_profile, jellyfin_user_id, watched_synced_at FROM profiles WHERE hidden = 0 ORDER BY is_admin DESC, name',
 );
 const watched = all<{ profile_id: number; movie_id: number; viewed_at: number | null }>(
   'SELECT profile_id, movie_id, viewed_at FROM watched',

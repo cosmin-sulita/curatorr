@@ -315,7 +315,6 @@ describe('library sync against fake Radarr and Plex servers', () => {
   const plexProfile = (plexUserId: number, name: string) =>
     store.upsertPlexProfile({
       plexUserId,
-      plexUuid: null,
       name,
       avatarUrl: null,
       isAdmin: plexUserId === OWNER_PLEX_ID,

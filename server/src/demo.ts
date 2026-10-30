@@ -153,7 +153,7 @@ const DEMO_REQUESTS: [profile: string, title: string][] = [
 /** The requests were made this many days before the server started, which is when Radarr added them. */
 const REQUESTED_DAYS_AGO = 30;
 
-export function demoMovies(now = Date.now()): StoredMovie[] {
+function demoMovies(now = Date.now()): StoredMovie[] {
   const daysAgo = (days: number | undefined) => (days != null ? new Date(now - days * DAY).toISOString() : null);
   return FIXTURES.map(([title, year, genres, runtime, cert, rt, imdb, keywords, overview], i) => {
     const id = i + 1;

@@ -25,7 +25,7 @@ export function excludedIds(ctx: Pick<ProfileContext, 'watched' | 'feedback' | '
 }
 
 /** Whether the profile's parental restrictions allow the movie. */
-export function certAllowed(m: Movie, allowedCerts: Set<string> | null) {
+function certAllowed(m: Movie, allowedCerts: Set<string> | null) {
   return !allowedCerts || (Boolean(m.certification) && allowedCerts.has(m.certification!.toUpperCase()));
 }
 

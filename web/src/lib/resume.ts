@@ -35,7 +35,7 @@ export function refreshOnReturn(qc: QueryClient) {
 }
 
 /** Whether the night the app went away in is over: past the server's turnover, or the phone's 4 am without one. */
-export function nightIsOver(since: { at: number; turnover: number | null }, now: number) {
+function nightIsOver(since: { at: number; turnover: number | null }, now: number) {
   return since.turnover != null ? now >= since.turnover : pickingDay(since.at) !== pickingDay(now);
 }
 

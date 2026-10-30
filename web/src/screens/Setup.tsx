@@ -201,7 +201,7 @@ function ServerOption({ name, onClick, children }: { name: string; onClick: () =
   );
 }
 
-export function Panel({
+function Panel({
   title,
   back,
   children,

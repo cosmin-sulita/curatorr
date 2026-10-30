@@ -126,12 +126,10 @@ export async function getServers(clientId: string, token: string): Promise<PlexS
 
 export interface PlexHomeUser {
   id: number;
-  uuid: string | null;
   title: string;
   thumb: string | null;
   admin: boolean;
   guest: boolean;
-  restricted: boolean;
   protected: boolean;
   restrictionProfile: RestrictionProfile;
 }
@@ -151,12 +149,10 @@ export async function getHomeUsers(clientId: string, token: string): Promise<Ple
   const users = asArray<any>(body.users ?? body.MediaContainer?.User);
   return users.map((u) => ({
     id: Number(u.id),
-    uuid: u.uuid ?? null,
     title: u.title || u.username || 'Plex user',
     thumb: u.thumb ?? null,
     admin: bool(u.admin),
     guest: bool(u.guest),
-    restricted: bool(u.restricted),
     protected: bool(u.protected),
     restrictionProfile: toRestriction(u),
   }));
@@ -315,7 +311,7 @@ const scrobbleQuery = (ratingKey: string) =>
   new URLSearchParams({ key: ratingKey, identifier: 'com.plexapp.plugins.library' }).toString();
 
 /** The id in a modern-agent guid (`plex://movie/5d776825880197001ec967c8`), else null. */
-export function plexGuidId(guid: unknown): string | null {
+function plexGuidId(guid: unknown): string | null {
   if (typeof guid !== 'string') return null;
   return /^plex:\/\/movie\/([0-9a-z]+)$/i.exec(guid)?.[1] ?? null;
 }

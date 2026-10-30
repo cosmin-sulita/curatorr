@@ -206,14 +206,6 @@ function taggedScores(explanations: TagExplanations): TagScores {
   return out;
 }
 
-export function tagThemes(movie: TaggableMovie): TagScores {
-  return taggedScores(explainThemes(movie));
-}
-
-export function tagMoods(movie: TaggableMovie): TagScores {
-  return taggedScores(explainMoods(movie));
-}
-
 export function tagMovie(movie: TaggableMovie): { themes: TagScores; moods: TagScores } {
   const { themes, moods } = explainTags(movie);
   return { themes: taggedScores(themes), moods: taggedScores(moods) };

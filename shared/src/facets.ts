@@ -62,7 +62,7 @@ function shelfOptions(pool: Movie[], now: number, opts: FacetOptions, used: Set<
 }
 
 /** Movies matching every answer given before `step`. */
-export function candidatesBefore(eligible: Movie[], step: WizardStep, c: Criteria): Movie[] {
+function candidatesBefore(eligible: Movie[], step: WizardStep, c: Criteria): Movie[] {
   return eligible.filter((m) => {
     if (step === 'genre') return true;
     if (!matchesGenre(m, c.genre)) return false;

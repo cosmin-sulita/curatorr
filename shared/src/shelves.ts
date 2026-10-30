@@ -17,7 +17,7 @@ export function daysInLibrary(m: Movie, now: number): number | null {
 }
 
 /** "Just arrived" offers the movies that arrived this recently. */
-export const JUST_ARRIVED_DAYS = 30;
+const JUST_ARRIVED_DAYS = 30;
 
 /** Whether the movie is among those "Just arrived" offers at `now`. */
 export function arrivedLately(m: Movie, now: number) {

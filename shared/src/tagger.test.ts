@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { moodById, themeById } from './taxonomy.js';
 import { TAGGED_MOVIES } from './tagger.fixtures.js';
-import { explainTags, inVocabulary, keywordPhrases, tagMoods, tagMovie, tagThemes } from './tagger.js';
+import { explainTags, inVocabulary, keywordPhrases, tagMovie, type TaggableMovie } from './tagger.js';
 
 const base = { genres: [], keywords: [], overview: '', runtime: 110 };
+const tagThemes = (movie: TaggableMovie) => tagMovie(movie).themes;
+const tagMoods = (movie: TaggableMovie) => tagMovie(movie).moods;
 
 describe('keywordPhrases', () => {
   it('yields the whole keyword and every word run', () => {

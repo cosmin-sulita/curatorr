@@ -41,10 +41,13 @@ interface MovieRow {
   arrived_at: string | null;
 }
 
+/**
+ * A row of the profiles table. It also has plex_uuid and sort_order, which nothing uses any more: they stay so that an
+ * older version, run again on this database, still works.
+ */
 export interface ProfileRow {
   id: number;
   plex_user_id: number | null;
-  plex_uuid: string | null;
   /** The Jellyfin user the profile stands for. */
   jellyfin_user_id: string | null;
   name: string;
@@ -58,7 +61,6 @@ export interface ProfileRow {
   server_token: string | null;
   watched_synced_at: number | null;
   hidden: number;
-  sort_order: number;
 }
 
 /** A movie plus the Radarr MediaCover paths used by the image proxy. */
@@ -216,7 +218,7 @@ export class Store {
 
   /** The profiles shown on "Who's watching?", or every one with `includeHidden`. */
   profileRows({ includeHidden = false }: { includeHidden?: boolean } = {}): ProfileRow[] {
-    const sql = `SELECT * FROM profiles ${includeHidden ? '' : 'WHERE hidden = 0'} ORDER BY is_admin DESC, sort_order, name`;
+    const sql = `SELECT * FROM profiles ${includeHidden ? '' : 'WHERE hidden = 0'} ORDER BY is_admin DESC, name`;
     return this.db.prepare(sql).all() as unknown as ProfileRow[];
   }
 
@@ -226,7 +228,6 @@ export class Store {
 
   upsertPlexProfile(p: {
     plexUserId: number;
-    plexUuid: string | null;
     name: string;
     avatarUrl: string | null;
     isAdmin: boolean;
@@ -235,15 +236,15 @@ export class Store {
   }): number {
     const row = this.db
       .prepare(`
-        INSERT INTO profiles (plex_user_id, plex_uuid, name, avatar_url, is_admin, restriction_profile, pin_protected)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO profiles (plex_user_id, name, avatar_url, is_admin, restriction_profile, pin_protected)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (plex_user_id) DO UPDATE SET
-          plex_uuid = excluded.plex_uuid, name = excluded.name, avatar_url = excluded.avatar_url,
+          name = excluded.name, avatar_url = excluded.avatar_url,
           is_admin = excluded.is_admin, restriction_profile = excluded.restriction_profile,
           pin_protected = excluded.pin_protected
         RETURNING id
       `)
-      .get(p.plexUserId, p.plexUuid, p.name, p.avatarUrl, p.isAdmin ? 1 : 0, p.restrictionProfile, p.pinProtected ? 1 : 0) as {
+      .get(p.plexUserId, p.name, p.avatarUrl, p.isAdmin ? 1 : 0, p.restrictionProfile, p.pinProtected ? 1 : 0) as {
       id: number;
     };
     return row.id;

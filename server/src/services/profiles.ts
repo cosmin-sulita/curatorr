@@ -31,12 +31,10 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
   if (!users.some((u) => u.admin) && plex.ownerId) {
     users.unshift({
       id: plex.ownerId,
-      uuid: null,
       title: plex.ownerName ?? 'Owner',
       thumb: null,
       admin: true,
       guest: false,
-      restricted: false,
       protected: false,
       restrictionProfile: null,
     });
@@ -50,7 +48,6 @@ export async function importHomeUsers(store: Store, log: FastifyBaseLogger) {
   for (const u of real) {
     const id = store.upsertPlexProfile({
       plexUserId: u.id,
-      plexUuid: u.uuid,
       name: u.title,
       avatarUrl: u.thumb,
       isAdmin: u.admin,

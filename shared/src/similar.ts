@@ -70,11 +70,6 @@ function idfOf(keywords: Set<string>[]): Map<string, number> {
   return new Map([...df].map(([k, count]) => [k, Math.log(1 + n / count)]));
 }
 
-/** How telling each keyword is: one shared by a handful of movies says more than one most movies have. */
-export function keywordIdf(library: Movie[]): Map<string, number> {
-  return idfOf(library.map(usableKeywords));
-}
-
 /** A tag only exists once it passes its threshold, so having it counts for half. */
 const tagWeight = (score: number) => 0.5 + 0.5 * tagStrength(score);
 
@@ -141,7 +136,7 @@ export function libraryIndex(library: readonly Movie[]): LibraryIndex {
  * Cosine similarity, 0 (nothing in common) to 1 (the same signature). A signature shorter than `minNorm`
  * counts as that long: a movie TMDB knows little about isn't all about the one thing it shares.
  */
-export function similarity(a: Signature, b: Signature, minNorm = 0): number {
+function similarity(a: Signature, b: Signature, minNorm = 0): number {
   return cosine(a, norm(a), b, norm(b), minNorm);
 }
 

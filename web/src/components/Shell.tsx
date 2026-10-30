@@ -8,7 +8,7 @@ import { listNames } from '../lib/format';
 import { justArrived, Link } from '../lib/router';
 import { Avatar } from './ui';
 
-export function Wordmark({ className }: { className?: string }) {
+function Wordmark({ className }: { className?: string }) {
   return (
     <span className={clsx('inline-flex items-center gap-2', className)}>
       <img src="/logo.svg" alt="" className="size-7" />
