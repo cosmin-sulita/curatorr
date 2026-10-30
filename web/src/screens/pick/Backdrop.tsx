@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
-import { CROSS_ORIGIN, isCached, retryWithoutCors } from '../../components/ui';
+import { CROSS_ORIGIN, probeCached, retryWithoutCors } from '../../components/ui';
 
 /** Full-bleed backdrop, crossfading between picks (Seerr's detail-page treatment). */
 export function Backdrop({ src }: { src: string | null }) {
@@ -17,7 +17,7 @@ export function Backdrop({ src }: { src: string | null }) {
 
 /** Fades in once it has loaded (at once when it already has), so a slow backdrop eases in instead of popping in. */
 function BackdropImage({ src }: { src: string }) {
-  const [loaded, setLoaded] = useState(() => isCached(src));
+  const [loaded, setLoaded] = useState(() => probeCached(src));
   return (
     <motion.img
       src={src}

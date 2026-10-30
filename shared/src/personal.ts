@@ -19,8 +19,8 @@ const SHOWN_WINDOW = 30 * DAY;
 const SHOWN_GRACE = 3 * 60 * 60 * 1000;
 const JITTER = 1.5;
 /**
- * Movies the profile wants to watch: on its media server's watchlist or added with "Watchlist" in a pick. As for the
- * two bonuses below, the wizard's picks count WANTED_WEIGHT times this (ranking.ts).
+ * Movies the profile wants to watch: on its media server's watchlist or added with "Watchlist" in a pick. This and the
+ * two bonuses below are what "Something like…" adds; the wizard's picks count WANTED_WEIGHT times them (ranking.ts).
  */
 const WATCHLIST_BONUS = 6;
 /** Movies the profile asked for in Seerr and hasn't watched yet. */

@@ -45,8 +45,11 @@ export function loadImage(src: string, priority?: Priority) {
   return img;
 }
 
-/** True when the browser already holds this image (it completes at once), so it needn't fade in. */
-export function isCached(src: string | null | undefined) {
+/**
+ * True when the browser already holds this image, so it needn't fade in. It asks by starting to load it, which
+ * completes at once when it's held; otherwise the load goes on, and the picture shown next comes from it.
+ */
+export function probeCached(src: string | null | undefined) {
   if (!src) return false;
   const probe = loadImage(src);
   return probe.complete && probe.naturalWidth > 0;

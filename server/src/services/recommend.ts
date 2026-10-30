@@ -63,10 +63,10 @@ export interface ProfileData {
   name: string;
   restriction: string | null;
   movies: Movie[];
-  /** What the profile watched in Plex, and when. */
+  /** What the profile watched on the media server, and when. */
   watched: { movieId: number; viewedAt: number | null }[];
   feedback: FeedbackEvent[];
-  /** The profile's Plex Watchlist. */
+  /** The profile's media server watchlist (the Plex Watchlist or Jellyfin favourites). */
   watchlist: Set<number>;
   /** Library movies this profile requested in Seerr. */
   requested: Set<number>;
@@ -337,7 +337,7 @@ export async function similarFor(store: Store, rows: ProfileRow[], likedId: numb
 
 /**
  * Movies to start "Something like…" from: without a query, what the profile (or anyone watching
- * together) watched in Plex or marked "Seen it", most recent first; with one, matching titles in the
+ * together) watched on the media server or marked "Seen it", most recent first; with one, matching titles in the
  * library, watched first. Only movies everyone may see.
  */
 export function likeSeeds(store: Store, rows: ProfileRow[], q = ''): LikeSeed[] {

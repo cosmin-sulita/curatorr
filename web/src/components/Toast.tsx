@@ -1,9 +1,17 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
+/** What a toast's button does, by kind: the kind gives its label, and Undo also answers to Ctrl+Z / ⌘Z. */
+export interface ToastAction {
+  kind: 'undo';
+  run: () => void;
+}
+
+const ACTION_LABEL: Record<ToastAction['kind'], string> = { undo: 'Undo' };
+
 interface ToastInput {
   message: string;
-  action?: { label: string; run: () => void };
+  action?: ToastAction;
   duration?: number;
 }
 
@@ -57,7 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   // Undo is last in the tab order and gone in a few seconds, so Ctrl+Z / ⌘Z runs it from the keyboard
   // (except while typing, where it's the field's own undo).
-  const undo = toast?.action?.label === 'Undo' ? toast.action : null;
+  const undo = toast?.action?.kind === 'undo' ? toast.action : null;
   useEffect(() => {
     if (!undo) return;
     const onKey = (e: KeyboardEvent) => {
@@ -103,7 +111,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     setToast(null);
                   }}
                 >
-                  {toast.action.label}
+                  {ACTION_LABEL[toast.action.kind]}
                 </button>
               )}
             </motion.div>

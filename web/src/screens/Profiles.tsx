@@ -1,4 +1,4 @@
-import type { Profile } from '@curatorr/shared';
+import type { Profile, RestrictionProfile } from '@curatorr/shared';
 import clsx from 'clsx';
 import { Check, Lock, Users } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -11,7 +11,7 @@ import { listNames, serverCopy, serverName } from '../lib/format';
 import { navigate } from '../lib/router';
 
 /** Who a parental limit is for, as Curatorr applies it (custom Plex limits and Jellyfin ages map to these). */
-export const RESTRICTION_LABEL: Record<string, string> = {
+export const RESTRICTION_LABEL: Record<NonNullable<RestrictionProfile>, string> = {
   little_kid: 'Kids',
   older_kid: 'Older kids',
   teen: 'Teens',

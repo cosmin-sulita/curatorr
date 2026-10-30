@@ -40,7 +40,7 @@ export function seenEchoes(feedback: FeedbackEvent[]) {
     w.viewedAt != null && (marked.get(w.movieId) ?? []).some((at) => Math.abs(at - w.viewedAt!) <= ECHO_MS);
 }
 
-/** Plex watches, plays started from Curatorr and "Seen it" marks: one event per movie, the strongest. */
+/** Media server watches, plays started from Curatorr and "Seen it" marks: one event per movie, the strongest. */
 export function tasteEvents(
   watched: { movieId: number; viewedAt: number | null }[],
   feedback: FeedbackEvent[],

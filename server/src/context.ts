@@ -20,7 +20,7 @@ export function parse<T extends z.ZodType>(schema: T, data: unknown): z.infer<T>
   return result.data;
 }
 
-/** A Radarr, Seerr or Plex address as typed in a form; the scheme may be left out. */
+/** A Radarr, Seerr, Plex or Jellyfin address as typed in a form; the scheme may be left out. */
 export const serviceUrl = z
   .string()
   .min(1)

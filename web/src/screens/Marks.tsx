@@ -3,7 +3,7 @@ import { fold } from '@curatorr/shared';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState, type MouseEvent } from 'react';
 import { BackButton, Shell } from '../components/Shell';
-import { useToast } from '../components/Toast';
+import { useToast, type ToastAction } from '../components/Toast';
 import { Button, Img, Notice, PICTURE, SearchField, sized, Spinner } from '../components/ui';
 import {
   errorMessage,
@@ -55,8 +55,8 @@ export function MarksScreen({ list: id }: { list: MarkListId }) {
     });
 
   // Undo marks the movie again, which puts it back on the page.
-  const undo = (h: HiddenMovie) => ({
-    label: 'Undo',
+  const undo = (h: HiddenMovie): ToastAction => ({
+    kind: 'undo',
     run: () =>
       sendFeedback(h.movie.id, h.kind)
         .then((r) => {

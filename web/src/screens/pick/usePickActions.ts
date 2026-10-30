@@ -55,7 +55,7 @@ export function usePickActions({
           message: markMessage(kind, pick.movie.title, result, server, who),
           duration: kind === 'skipped' ? 3000 : undefined,
           action: {
-            label: 'Undo',
+            kind: 'undo',
             run: () => {
               putBack();
               undoAll(ids)
@@ -100,7 +100,7 @@ export function usePickActions({
           // Nothing to undo when it stayed on.
           action: off.length
             ? {
-                label: 'Undo',
+                kind: 'undo',
                 run: () => {
                   queue.replace(pick);
                   sendFeedback(pick.movie.id, 'later', together ? { profileIds: off } : {})

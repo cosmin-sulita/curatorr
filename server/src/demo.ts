@@ -198,10 +198,10 @@ export function seedDemo(store: Store) {
     const sam = store.createLocalProfile('Sam');
     store.createLocalProfile('Kids', { restriction: 'older_kid' });
     // Watched over the past weeks, a week apart, so their taste counts from the start.
-    const history = (ids: number[]) => ids.map((movieId, i) => ({ movieId, viewedAt: now - (i + 1) * 7 * DAY }));
+    const history = (titles: string[]) => titles.map((t, i) => ({ movieId: demoId(t), viewedAt: now - (i + 1) * 7 * DAY }));
     // Alex has started Back to the Future, so part II comes up as "Next in".
-    store.replaceWatched(alex, history([1, 11, 49, demoId('Back to the Future')]), now);
-    store.replaceWatched(sam, history([31, 44]), now);
+    store.replaceWatched(alex, history(['The Dark Knight', 'Inception', 'The Godfather', 'Back to the Future']), now);
+    store.replaceWatched(sam, history(['Paddington 2', 'Toy Story']), now);
   }
   // What each profile asked for in Seerr. Rebuilt every start, so older demo databases get them too.
   const profileIds = new Map(store.profileRows({ includeHidden: true }).map((p) => [p.name, p.id]));

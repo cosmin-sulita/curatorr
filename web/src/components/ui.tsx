@@ -12,12 +12,12 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { CROSS_ORIGIN, isCached, retryWithoutCors } from '../lib/pictures';
+import { CROSS_ORIGIN, probeCached, retryWithoutCors } from '../lib/pictures';
 
 export {
   CROSS_ORIGIN,
   PICTURE,
-  isCached,
+  probeCached,
   preloadImages,
   retryWithoutCors,
   sized,
@@ -97,7 +97,7 @@ export function Img(props: ImgProps) {
 
 function Picture({ src, className, alt = '', style, ...rest }: ImgProps) {
   // Starting out loaded means a preloaded or just-shown image appears at once instead of fading in.
-  const [loaded, setLoaded] = useState(() => isCached(src));
+  const [loaded, setLoaded] = useState(() => probeCached(src));
   const [shownAt] = useState(() => performance.now());
   // One read from storage appears at once too, after the app was closed for instance: its change to visible skips
   // the transitions (the caller's included), which come back a frame later for hovers.

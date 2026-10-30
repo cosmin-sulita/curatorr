@@ -72,7 +72,7 @@ export class Store {
 
   constructor(
     readonly db: DB,
-    /** Demo mode: fixture library, no Radarr/Plex, everyone is admin. */
+    /** Demo mode: fixture library, no Radarr or media server, everyone is admin. */
     readonly demo = false,
   ) {}
 
@@ -334,7 +334,7 @@ export class Store {
     return new Set(rows.map((r) => r.movie_id));
   }
 
-  /** Movies the profile watched in Plex, most recent first. */
+  /** Movies the profile watched on the media server, most recent first. */
   watchHistory(profileId: number): { movieId: number; viewedAt: number | null }[] {
     const rows = this.db
       .prepare('SELECT movie_id, viewed_at FROM watched WHERE profile_id = ? ORDER BY viewed_at DESC')

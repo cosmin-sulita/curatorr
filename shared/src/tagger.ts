@@ -68,17 +68,20 @@ function buildVocabulary(defs: (ThemeDef | MoodDef)[]): Vocabulary {
 const themeVocabulary = buildVocabulary(THEMES);
 const moodVocabulary = buildVocabulary(MOODS);
 
+/** The longest run of a keyword's words a term can match inside it. Longer terms only match a keyword exactly. */
+const MAX_PHRASE_WORDS = 4;
+
 /**
- * All phrases a keyword can satisfy: the whole keyword plus every run of
- * consecutive words, so "zombie apocalypse" yields "zombie", "apocalypse"
- * and "zombie apocalypse".
+ * All phrases a keyword can satisfy: the whole keyword plus every run of up to four consecutive words, so "zombie
+ * apocalypse" yields "zombie", "apocalypse" and "zombie apocalypse". A five-word term like "based on a true story"
+ * matches only that keyword.
  */
 export function keywordPhrases(keyword: string): Set<string> {
   const normalized = normalizeKeyword(keyword);
   const phrases = new Set<string>([normalized]);
   const words = normalized.split(/\s+/).filter(Boolean);
   for (let start = 0; start < words.length; start++) {
-    for (let end = start + 1; end <= Math.min(words.length, start + 4); end++) {
+    for (let end = start + 1; end <= Math.min(words.length, start + MAX_PHRASE_WORDS); end++) {
       phrases.add(words.slice(start, end).join(' '));
     }
   }
