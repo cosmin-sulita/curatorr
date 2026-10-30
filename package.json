@@ -29,7 +29,7 @@
     "@types/node": "~22.13.17",
     "concurrently": "^10.0.5",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "allowScripts": {
     "esbuild": false
