@@ -18,12 +18,17 @@ const KINDS: Record<string, ReleaseNote['kind']> = { feat: 'new', fix: 'fix', pe
 /** A release's version, x.y.z. The app, the server's update check and the What's new popup all read it this way. */
 export const isVersion = (s: string) => /^\d+\.\d+\.\d+$/.test(s);
 
+/** A link to the commit after a bullet's subject: "([fd564ac](https://...))". */
+const COMMIT_LINK = /^\(\[[0-9a-f]+\]\([^)]*\)\)$/i;
+
 /**
- * A link to the commit after a bullet's subject: "([fd564ac](https://...))". The space before it is trimmed after,
- * since a leading `\s*` takes quadratic time on a long run of spaces.
+ * The text without the commit link at its end. The link is found from its last "([" and then checked whole, since
+ * searching for it with an unanchored regex takes quadratic time on some lines.
  */
-const COMMIT_LINK = /\(\[[0-9a-f]+\]\([^)]*\)\)$/i;
-const withoutLink = (s: string) => s.replace(COMMIT_LINK, '').trimEnd();
+function withoutLink(s: string): string {
+  const at = s.lastIndexOf('([');
+  return at >= 0 && COMMIT_LINK.test(s.slice(at)) ? s.slice(0, at).trimEnd() : s;
+}
 
 /**
  * Parses CHANGELOG.md into releases, newest first. Each bullet is a Conventional Commit subject; text before the first

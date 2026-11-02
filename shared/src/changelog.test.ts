@@ -81,12 +81,14 @@ describe('parseChangelog', () => {
     expect(releases[0]!.notes).toEqual([{ kind: 'fix', text: 'One' }]);
   });
 
-  it('reads a long run of spaces in linear time', () => {
+  it('reads lines that make a backtracking regex slow in linear time', () => {
     const spaces = ' '.repeat(100_000);
     const started = performance.now();
-    const [release] = parseChangelog(`## 0.5.0\n\n- fix:${spaces}one${spaces}([abc1238](https://x))\n- feat:${spaces}x\n`);
+    const [release] = parseChangelog(
+      `## 0.5.0\n\n- fix:${spaces}one${spaces}([abc1238](https://x))\n- feat:${spaces}x\n- fix: ${'([0]('.repeat(40_000)}\n`,
+    );
     expect(performance.now() - started).toBeLessThan(500);
-    expect(release!.notes).toEqual([
+    expect(release!.notes.slice(0, 2)).toEqual([
       { kind: 'fix', text: 'One' },
       { kind: 'new', text: 'X' },
     ]);
