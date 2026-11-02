@@ -2,6 +2,12 @@
 
 The commits in each version of Curatorr, newest first.
 
+## 1.5.1 (2026-11-02)
+
+- chore(deps): update glob and minimatch past their security fixes ([55af5e8](https://github.com/cosmin-sulita/curatorr/commit/55af5e8))
+- chore(deps): bump the npm group with 8 updates ([35d34a5](https://github.com/cosmin-sulita/curatorr/commit/35d34a5))
+- ci(deps): bump docker/login-action ([aa9aeea](https://github.com/cosmin-sulita/curatorr/commit/aa9aeea))
+
 ## 1.5.0 (2026-10-30)
 
 - chore(deps): update fast-uri, which Fastify parses addresses with ([067a6b2](https://github.com/cosmin-sulita/curatorr/commit/067a6b2))
