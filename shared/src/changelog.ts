@@ -18,8 +18,12 @@ const KINDS: Record<string, ReleaseNote['kind']> = { feat: 'new', fix: 'fix', pe
 /** A release's version, x.y.z. The app, the server's update check and the What's new popup all read it this way. */
 export const isVersion = (s: string) => /^\d+\.\d+\.\d+$/.test(s);
 
-/** A link to the commit after a bullet's subject: "([fd564ac](https://...))". */
-const COMMIT_LINK = /\s*\(\[[0-9a-f]+\]\([^)]*\)\)$/i;
+/**
+ * A link to the commit after a bullet's subject: "([fd564ac](https://...))". The space before it is trimmed after,
+ * since a leading `\s*` takes quadratic time on a long run of spaces.
+ */
+const COMMIT_LINK = /\(\[[0-9a-f]+\]\([^)]*\)\)$/i;
+const withoutLink = (s: string) => s.replace(COMMIT_LINK, '').trimEnd();
 
 /**
  * Parses CHANGELOG.md into releases, newest first. Each bullet is a Conventional Commit subject; text before the first
@@ -44,14 +48,15 @@ export function parseChangelog(md: string): Release[] {
     if (!current || !line || line.startsWith('#')) continue;
 
     if (line.startsWith('- ')) {
-      const subject = line.slice(2).replace(COMMIT_LINK, '');
-      const commit = /^(\w+)(?:\([^)]*\))?!?:\s*(.+)$/.exec(subject);
+      const subject = withoutLink(line.slice(2));
+      const commit = /^(\w+)(?:\([^)]*\))?!?:(.+)$/.exec(subject);
       const kind = commit && KINDS[commit[1]!.toLowerCase()];
-      bullet = kind ? { kind, text: commit[2]!.charAt(0).toUpperCase() + commit[2]!.slice(1) } : 'hidden';
+      const text = commit?.[2]!.trimStart() ?? '';
+      bullet = kind && text ? { kind, text: text.charAt(0).toUpperCase() + text.slice(1) } : 'hidden';
       if (bullet !== 'hidden') current.notes.push(bullet);
     } else if (bullet) {
       // A long bullet wrapped onto the next line.
-      if (bullet !== 'hidden') bullet.text = `${bullet.text} ${line.replace(COMMIT_LINK, '')}`;
+      if (bullet !== 'hidden') bullet.text = `${bullet.text} ${withoutLink(line)}`;
     } else {
       current.intro = current.intro ? `${current.intro} ${line}` : line;
     }
